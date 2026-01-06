@@ -1,0 +1,26 @@
+[main eeba0ad] M01-05: implement
+ 25 files changed, 4463 insertions(+), 3 deletions(-)
+ create mode 100644 .logs/M01-04.gitcommit.txt
+ create mode 100644 .logs/M01-05.codex.impl.last.md
+ create mode 100644 .logs/M01-05.codex.impl.raw.txt
+ create mode 100644 .plans/M01-05.md
+ create mode 100644 .t2/handoff/M01-05.md
+ create mode 100644 src/AI/Functions/AbstractFunction.php
+ create mode 100644 src/AI/Functions/BulkUpdate.php
+ create mode 100644 src/AI/Functions/ConfirmRefund.php
+ create mode 100644 src/AI/Functions/DraftEmail.php
+ create mode 100644 src/AI/Functions/FunctionSchema.php
+ create mode 100644 src/AI/Functions/GetCustomerProfile.php
+ create mode 100644 src/AI/Functions/GetSalesReport.php
+ create mode 100644 src/AI/Functions/PrepareBulkStatusUpdate.php
+ create mode 100644 src/AI/Functions/PrepareRefund.php
+ create mode 100644 src/AI/Functions/PrepareStatusUpdate.php
+ create mode 100644 src/AI/Functions/PrepareStockUpdate.php
+ create mode 100644 src/AI/Functions/SearchOrders.php
+ create mode 100644 src/AI/Functions/SearchProduct.php
+ create mode 100644 src/AI/Functions/SelectOrders.php
+ create mode 100644 src/AI/Model.php
+ create mode 100644 src/AI/OpenAIClient.php
+ create mode 100644 src/AI/Response.php
+ create mode 100644 src/AI/TokenCounter.php
+
