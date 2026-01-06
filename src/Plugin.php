@@ -73,6 +73,7 @@ class Plugin {
 		add_action( 'admin_menu', array( $this, 'register_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
+		add_filter( 'rest_post_dispatch', array( $this, 'format_rest_response' ), 10, 3 );
 	}
 
 	/**
@@ -183,6 +184,122 @@ class Plugin {
 			$controller = new Rest\SettingsController();
 			$controller->register_routes();
 		}
+
+		if ( class_exists( 'AgentWP\\Rest\\IntentController' ) ) {
+			$controller = new Rest\IntentController();
+			$controller->register_routes();
+		}
+
+		if ( class_exists( 'AgentWP\\Rest\\HealthController' ) ) {
+			$controller = new Rest\HealthController();
+			$controller->register_routes();
+		}
+	}
+
+	/**
+	 * Normalize REST responses and log requests.
+	 *
+	 * @param mixed           $result Response value.
+	 * @param \WP_REST_Server $server REST server instance.
+	 * @param \WP_REST_Request $request Request instance.
+	 * @return mixed
+	 */
+	public function format_rest_response( $result, $server, $request ) {
+		if ( ! $this->is_agentwp_route( $request ) ) {
+			return $result;
+		}
+
+		$status     = 200;
+		$error_code = '';
+
+		if ( is_wp_error( $result ) ) {
+			$error_code = $result->get_error_code();
+			$message    = $result->get_error_message();
+			$data       = $result->get_error_data();
+			$status     = ( is_array( $data ) && isset( $data['status'] ) ) ? intval( $data['status'] ) : 500;
+
+			$response = rest_ensure_response(
+				array(
+					'success' => false,
+					'data'    => array(),
+					'error'   => array(
+						'code'    => $error_code,
+						'message' => $message,
+					),
+				)
+			);
+
+			if ( $response instanceof \WP_REST_Response ) {
+				$response->set_status( $status );
+				if ( is_array( $data ) && isset( $data['retry_after'] ) ) {
+					$response->header( 'Retry-After', (string) intval( $data['retry_after'] ) );
+				}
+			}
+
+			$result = $response;
+		} elseif ( $result instanceof \WP_REST_Response ) {
+			$status = $result->get_status();
+			$body   = $result->get_data();
+
+			if ( is_array( $body ) && isset( $body['code'], $body['message'] ) ) {
+				$error_code = (string) $body['code'];
+				$message    = (string) $body['message'];
+				$data       = isset( $body['data'] ) && is_array( $body['data'] ) ? $body['data'] : array();
+				$status     = isset( $data['status'] ) ? intval( $data['status'] ) : $status;
+
+				$response = rest_ensure_response(
+					array(
+						'success' => false,
+						'data'    => array(),
+						'error'   => array(
+							'code'    => $error_code,
+							'message' => $message,
+						),
+					)
+				);
+
+				if ( $response instanceof \WP_REST_Response ) {
+					$response->set_status( $status );
+					if ( isset( $data['retry_after'] ) ) {
+						$response->header( 'Retry-After', (string) intval( $data['retry_after'] ) );
+					}
+				}
+
+				$result = $response;
+			} elseif ( is_array( $body ) && isset( $body['error']['code'] ) ) {
+				$error_code = (string) $body['error']['code'];
+			}
+		} else {
+			$result = rest_ensure_response(
+				array(
+					'success' => true,
+					'data'    => $result,
+				)
+			);
+
+			if ( $result instanceof \WP_REST_Response ) {
+				$status = $result->get_status();
+			}
+		}
+
+		if ( class_exists( 'AgentWP\\API\\RestController' ) ) {
+			API\RestController::log_request( $request, $status, $error_code );
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Check whether request targets AgentWP REST routes.
+	 *
+	 * @param \WP_REST_Request $request Request instance.
+	 * @return bool
+	 */
+	private function is_agentwp_route( $request ) {
+		$route = $request->get_route();
+		$route = is_string( $route ) ? $route : '';
+
+		return ( 0 === strpos( $route, '/' . API\RestController::REST_NAMESPACE ) );
 	}
 
 	/**

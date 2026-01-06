@@ -7,18 +7,13 @@
 
 namespace AgentWP\Rest;
 
+use AgentWP\API\RestController;
 use AgentWP\Plugin;
 use AgentWP\Security\Encryption;
 use WP_Error;
-use WP_REST_Request;
-use WP_REST_Response;
 use WP_REST_Server;
 
-class SettingsController {
-	/**
-	 * REST namespace.
-	 */
-	const REST_NAMESPACE = 'agentwp/v1';
+class SettingsController extends RestController {
 
 	/**
 	 * Register REST routes.
@@ -27,7 +22,7 @@ class SettingsController {
 	 */
 	public function register_routes() {
 		register_rest_route(
-			self::REST_NAMESPACE,
+			$this->namespace,
 			'/settings',
 			array(
 				array(
@@ -39,69 +34,29 @@ class SettingsController {
 					'methods'             => WP_REST_Server::EDITABLE,
 					'callback'            => array( $this, 'update_settings' ),
 					'permission_callback' => array( $this, 'permissions_check' ),
-					'args'                => array(
-						'model'     => array(
-							'type' => 'string',
-						),
-						'budget_limit' => array(
-							'type' => 'number',
-						),
-						'draft_ttl_minutes' => array(
-							'type' => 'integer',
-						),
-						'hotkey'    => array(
-							'type' => 'string',
-						),
-						'theme'     => array(
-							'type' => 'string',
-						),
-						'dark_mode' => array(
-							'type' => 'boolean',
-						),
-					),
 				),
 			)
 		);
 
 		register_rest_route(
-			self::REST_NAMESPACE,
+			$this->namespace,
 			'/settings/api-key',
 			array(
 				'methods'             => WP_REST_Server::EDITABLE,
 				'callback'            => array( $this, 'update_api_key' ),
 				'permission_callback' => array( $this, 'permissions_check' ),
-				'args'                => array(
-					'api_key' => array(
-						'type' => 'string',
-					),
-				),
 			)
 		);
 
 		register_rest_route(
-			self::REST_NAMESPACE,
+			$this->namespace,
 			'/usage',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( $this, 'get_usage' ),
 				'permission_callback' => array( $this, 'permissions_check' ),
-				'args'                => array(
-					'period' => array(
-						'type'    => 'string',
-						'default' => 'month',
-					),
-				),
 			)
 		);
-	}
-
-	/**
-	 * Permissions check for settings routes.
-	 *
-	 * @return bool
-	 */
-	public function permissions_check() {
-		return current_user_can( 'manage_woocommerce' );
 	}
 
 	/**
@@ -134,6 +89,11 @@ class SettingsController {
 	 * @return WP_REST_Response
 	 */
 	public function update_settings( $request ) {
+		$validation = $this->validate_request( $request, $this->get_settings_update_schema() );
+		if ( is_wp_error( $validation ) ) {
+			return $this->response_error( 'agentwp_invalid_request', $validation->get_error_message(), 400 );
+		}
+
 		$payload  = $request->get_json_params();
 		$payload  = is_array( $payload ) ? $payload : array();
 		$settings = $this->read_settings();
@@ -156,6 +116,11 @@ class SettingsController {
 	 * @return WP_REST_Response
 	 */
 	public function update_api_key( $request ) {
+		$validation = $this->validate_request( $request, $this->get_api_key_schema() );
+		if ( is_wp_error( $validation ) ) {
+			return $this->response_error( 'agentwp_invalid_request', $validation->get_error_message(), 400 );
+		}
+
 		$payload = $request->get_json_params();
 		$payload = is_array( $payload ) ? $payload : array();
 		$api_key = isset( $payload['api_key'] ) ? sanitize_text_field( wp_unslash( $payload['api_key'] ) ) : '';
@@ -206,6 +171,11 @@ class SettingsController {
 	 * @return WP_REST_Response
 	 */
 	public function get_usage( $request ) {
+		$validation = $this->validate_request( $request, $this->get_usage_schema(), 'query' );
+		if ( is_wp_error( $validation ) ) {
+			return $this->response_error( 'agentwp_invalid_request', $validation->get_error_message(), 400 );
+		}
+
 		$period = $request->get_param( 'period' );
 		$period = is_string( $period ) ? sanitize_text_field( $period ) : 'month';
 
@@ -361,47 +331,72 @@ class SettingsController {
 	}
 
 	/**
-	 * Format success response.
+	 * Schema for settings update payload.
 	 *
-	 * @param array $data Response data.
-	 * @return WP_REST_Response
+	 * @return array
 	 */
-	private function response_success( array $data ) {
-		$response = rest_ensure_response(
-			array(
-				'success' => true,
-				'data'    => $data,
-				'error'   => (object) array(),
-			)
+	private function get_settings_update_schema() {
+		return array(
+			'type'                 => 'object',
+			'additionalProperties' => false,
+			'properties'           => array(
+				'model'             => array(
+					'type' => 'string',
+					'enum' => array( 'gpt-4o', 'gpt-4o-mini' ),
+				),
+				'budget_limit'      => array(
+					'type'    => 'number',
+					'minimum' => 0,
+				),
+				'draft_ttl_minutes' => array(
+					'type'    => 'integer',
+					'minimum' => 0,
+				),
+				'hotkey'            => array(
+					'type' => 'string',
+				),
+				'theme'             => array(
+					'type' => 'string',
+					'enum' => array( 'light', 'dark' ),
+				),
+				'dark_mode'         => array(
+					'type' => 'boolean',
+				),
+			),
 		);
-
-		return $response;
 	}
 
 	/**
-	 * Format error response.
+	 * Schema for API key payload.
 	 *
-	 * @param string $code Error code.
-	 * @param string $message Error message.
-	 * @param int    $status HTTP status.
-	 * @return WP_REST_Response
+	 * @return array
 	 */
-	private function response_error( $code, $message, $status = 400 ) {
-		$response = rest_ensure_response(
-			array(
-				'success' => false,
-				'data'    => array(),
-				'error'   => array(
-					'code'    => $code,
-					'message' => $message,
+	private function get_api_key_schema() {
+		return array(
+			'type'                 => 'object',
+			'additionalProperties' => false,
+			'properties'           => array(
+				'api_key' => array(
+					'type' => 'string',
 				),
-			)
+			),
 		);
+	}
 
-		if ( $response instanceof WP_REST_Response ) {
-			$response->set_status( $status );
-		}
-
-		return $response;
+	/**
+	 * Schema for usage query params.
+	 *
+	 * @return array
+	 */
+	private function get_usage_schema() {
+		return array(
+			'type'       => 'object',
+			'properties'           => array(
+				'period' => array(
+					'type' => 'string',
+					'enum' => array( 'day', 'week', 'month' ),
+				),
+			),
+		);
 	}
 }

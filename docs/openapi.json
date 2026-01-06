@@ -1,0 +1,503 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AgentWP REST API",
+    "version": "0.1.0",
+    "description": "OpenAPI specification for AgentWP REST endpoints."
+  },
+  "servers": [
+    {
+      "url": "/wp-json"
+    }
+  ],
+  "paths": {
+    "/agentwp/v1/intent": {
+      "post": {
+        "summary": "Submit an intent",
+        "security": [
+          {
+            "nonceAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Intent accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agentwp/v1/settings": {
+      "get": {
+        "summary": "Get settings",
+        "security": [
+          {
+            "nonceAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Settings payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Update settings",
+        "security": [
+          {
+            "nonceAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agentwp/v1/settings/api-key": {
+      "post": {
+        "summary": "Store OpenAI API key",
+        "security": [
+          {
+            "nonceAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "API key stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agentwp/v1/usage": {
+      "get": {
+        "summary": "Get usage stats",
+        "security": [
+          {
+            "nonceAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usage stats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid period",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agentwp/v1/health": {
+      "get": {
+        "summary": "Health check",
+        "security": [
+          {
+            "nonceAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Health status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "nonceAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-WP-Nonce"
+      }
+    },
+    "schemas": {
+      "StandardResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {},
+          "error": {
+            "$ref": "#/components/schemas/ErrorObject"
+          }
+        }
+      },
+      "ErrorObject": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StandardResponse"
+          }
+        ]
+      },
+      "Settings": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "budget_limit": {
+            "type": "number"
+          },
+          "draft_ttl_minutes": {
+            "type": "integer"
+          },
+          "hotkey": {
+            "type": "string"
+          },
+          "theme": {
+            "type": "string"
+          }
+        }
+      },
+      "SettingsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "settings": {
+                "$ref": "#/components/schemas/Settings"
+              },
+              "api_key_last4": {
+                "type": "string"
+              },
+              "has_api_key": {
+                "type": "boolean"
+              },
+              "api_key_status": {
+                "type": "string"
+              },
+              "updated": {
+                "type": "boolean"
+              },
+              "period": {
+                "type": "string"
+              },
+              "usage": {
+                "$ref": "#/components/schemas/Usage"
+              }
+            }
+          }
+        }
+      },
+      "SettingsUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "enum": [
+              "gpt-4o",
+              "gpt-4o-mini"
+            ]
+          },
+          "budget_limit": {
+            "type": "number",
+            "minimum": 0
+          },
+          "draft_ttl_minutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hotkey": {
+            "type": "string"
+          },
+          "theme": {
+            "type": "string",
+            "enum": [
+              "light",
+              "dark"
+            ]
+          },
+          "dark_mode": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiKeyRequest": {
+        "type": "object",
+        "properties": {
+          "api_key": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiKeyResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "stored": {
+                "type": "boolean"
+              },
+              "last4": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Usage": {
+        "type": "object",
+        "properties": {
+          "total_commands_month": {
+            "type": "integer"
+          },
+          "estimated_cost": {
+            "type": "number"
+          },
+          "last_sync": {
+            "type": "string"
+          }
+        }
+      },
+      "UsageResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "period": {
+                "type": "string"
+              },
+              "usage": {
+                "$ref": "#/components/schemas/Usage"
+              }
+            }
+          }
+        }
+      },
+      "IntentRequest": {
+        "type": "object",
+        "required": [
+          "prompt"
+        ],
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "context": {
+            "type": "object"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "IntentResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "intent_id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string"
+              },
+              "time": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
