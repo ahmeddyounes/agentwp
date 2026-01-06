@@ -10,8 +10,10 @@ namespace AgentWP;
 class Plugin {
 	const OPTION_SETTINGS     = 'agentwp_settings';
 	const OPTION_API_KEY      = 'agentwp_api_key';
+	const OPTION_API_KEY_LAST4 = 'agentwp_api_key_last4';
 	const OPTION_BUDGET_LIMIT = 'agentwp_budget_limit';
 	const OPTION_DRAFT_TTL    = 'agentwp_draft_ttl_minutes';
+	const OPTION_USAGE_STATS  = 'agentwp_usage_stats';
 	const TRANSIENT_PREFIX    = 'agentwp_';
 
 	/**
@@ -43,16 +45,15 @@ class Plugin {
 	 * @return void
 	 */
 	public static function activate() {
-		$defaults = array(
-			'model'             => 'gpt-4o-mini',
-			'budget_limit'      => 0,
-			'draft_ttl_minutes' => 10,
-		);
+		$defaults      = self::get_default_settings();
+		$usage_default = self::get_default_usage_stats();
 
 		add_option( self::OPTION_SETTINGS, $defaults, '', false );
+		add_option( self::OPTION_USAGE_STATS, $usage_default, '', false );
 		add_option( self::OPTION_BUDGET_LIMIT, 0, '', false );
 		add_option( self::OPTION_DRAFT_TTL, 10, '', false );
 		add_option( self::OPTION_API_KEY, '', '', false );
+		add_option( self::OPTION_API_KEY_LAST4, '', '', false );
 	}
 
 	/**
@@ -71,6 +72,7 @@ class Plugin {
 		add_action( 'init', array( $this, 'load_textdomain' ) );
 		add_action( 'admin_menu', array( $this, 'register_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
+		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 	}
 
 	/**
@@ -142,9 +144,22 @@ class Plugin {
 			wp_enqueue_script(
 				'agentwp-admin',
 				AGENTWP_PLUGIN_URL . 'assets/agentwp-admin.js',
-				array( 'jquery' ),
+				array( 'wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n' ),
 				filemtime( $script_path ),
 				true
+			);
+
+			wp_enqueue_style( 'wp-components' );
+
+			wp_add_inline_script(
+				'agentwp-admin',
+				'window.agentwpSettings = ' . wp_json_encode(
+					array(
+						'root'  => esc_url_raw( rest_url() ),
+						'nonce' => wp_create_nonce( 'wp_rest' ),
+					)
+				),
+				'before'
 			);
 		}
 
@@ -156,6 +171,46 @@ class Plugin {
 				filemtime( $style_path )
 			);
 		}
+	}
+
+	/**
+	 * Register REST routes.
+	 *
+	 * @return void
+	 */
+	public function register_rest_routes() {
+		if ( class_exists( 'AgentWP\\Rest\\SettingsController' ) ) {
+			$controller = new Rest\SettingsController();
+			$controller->register_routes();
+		}
+	}
+
+	/**
+	 * Default settings values.
+	 *
+	 * @return array
+	 */
+	public static function get_default_settings() {
+		return array(
+			'model'             => 'gpt-4o-mini',
+			'budget_limit'      => 0,
+			'draft_ttl_minutes' => 10,
+			'hotkey'            => 'Cmd+K / Ctrl+K',
+			'theme'             => 'light',
+		);
+	}
+
+	/**
+	 * Default usage stats values.
+	 *
+	 * @return array
+	 */
+	public static function get_default_usage_stats() {
+		return array(
+			'total_commands_month' => 0,
+			'estimated_cost'       => 0,
+			'last_sync'            => '',
+		);
 	}
 
 	/**

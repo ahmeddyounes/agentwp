@@ -1,0 +1,18 @@
+[main b8f033b] M01-01: implement
+ 16 files changed, 8870 insertions(+), 2 deletions(-)
+ create mode 100644 .logs/M00-03.gitcommit.txt
+ create mode 100644 .logs/M01-01.codex.impl.last.md
+ create mode 100644 .logs/M01-01.codex.impl.raw.txt
+ create mode 100644 .plans/M01-01.md
+ create mode 100644 .t2/handoff/M01-01.md
+ create mode 100644 agentwp.php
+ create mode 100644 assets/agentwp-admin.css
+ create mode 100644 assets/agentwp-admin.js
+ create mode 100644 assets/index.php
+ create mode 100644 composer.json
+ create mode 100644 includes/index.php
+ create mode 100644 languages/index.php
+ create mode 100644 src/Plugin.php
+ create mode 100644 src/index.php
+ create mode 100644 uninstall.php
+

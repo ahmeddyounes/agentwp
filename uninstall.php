@@ -13,14 +13,18 @@ global $wpdb;
 
 delete_option( 'agentwp_settings' );
 delete_option( 'agentwp_api_key' );
+delete_option( 'agentwp_api_key_last4' );
 delete_option( 'agentwp_budget_limit' );
 delete_option( 'agentwp_draft_ttl_minutes' );
+delete_option( 'agentwp_usage_stats' );
 
 if ( is_multisite() ) {
 	delete_site_option( 'agentwp_settings' );
 	delete_site_option( 'agentwp_api_key' );
+	delete_site_option( 'agentwp_api_key_last4' );
 	delete_site_option( 'agentwp_budget_limit' );
 	delete_site_option( 'agentwp_draft_ttl_minutes' );
+	delete_site_option( 'agentwp_usage_stats' );
 }
 
 $transient_like = $wpdb->esc_like( 'agentwp_' ) . '%';
