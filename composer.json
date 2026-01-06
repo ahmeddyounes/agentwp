@@ -9,6 +9,7 @@
     }
   },
   "require": {
-    "php": ">=7.4"
+    "php": ">=7.4",
+    "yethee/tiktoken": "^0.1.2"
   }
 }

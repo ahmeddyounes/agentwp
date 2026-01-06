@@ -1,0 +1,12 @@
+[main 72e5a27] M01-04: implement
+ 12 files changed, 37671 insertions(+), 83 deletions(-)
+ create mode 100644 .logs/M01-03.gitcommit.txt
+ create mode 100644 .logs/M01-04.codex.impl.last.md
+ create mode 100644 .logs/M01-04.codex.impl.raw.txt
+ create mode 100644 .plans/M01-04.md
+ create mode 100644 .t2/handoff/M01-04.md
+ create mode 100644 docs/openapi.json
+ create mode 100644 src/API/RestController.php
+ create mode 100644 src/Rest/HealthController.php
+ create mode 100644 src/Rest/IntentController.php
+
