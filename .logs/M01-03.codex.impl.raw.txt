@@ -1,0 +1,6662 @@
+Status: DONE
+
+Summary of changes:
+- Added AES-256-CTR encryption/decryption with legacy AES-256-GCM support and rotation logic in `src/Security/Encryption.php`.
+- Switched API key storage to the new encryption class and added automatic rotation on settings fetch in `src/Rest/SettingsController.php`.
+- Updated encryption details in `docs/ARCHITECTURE.md` to match AES-256-CTR behavior.
+
+How to verify (exact commands):
+- No verification commands provided.
+
+Risks / follow-ups:
+- If WordPress salts rotate, re-encryption only works when prior materials are supplied via the `agentwp_encryption_rotation_materials` filter; otherwise the key must be re-entered.
+- Saving keys depends on OpenSSL being available; failures return a generic encryption error.
+
+OpenAI Codex v0.77.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019b949b-76fe-7aa2-95ac-6ff28f540006
+--------
+user
+You are implementing task M01-03 in this git repository.
+
+1) Read the spec: .plans/M01-03.md
+2) Read handoff/context: .t2/handoff/M01-03.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+
+thinking
+**Planning to search with ripgrep**
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 42ms:
+agentwp.php
+assets
+composer.json
+docker
+docker-compose.yml
+docs
+includes
+languages
+react
+README.md
+scripts
+setup.sh
+src
+tasks.csv
+uninstall.php
+
+thinking
+**Checking for .plans and .t2 files**
+exec
+/bin/zsh -lc 'ls -a' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 43ms:
+.
+..
+.env.example
+.git
+.github
+.idea
+.logs
+.plans
+.t2
+agentwp.php
+assets
+composer.json
+docker
+docker-compose.yml
+docs
+includes
+languages
+react
+README.md
+scripts
+exec
+/bin/zsh -lc 'cat .plans/M01-03.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 54ms:
+# M01-03 — API Key Encryption System
+
+Implement secure API key storage in PHP: 1) Create AgentWP\Security\Encryption class using AES-256-CTR with WordPress salts (LOGGED_IN_KEY and LOGGED_IN_SALT) as encryption materials. 2) Methods: encrypt(string $plaintext): string, decrypt(string $ciphertext): string, isEncrypted(string $data): bool. 3) Store encrypted key in wp_options table under 'agentwp_api_key'. 4) Create REST endpoint POST /agentwp/v1/settings/api-key that validates key format (sk-*), tests against OpenAI /v1/models endpoint, encrypts and stores on success. 5) Never log or expose plaintext keys. 6) Add key rotation support (re-encrypt with new salts). Acceptance Criteria: Stored key is unreadable without WordPress salts, key validation catches invalid/expired keys, encryption/decryption round-trips correctly, no plaintext keys in logs or database queries.
+exec
+/bin/zsh -lc 'cat .t2/handoff/M01-03.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 41ms:
+# Handoff: M01-03
+
+Created: 2026-01-06T18:39:35.124408Z
+
+Spec: .plans/M01-03.md
+
+thinking
+**Inspecting codebase for settings and keys**
+exec
+/bin/zsh -lc 'rg -n "api key|api_key|api-key|apikey" -S src includes react' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 58ms:
+src/Rest/SettingsController.php:67:			'/settings/api-key',
+src/Rest/SettingsController.php:70:				'callback'            => array( $this, 'update_api_key' ),
+src/Rest/SettingsController.php:73:					'api_key' => array(
+src/Rest/SettingsController.php:114:		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+src/Rest/SettingsController.php:115:		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+src/Rest/SettingsController.php:120:				'api_key_last4'  => $last4 ? $last4 : '',
+src/Rest/SettingsController.php:121:				'has_api_key'    => $has_key,
+src/Rest/SettingsController.php:122:				'api_key_status' => $has_key ? 'stored' : 'missing',
+src/Rest/SettingsController.php:150:	 * Validate and store API key.
+src/Rest/SettingsController.php:155:	public function update_api_key( $request ) {
+src/Rest/SettingsController.php:158:		$api_key = isset( $payload['api_key'] ) ? sanitize_text_field( wp_unslash( $payload['api_key'] ) ) : '';
+src/Rest/SettingsController.php:160:		if ( '' === $api_key ) {
+src/Rest/SettingsController.php:161:			delete_option( Plugin::OPTION_API_KEY );
+src/Rest/SettingsController.php:162:			delete_option( Plugin::OPTION_API_KEY_LAST4 );
+src/Rest/SettingsController.php:172:		if ( 0 !== strpos( $api_key, 'sk-' ) ) {
+src/Rest/SettingsController.php:173:			return $this->response_error( 'agentwp_invalid_key', __( 'API key format looks invalid.', 'agentwp' ), 400 );
+src/Rest/SettingsController.php:176:		$validation = $this->validate_openai_api_key( $api_key );
+src/Rest/SettingsController.php:181:		$encrypted = $this->encrypt_api_key( $api_key );
+src/Rest/SettingsController.php:186:		update_option( Plugin::OPTION_API_KEY, $encrypted, false );
+src/Rest/SettingsController.php:188:		$last4 = substr( $api_key, -4 );
+
+thinking
+**Inspecting encryption in settings controller**
+exec
+/bin/zsh -lc "sed -n '1,220p' src/Rest/SettingsController.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+<?php
+/**
+ * Settings REST controller.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP\Rest;
+
+use AgentWP\Plugin;
+use WP_Error;
+use WP_REST_Request;
+use WP_REST_Response;
+use WP_REST_Server;
+
+class SettingsController {
+	/**
+	 * REST namespace.
+	 */
+	const REST_NAMESPACE = 'agentwp/v1';
+exec
+/bin/zsh -lc "sed -n '220,520p' src/Rest/SettingsController.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+
+		return $this->response_success(
+			array(
+				'period' => $period,
+				'usage'  => $usage,
+			)
+		);
+	}
+
+	/**
+	 * Read stored settings with defaults.
+	 *
+	 * @return array
+	 */
+	private function read_settings() {
+		$settings = get_option( Plugin::OPTION_SETTINGS, array() );
+		$settings = is_array( $settings ) ? $settings : array();
+
+		return wp_parse_args( $settings, Plugin::get_default_settings() );
+	}
+
+thinking
+**Designing new AES-256-CTR encryption class**
+exec
+/bin/zsh -lc 'rg -n "OPTION_API_KEY" -S src includes' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 48ms:
+src/Plugin.php:12:	const OPTION_API_KEY      = 'agentwp_api_key';
+src/Plugin.php:13:	const OPTION_API_KEY_LAST4 = 'agentwp_api_key_last4';
+src/Plugin.php:55:		add_option( self::OPTION_API_KEY, '', '', false );
+src/Plugin.php:56:		add_option( self::OPTION_API_KEY_LAST4, '', '', false );
+src/Rest/SettingsController.php:114:		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+src/Rest/SettingsController.php:115:		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+src/Rest/SettingsController.php:161:			delete_option( Plugin::OPTION_API_KEY );
+src/Rest/SettingsController.php:162:			delete_option( Plugin::OPTION_API_KEY_LAST4 );
+src/Rest/SettingsController.php:186:		update_option( Plugin::OPTION_API_KEY, $encrypted, false );
+src/Rest/SettingsController.php:189:		update_option( Plugin::OPTION_API_KEY_LAST4, $last4, false );
+
+thinking
+**Searching for OpenAI usage**
+exec
+/bin/zsh -lc 'rg -n "OpenAI|openai|api_key" -S src includes' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 57ms:
+src/Plugin.php:12:	const OPTION_API_KEY      = 'agentwp_api_key';
+src/Plugin.php:13:	const OPTION_API_KEY_LAST4 = 'agentwp_api_key_last4';
+src/Rest/SettingsController.php:70:				'callback'            => array( $this, 'update_api_key' ),
+src/Rest/SettingsController.php:73:					'api_key' => array(
+src/Rest/SettingsController.php:120:				'api_key_last4'  => $last4 ? $last4 : '',
+src/Rest/SettingsController.php:121:				'has_api_key'    => $has_key,
+src/Rest/SettingsController.php:122:				'api_key_status' => $has_key ? 'stored' : 'missing',
+src/Rest/SettingsController.php:155:	public function update_api_key( $request ) {
+src/Rest/SettingsController.php:158:		$api_key = isset( $payload['api_key'] ) ? sanitize_text_field( wp_unslash( $payload['api_key'] ) ) : '';
+src/Rest/SettingsController.php:160:		if ( '' === $api_key ) {
+src/Rest/SettingsController.php:172:		if ( 0 !== strpos( $api_key, 'sk-' ) ) {
+src/Rest/SettingsController.php:176:		$validation = $this->validate_openai_api_key( $api_key );
+src/Rest/SettingsController.php:181:		$encrypted = $this->encrypt_api_key( $api_key );
+src/Rest/SettingsController.php:188:		$last4 = substr( $api_key, -4 );
+src/Rest/SettingsController.php:293:	 * Validate API key against OpenAI.
+src/Rest/SettingsController.php:295:	 * @param string $api_key API key.
+src/Rest/SettingsController.php:298:	private function validate_openai_api_key( $api_key ) {
+src/Rest/SettingsController.php:300:			'https://api.openai.com/v1/models',
+src/Rest/SettingsController.php:305:					'Authorization' => 'Bearer ' . $api_key,
+src/Rest/SettingsController.php:311:			return new WP_Error( 'agentwp_openai_unreachable', __( 'OpenAI API is unreachable.', 'agentwp' ) );
+
+thinking
+**Planning new Encryption class and key rotation**
+
+I’m thinking through implementing a new Encryption class with encrypt, decrypt, and isEncrypted methods, plus key rotation support. I want to handle decrypting old keys encrypted with AES-256-GCM and migrating them to AES-256-CTR with salts, ensuring keys remain unreadable without salts and we can detect invalid or expired keys. I'll check for related code or plugins that might already handle key retrieval or encryption logic to guide the implementation.
+exec
+/bin/zsh -lc 'rg -n "Encryption" -S src includes' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 58ms:
+src/Rest/SettingsController.php:330:			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+
+thinking
+**Preparing to add encryption class**
+exec
+/bin/zsh -lc 'cat composer.json' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+{
+  "name": "agentwp/agentwp",
+  "description": "AgentWP WordPress plugin.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "autoload": {
+    "psr-4": {
+      "AgentWP\\": "src/"
+    }
+  },
+  "require": {
+    "php": ">=7.4"
+  }
+}
+
+thinking
+**Designing encryption and key rotation**
+
+I’m working through how to create a new Encryption class under the AgentWP\Security namespace and update SettingsController to use it for encrypting API keys. The tricky part is supporting key rotation—since salts are tied to WordPress config, if they change, decrypting old keys becomes impossible unless the user re-enters plaintext. I’m considering ways to detect older encryption schemes or salt versions and gracefully migrate stored keys by decrypting and re-encrypting when possible. I’m planning to carefully handle the salt dependency and may explore adding version markers or fallback methods to support this securely. Let’s explore the docs or code for any encryption-related clues next.
+exec
+/bin/zsh -lc 'rg -n "encryption|encrypt" -S docs src includes' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+docs/agentwp-prd.md:81:The recommended approach uses WordPress's built-in security salts for AES-256-CTR encryption. Never store plaintext keys. The encryption class should use `LOGGED_IN_KEY` and `LOGGED_IN_SALT` constants from wp-config.php as encryption materials. Create server-side REST endpoints as middleware—**never expose API keys to client-side JavaScript**. Validate keys on save by testing with a simple API call.
+docs/agentwp-prd.md:137:Business data is **not used for model training by default** with API access. OpenAI maintains SOC 2 Type 2 certification with AES-256 encryption at rest and TLS in transit.
+docs/agentwp-prd.md:194:**Technical requirements:** Implement OpenAI Function Calling with strict mode, AES-256 encrypted key storage using WordPress salts, Action Scheduler for background processing, and React admin via @wordpress/scripts. Plan for streaming responses to handle long-running AI tasks without timeouts.
+src/Rest/SettingsController.php:181:		$encrypted = $this->encrypt_api_key( $api_key );
+src/Rest/SettingsController.php:182:		if ( is_wp_error( $encrypted ) ) {
+src/Rest/SettingsController.php:183:			return $this->response_error( $encrypted->get_error_code(), $encrypted->get_error_message(), 500 );
+src/Rest/SettingsController.php:186:		update_option( Plugin::OPTION_API_KEY, $encrypted, false );
+src/Rest/SettingsController.php:323:	 * Encrypt API key at rest.
+src/Rest/SettingsController.php:328:	private function encrypt_api_key( $api_key ) {
+src/Rest/SettingsController.php:329:		if ( ! function_exists( 'openssl_encrypt' ) ) {
+src/Rest/SettingsController.php:330:			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+src/Rest/SettingsController.php:336:			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+src/Rest/SettingsController.php:339:		$key = $this->get_encryption_key();
+src/Rest/SettingsController.php:342:		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+src/Rest/SettingsController.php:344:			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+src/Rest/SettingsController.php:351:	 * Derive encryption key from WordPress salts.
+src/Rest/SettingsController.php:355:	private function get_encryption_key() {
+docs/ARCHITECTURE.md:5:AgentWP is a WordPress plugin that provides a React-powered admin UI (Command Deck) and a PHP backend that integrates with WooCommerce and the OpenAI API. The plugin exposes REST endpoints under `/wp-json/agentwp/v1` and uses standard WooCommerce tables plus `wp_options` for settings and encrypted BYOK storage.
+docs/ARCHITECTURE.md:47:AgentWP uses WooCommerce and WordPress core tables plus `wp_options` for settings and encrypted API keys. Transients are stored in `wp_options` via the WordPress transient API.
+docs/ARCHITECTURE.md:121:- Settings and encrypted BYOK are stored in `wp_options`.
+
+thinking
+**Checking encryption details in docs**
+exec
+/bin/zsh -lc "sed -n '60,120p' docs/agentwp-prd.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+The Function Calling API requires careful design. Enable **strict mode** (`strict: true`) for reliable JSON schema adherence—this ensures the AI generates properly structured responses every time. Key principles from OpenAI's guidelines:
+
+- Design functions that pass the "intern test"—if the function name and description alone don't make usage obvious, refine them
+- Combine functions that are always called sequentially into single operations
+- Use enums to prevent invalid states (avoid boolean pairs that allow conflicting values)
+- Assume multiple tool calls per response; the model may return zero, one, or many
+
+For error handling, when tool execution fails, **return the error to the model** rather than throwing exceptions. The model adapts and can suggest alternatives or request different inputs.
+
+**Rate limiting requires exponential backoff with jitter:**
+
+```
+Initial delay: 1 second
+Max retries: 10
+Backoff multiplier: 2x
+Cap: 60 seconds
+Jitter: Random 0–1 second added to prevent thundering herd
+```
+
+**Secure API key storage (critical for BYOK):**
+
+thinking
+**Checking encryption documentation**
+exec
+/bin/zsh -lc "sed -n '340,420p' docs/ARCHITECTURE.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 47ms:
+{
+  "success": true,
+  "data": {
+    "cancelled": true
+  }
+}
+```
+
+### Common API Rules
+- Authentication: `current_user_can('manage_woocommerce')` required.
+- Rate limiting: 60 requests/minute per user (429 with `Retry-After`).
+- Validation: JSON schema enforced for all POST bodies.
+- Logging: request metadata stored in transients (24h TTL), no PII.
+
+## 4) Security Architecture (BYOK + AES-256)
+
+AgentWP never stores or logs plaintext API keys. Keys are encrypted at rest using AES-256 and WordPress salts as key material.
+
+```mermaid
+flowchart TB
+
+thinking
+**Reviewing encryption specs and controller structure**
+exec
+/bin/zsh -lc 'ls src/Rest' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 28ms:
+SettingsController.php
+
+thinking
+**Inspecting project structure for encryption**
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Plugin.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 53ms:
+<?php
+/**
+ * Core plugin bootstrap.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP;
+
+class Plugin {
+	const OPTION_SETTINGS     = 'agentwp_settings';
+	const OPTION_API_KEY      = 'agentwp_api_key';
+	const OPTION_API_KEY_LAST4 = 'agentwp_api_key_last4';
+	const OPTION_BUDGET_LIMIT = 'agentwp_budget_limit';
+	const OPTION_DRAFT_TTL    = 'agentwp_draft_ttl_minutes';
+	const OPTION_USAGE_STATS  = 'agentwp_usage_stats';
+	const TRANSIENT_PREFIX    = 'agentwp_';
+
+	/**
+	 * @var Plugin|null
+
+
+thinking
+**Designing encryption and key rotation**
+thinking
+**Planning key rotation integration**
+
+I’m mapping out how to support key rotation by letting the encryption class try decrypting with current and fallback salts from a filter, so it can detect when stored keys need re-encryption with new salts. Then, rotation logic can live in the SettingsController or plugin init, which checks if the stored key uses old salts or format and, if decryptable, transparently re-encrypts it with current salts to keep things seamless. This approach respects the spec’s rotation requirement without exposing plaintext or changing the core API.
+exec
+/bin/zsh -lc 'rg -n "api_key_status|has_api_key|api_key_last4" -S react src' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 61ms:
+src/Rest/SettingsController.php:114:		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+src/Rest/SettingsController.php:120:				'api_key_last4'  => $last4 ? $last4 : '',
+src/Rest/SettingsController.php:121:				'has_api_key'    => $has_key,
+src/Rest/SettingsController.php:122:				'api_key_status' => $has_key ? 'stored' : 'missing',
+src/Rest/SettingsController.php:162:			delete_option( Plugin::OPTION_API_KEY_LAST4 );
+src/Rest/SettingsController.php:189:		update_option( Plugin::OPTION_API_KEY_LAST4, $last4, false );
+src/Plugin.php:13:	const OPTION_API_KEY_LAST4 = 'agentwp_api_key_last4';
+src/Plugin.php:56:		add_option( self::OPTION_API_KEY_LAST4, '', '', false );
+
+
+thinking
+**Designing encryption and key rotation**
+thinking
+**Detailing encryption and decryption processes with key handling**
+
+I'll outline how encryption uses AES-256-CTR with keys derived from WordPress salts, handling both new and legacy formats during decryption. I’m shaping key derivation, payload parsing, and rotation methods, plus how the SettingsController integrates seamless key rotation when loading settings, ensuring smooth migration without exposing plaintext or breaking stored keys.
+exec
+/bin/zsh -lc 'rg -n "GCM|CTR" docs/ARCHITECTURE.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 44ms:
+362:  ENC[Encryption Service: AES-256-GCM]
+375:- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
+
+thinking
+**Designing new encryption class and refactoring**
+
+I’m working through implementing a new encryption class using AES-256-CTR with methods for encrypt, decrypt, key rotation, and payload parsing, ensuring compatibility with legacy data and error handling. I’m also planning to update the SettingsController to use this class, removing old encryption methods, handling API key rotation smoothly, and considering how to manage errors without complicating the interface. I’m balancing keeping specs with possible improvements around error clarity and logging while preparing to add the new class file and modify the controller accordingly.
+file update
+A /Users/ahmedyounis/Documents/Projects/agentwp/src/Security/Encryption.php
+<?php
+/**
+ * Encryption helper for API keys.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP\Security;
+
+class Encryption {
+	const VERSION = 'awp1';
+	const DELIMITER = ':';
+	const CIPHER = 'aes-256-ctr';
+	const LEGACY_CIPHER = 'aes-256-gcm';
+	const LEGACY_NONCE_LENGTH = 12;
+	const LEGACY_TAG_LENGTH = 16;
+
+	/**
+	 * Encrypt plaintext.
+	 *
+	 * @param string $plaintext Plaintext value.
+	 * @return string
+	 */
+	public function encrypt( string $plaintext ): string {
+		if ( '' === $plaintext ) {
+			return '';
+		}
+
+		if ( ! function_exists( 'openssl_encrypt' ) ) {
+			return '';
+		}
+
+		$material = $this->get_key_material();
+		if ( '' === $material ) {
+			return '';
+		}
+
+		$iv_length = $this->get_iv_length();
+		if ( $iv_length <= 0 ) {
+			return '';
+		}
+
+		try {
+			$iv = random_bytes( $iv_length );
+		} catch ( \Exception $exception ) {
+			return '';
+		}
+
+		$key = $this->derive_key( $material );
+
+		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
+		if ( false === $ciphertext ) {
+			return '';
+		}
+
+		$fingerprint = $this->get_fingerprint( $material );
+
+		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
+	}
+
+	/**
+	 * Decrypt ciphertext.
+	 *
+	 * @param string $ciphertext Ciphertext value.
+	 * @return string
+	 */
+	public function decrypt( string $ciphertext ): string {
+		if ( '' === $ciphertext ) {
+			return '';
+		}
+
+		if ( ! function_exists( 'openssl_decrypt' ) ) {
+			return '';
+		}
+
+		$payload = $this->parse_payload( $ciphertext );
+		if ( null !== $payload ) {
+			$materials = $this->get_key_material_candidates();
+			foreach ( $materials as $material ) {
+				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
+					continue;
+				}
+
+				$key       = $this->derive_key( $material );
+				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
+
+				if ( false !== $plaintext ) {
+					return $plaintext;
+				}
+			}
+
+			return '';
+		}
+
+		$legacy = $this->parse_legacy_payload( $ciphertext );
+		if ( null === $legacy ) {
+			return '';
+		}
+
+		$materials = $this->get_key_material_candidates();
+		foreach ( $materials as $material ) {
+			$key       = $this->derive_key( $material );
+			$plaintext = openssl_decrypt(
+				$legacy['ciphertext'],
+				self::LEGACY_CIPHER,
+				$key,
+				OPENSSL_RAW_DATA,
+				$legacy['nonce'],
+				$legacy['tag']
+			);
+
+			if ( false !== $plaintext ) {
+				return $plaintext;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Check if a value is encrypted.
+	 *
+	 * @param string $data Input value.
+	 * @return bool
+	 */
+	public function isEncrypted( string $data ): bool {
+		if ( '' === $data ) {
+			return false;
+		}
+
+		if ( null !== $this->parse_payload( $data ) ) {
+			return true;
+		}
+
+		return null !== $this->parse_legacy_payload( $data );
+	}
+
+	/**
+	 * Re-encrypt ciphertext with current salts when possible.
+	 *
+	 * @param string $ciphertext Ciphertext value.
+	 * @return string
+	 */
+	public function rotate( string $ciphertext ): string {
+		if ( '' === $ciphertext ) {
+			return '';
+		}
+
+		if ( $this->is_current_encryption( $ciphertext ) ) {
+			return $ciphertext;
+		}
+
+		$plaintext = $this->decrypt( $ciphertext );
+		if ( '' === $plaintext ) {
+			return '';
+		}
+
+		return $this->encrypt( $plaintext );
+	}
+
+	/**
+	 * Parse current payload format.
+	 *
+	 * @param string $data Payload.
+	 * @return array|null
+	 */
+	private function parse_payload( string $data ) {
+		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
+			return null;
+		}
+
+		$parts = explode( self::DELIMITER, $data, 3 );
+		if ( 3 !== count( $parts ) ) {
+			return null;
+		}
+
+		list( $version, $fingerprint, $payload ) = $parts;
+		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
+			return null;
+		}
+
+		$decoded = base64_decode( $payload, true );
+		if ( false === $decoded ) {
+			return null;
+		}
+
+		$iv_length = $this->get_iv_length();
+		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
+			return null;
+		}
+
+		return array(
+			'fingerprint' => $fingerprint,
+			'iv'          => substr( $decoded, 0, $iv_length ),
+			'ciphertext'  => substr( $decoded, $iv_length ),
+		);
+	}
+
+	/**
+	 * Parse legacy payload format (AES-256-GCM).
+	 *
+	 * @param string $data Payload.
+	 * @return array|null
+	 */
+	private function parse_legacy_payload( string $data ) {
+		$decoded = base64_decode( $data, true );
+		if ( false === $decoded ) {
+			return null;
+		}
+
+		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
+		if ( strlen( $decoded ) < $min_length ) {
+			return null;
+		}
+
+		return array(
+			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
+			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
+			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
+		);
+	}
+
+	/**
+	 * Determine if ciphertext is encrypted with current salts.
+	 *
+	 * @param string $ciphertext Ciphertext value.
+	 * @return bool
+	 */
+	private function is_current_encryption( string $ciphertext ): bool {
+		$payload = $this->parse_payload( $ciphertext );
+		if ( null === $payload ) {
+			return false;
+		}
+
+		$material = $this->get_key_material();
+		if ( '' === $material ) {
+			return false;
+		}
+
+		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
+	}
+
+	/**
+	 * Collect key material candidates for rotation.
+	 *
+	 * @return array
+	 */
+	private function get_key_material_candidates(): array {
+		$materials = array();
+		$current   = $this->get_key_material();
+
+		if ( '' !== $current ) {
+			$materials[] = $current;
+		}
+
+		if ( function_exists( 'apply_filters' ) ) {
+			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
+			if ( is_array( $rotations ) ) {
+				foreach ( $rotations as $rotation ) {
+					if ( is_string( $rotation ) && '' !== $rotation ) {
+						$materials[] = $rotation;
+					}
+				}
+			}
+		}
+
+		return array_values( array_unique( $materials ) );
+	}
+
+	/**
+	 * Derive key material.
+	 *
+	 * @return string
+	 */
+	private function get_key_material(): string {
+		$material = '';
+
+		if ( defined( 'LOGGED_IN_KEY' ) ) {
+			$material .= (string) LOGGED_IN_KEY;
+		}
+
+		if ( defined( 'LOGGED_IN_SALT' ) ) {
+			$material .= (string) LOGGED_IN_SALT;
+		}
+
+		return $material;
+	}
+
+	/**
+	 * Derive a 256-bit key from material.
+	 *
+	 * @param string $material Key material.
+	 * @return string
+	 */
+	private function derive_key( string $material ): string {
+		return hash( 'sha256', $material, true );
+	}
+
+	/**
+	 * Get a fingerprint for key material.
+	 *
+	 * @param string $material Key material.
+	 * @return string
+	 */
+	private function get_fingerprint( string $material ): string {
+		return hash( 'sha256', $material );
+	}
+
+	/**
+	 * Return IV length for the cipher.
+	 *
+	 * @return int
+	 */
+	private function get_iv_length(): int {
+		$length = openssl_cipher_iv_length( self::CIPHER );
+
+		return false === $length ? 0 : (int) $length;
+	}
+}
+apply_patch(auto_approved=true) exited 0 in 36ms:
+Success. Updated the following files:
+A src/Security/Encryption.php
+file update:
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+file update:
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+
+thinking
+**Updating SettingsController with new encryption approach**
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Rest/SettingsController.php
+@@ -10,2 +10,3 @@
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+@@ -112,2 +113,4 @@
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+@@ -328,17 +331,6 @@
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+@@ -346,3 +338,3 @@
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+@@ -350,3 +342,3 @@
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+@@ -354,14 +346,18 @@
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return '';
++		}
++
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return '';
+ 		}
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
+-		}
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 
+-		return hash( 'sha256', $material, true );
++		return $rotated;
+ 	}
+apply_patch(auto_approved=true) exited 0 in 22ms:
+Success. Updated the following files:
+M src/Rest/SettingsController.php
+file update:
+diff --git a/src/Rest/SettingsController.php b/src/Rest/SettingsController.php
+index 96ad3e7192089bec93ccadbe97733818ca9a3acb..bf7143551b7c524bfccf3ec5018fc9f2b26808ea
+--- a/src/Rest/SettingsController.php
++++ b/src/Rest/SettingsController.php
+@@ -8,6 +8,7 @@
+ namespace AgentWP\Rest;
+ 
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+ use WP_REST_Request;
+ use WP_REST_Response;
+@@ -110,6 +111,8 @@
+ 	 * @return WP_REST_Response
+ 	 */
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+ 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+ 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+@@ -326,44 +329,37 @@
+ 	 * @return string|WP_Error
+ 	 */
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+ 		}
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+ 
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+ 	 * @return string
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return '';
++		}
++
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return '';
+ 		}
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
+-		}
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 
+-		return hash( 'sha256', $material, true );
++		return $rotated;
+ 	}
+ 
+ 	/**
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+file update:
+diff --git a/src/Rest/SettingsController.php b/src/Rest/SettingsController.php
+index 96ad3e7192089bec93ccadbe97733818ca9a3acb..bf7143551b7c524bfccf3ec5018fc9f2b26808ea
+--- a/src/Rest/SettingsController.php
++++ b/src/Rest/SettingsController.php
+@@ -8,6 +8,7 @@
+ namespace AgentWP\Rest;
+ 
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+ use WP_REST_Request;
+ use WP_REST_Response;
+@@ -110,6 +111,8 @@
+ 	 * @return WP_REST_Response
+ 	 */
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+ 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+ 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+@@ -326,44 +329,37 @@
+ 	 * @return string|WP_Error
+ 	 */
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+ 		}
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+ 
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+ 	 * @return string
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return '';
++		}
++
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return '';
+ 		}
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
+-		}
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 
+-		return hash( 'sha256', $material, true );
++		return $rotated;
+ 	}
+ 
+ 	/**
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+
+thinking
+**Updating method return type and docblock**
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Rest/SettingsController.php
+@@ -344,3 +344,3 @@
+ 	 *
+-	 * @return string
++	 * @return void
+ 	 */
+@@ -349,3 +349,3 @@
+ 		if ( '' === $stored ) {
+-			return '';
++			return;
+ 		}
+@@ -356,3 +356,3 @@
+ 		if ( '' === $rotated || $rotated === $stored ) {
+-			return '';
++			return;
+ 		}
+@@ -360,4 +360,2 @@
+ 		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+-
+-		return $rotated;
+ 	}
+apply_patch(auto_approved=true) exited 0 in 40ms:
+Success. Updated the following files:
+M src/Rest/SettingsController.php
+file update:
+diff --git a/src/Rest/SettingsController.php b/src/Rest/SettingsController.php
+index 96ad3e7192089bec93ccadbe97733818ca9a3acb..4902eb7c7562806eb5166753f39c2cbc83e85a81
+--- a/src/Rest/SettingsController.php
++++ b/src/Rest/SettingsController.php
+@@ -8,6 +8,7 @@
+ namespace AgentWP\Rest;
+ 
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+ use WP_REST_Request;
+ use WP_REST_Response;
+@@ -110,6 +111,8 @@
+ 	 * @return WP_REST_Response
+ 	 */
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+ 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+ 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+@@ -326,44 +329,35 @@
+ 	 * @return string|WP_Error
+ 	 */
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+ 		}
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+ 
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+-	 * @return string
++	 * @return void
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return;
++		}
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
+-		}
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return;
+ 		}
+ 
+-		return hash( 'sha256', $material, true );
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 	}
+ 
+ 	/**
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+file update:
+diff --git a/src/Rest/SettingsController.php b/src/Rest/SettingsController.php
+index 96ad3e7192089bec93ccadbe97733818ca9a3acb..4902eb7c7562806eb5166753f39c2cbc83e85a81
+--- a/src/Rest/SettingsController.php
++++ b/src/Rest/SettingsController.php
+@@ -8,6 +8,7 @@
+ namespace AgentWP\Rest;
+ 
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+ use WP_REST_Request;
+ use WP_REST_Response;
+@@ -110,6 +111,8 @@
+ 	 * @return WP_REST_Response
+ 	 */
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+ 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+ 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+@@ -326,44 +329,35 @@
+ 	 * @return string|WP_Error
+ 	 */
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+ 		}
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+ 
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+-	 * @return string
++	 * @return void
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return;
++		}
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
+-		}
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return;
+ 		}
+ 
+-		return hash( 'sha256', $material, true );
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 	}
+ 
+ 	/**
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+
+thinking
+**Verifying encryption refactor and cleanup**
+exec
+/bin/zsh -lc 'rg -n "get_encryption_key" -S src' in /Users/ahmedyounis/Documents/Projects/agentwp exited 1 in 38ms:
+
+file update:
+diff --git a/src/Rest/SettingsController.php b/src/Rest/SettingsController.php
+index 96ad3e7192089bec93ccadbe97733818ca9a3acb..4902eb7c7562806eb5166753f39c2cbc83e85a81
+--- a/src/Rest/SettingsController.php
++++ b/src/Rest/SettingsController.php
+@@ -8,6 +8,7 @@
+ namespace AgentWP\Rest;
+ 
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+ use WP_REST_Request;
+ use WP_REST_Response;
+@@ -110,6 +111,8 @@
+ 	 * @return WP_REST_Response
+ 	 */
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+ 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+ 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+@@ -326,44 +329,35 @@
+ 	 * @return string|WP_Error
+ 	 */
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+ 		}
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+ 
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+-	 * @return string
++	 * @return void
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return;
++		}
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
+-		}
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return;
+ 		}
+ 
+-		return hash( 'sha256', $material, true );
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 	}
+ 
+ 	/**
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+
+thinking
+**Reviewing encryption and documentation updates**
+
+I’m verifying the encryption flow, ensuring key rotation is handled correctly with filters and old salts, and confirming that the new encryption class methods are properly integrated. I’m also considering whether to update the architecture docs to reflect switching from AES-256-GCM to AES-256-CTR, making the crypto details more accurate, and planning to patch the docs accordingly to avoid confusion.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/docs/ARCHITECTURE.md
+@@ -361,3 +361,3 @@
+   REST[POST /settings/api-key]
+-  ENC[Encryption Service: AES-256-GCM]
++  ENC[Encryption Service: AES-256-CTR]
+   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
+@@ -373,4 +373,4 @@
+ ### BYOK Handling
+-- **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
+-- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
++- **Key derivation**: Use WordPress salts as input to derive encryption key.
++- **Encryption**: AES-256-CTR with random IV per encryption; store IV with ciphertext.
+ - **Decryption**: Only performed server-side just-in-time for API calls.
+apply_patch(auto_approved=true) exited 0 in 40ms:
+Success. Updated the following files:
+M docs/ARCHITECTURE.md
+file update:
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 923877c2401dbc2d34b694591d415377c2ac75ff..4077029eab5be85a487df49432f96bd81b9bb925
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -359,7 +359,7 @@
+ flowchart TB
+   UI[Admin UI: API Key Entry]
+   REST[POST /settings/api-key]
+-  ENC[Encryption Service: AES-256-GCM]
++  ENC[Encryption Service: AES-256-CTR]
+   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
+   OPT[(wp_options: agentwp_api_key)]
+   OPENAI[(OpenAI API)]
+@@ -371,8 +371,8 @@
+ ```
+ 
+ ### BYOK Handling
+-- **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
+-- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
++- **Key derivation**: Use WordPress salts as input to derive encryption key.
++- **Encryption**: AES-256-CTR with random IV per encryption; store IV with ciphertext.
+ - **Decryption**: Only performed server-side just-in-time for API calls.
+ - **Rotation**: Re-encrypt on salt change or explicit rotation.
+ - **Least exposure**: Keys are never rendered in the UI; only masked last-4 is returned.
+diff --git a/src/Rest/SettingsController.php b/src/Rest/SettingsController.php
+index 96ad3e7192089bec93ccadbe97733818ca9a3acb..4902eb7c7562806eb5166753f39c2cbc83e85a81
+--- a/src/Rest/SettingsController.php
++++ b/src/Rest/SettingsController.php
+@@ -8,6 +8,7 @@
+ namespace AgentWP\Rest;
+ 
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+ use WP_REST_Request;
+ use WP_REST_Response;
+@@ -110,6 +111,8 @@
+ 	 * @return WP_REST_Response
+ 	 */
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+ 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+ 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+@@ -326,44 +329,35 @@
+ 	 * @return string|WP_Error
+ 	 */
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+ 		}
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+ 
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+-	 * @return string
++	 * @return void
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return;
++		}
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
+-		}
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return;
+ 		}
+ 
+-		return hash( 'sha256', $material, true );
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 	}
+ 
+ 	/**
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+file update:
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 923877c2401dbc2d34b694591d415377c2ac75ff..4077029eab5be85a487df49432f96bd81b9bb925
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -359,7 +359,7 @@
+ flowchart TB
+   UI[Admin UI: API Key Entry]
+   REST[POST /settings/api-key]
+-  ENC[Encryption Service: AES-256-GCM]
++  ENC[Encryption Service: AES-256-CTR]
+   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
+   OPT[(wp_options: agentwp_api_key)]
+   OPENAI[(OpenAI API)]
+@@ -371,8 +371,8 @@
+ ```
+ 
+ ### BYOK Handling
+-- **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
+-- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
++- **Key derivation**: Use WordPress salts as input to derive encryption key.
++- **Encryption**: AES-256-CTR with random IV per encryption; store IV with ciphertext.
+ - **Decryption**: Only performed server-side just-in-time for API calls.
+ - **Rotation**: Re-encrypt on salt change or explicit rotation.
+ - **Least exposure**: Keys are never rendered in the UI; only masked last-4 is returned.
+diff --git a/src/Rest/SettingsController.php b/src/Rest/SettingsController.php
+index 96ad3e7192089bec93ccadbe97733818ca9a3acb..4902eb7c7562806eb5166753f39c2cbc83e85a81
+--- a/src/Rest/SettingsController.php
++++ b/src/Rest/SettingsController.php
+@@ -8,6 +8,7 @@
+ namespace AgentWP\Rest;
+ 
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+ use WP_REST_Request;
+ use WP_REST_Response;
+@@ -110,6 +111,8 @@
+ 	 * @return WP_REST_Response
+ 	 */
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+ 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+ 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+@@ -326,44 +329,35 @@
+ 	 * @return string|WP_Error
+ 	 */
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+ 		}
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+ 
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+-	 * @return string
++	 * @return void
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return;
++		}
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
+-		}
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return;
+ 		}
+ 
+-		return hash( 'sha256', $material, true );
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 	}
+ 
+ 	/**
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+
+thinking
+**Checking documentation references**
+exec
+/bin/zsh -lc 'rg -n "AES-256-GCM|GCM" -S docs src' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 57ms:
+src/Security/Encryption.php:200:	 * Parse legacy payload format (AES-256-GCM).
+file update:
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 923877c2401dbc2d34b694591d415377c2ac75ff..4077029eab5be85a487df49432f96bd81b9bb925
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -359,7 +359,7 @@
+ flowchart TB
+   UI[Admin UI: API Key Entry]
+   REST[POST /settings/api-key]
+-  ENC[Encryption Service: AES-256-GCM]
++  ENC[Encryption Service: AES-256-CTR]
+   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
+   OPT[(wp_options: agentwp_api_key)]
+   OPENAI[(OpenAI API)]
+@@ -371,8 +371,8 @@
+ ```
+ 
+ ### BYOK Handling
+-- **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
+-- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
++- **Key derivation**: Use WordPress salts as input to derive encryption key.
++- **Encryption**: AES-256-CTR with random IV per encryption; store IV with ciphertext.
+ - **Decryption**: Only performed server-side just-in-time for API calls.
+ - **Rotation**: Re-encrypt on salt change or explicit rotation.
+ - **Least exposure**: Keys are never rendered in the UI; only masked last-4 is returned.
+diff --git a/src/Rest/SettingsController.php b/src/Rest/SettingsController.php
+index 96ad3e7192089bec93ccadbe97733818ca9a3acb..4902eb7c7562806eb5166753f39c2cbc83e85a81
+--- a/src/Rest/SettingsController.php
++++ b/src/Rest/SettingsController.php
+@@ -8,6 +8,7 @@
+ namespace AgentWP\Rest;
+ 
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+ use WP_REST_Request;
+ use WP_REST_Response;
+@@ -110,6 +111,8 @@
+ 	 * @return WP_REST_Response
+ 	 */
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+ 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+ 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+@@ -326,44 +329,35 @@
+ 	 * @return string|WP_Error
+ 	 */
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+ 		}
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+ 
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+-	 * @return string
++	 * @return void
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return;
++		}
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
+-		}
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return;
+ 		}
+ 
+-		return hash( 'sha256', $material, true );
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 	}
+ 
+ 	/**
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+
+thinking
+**Reviewing encryption updates and rotation logic**
+
+I’m carefully checking AES-256-CTR usage, the rotate method, and how `maybe_rotate_api_key` integrates with settings retrieval. There’s attention on ensuring no plaintext API key leaks, handling legacy keys, encryption edge cases, and avoiding unnecessary rotations. I’m also preparing a detailed summary with status, changes (like `src/Security/Encryption.php`), verification notes, and risks, mindful that tests weren’t run and no exact verification commands exist.
+exec
+/bin/zsh -lc 'git status -sb' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 58ms:
+## main...origin/main
+ M .t2/state.json
+ M docs/ARCHITECTURE.md
+ M src/Rest/SettingsController.php
+?? .logs/M01-02.gitcommit.txt
+?? .plans/M01-03.md
+?? .t2/handoff/M01-03.md
+?? src/Security/
+file update:
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 923877c2401dbc2d34b694591d415377c2ac75ff..4077029eab5be85a487df49432f96bd81b9bb925
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -359,7 +359,7 @@
+ flowchart TB
+   UI[Admin UI: API Key Entry]
+   REST[POST /settings/api-key]
+-  ENC[Encryption Service: AES-256-GCM]
++  ENC[Encryption Service: AES-256-CTR]
+   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
+   OPT[(wp_options: agentwp_api_key)]
+   OPENAI[(OpenAI API)]
+@@ -371,8 +371,8 @@
+ ```
+ 
+ ### BYOK Handling
+-- **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
+-- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
++- **Key derivation**: Use WordPress salts as input to derive encryption key.
++- **Encryption**: AES-256-CTR with random IV per encryption; store IV with ciphertext.
+ - **Decryption**: Only performed server-side just-in-time for API calls.
+ - **Rotation**: Re-encrypt on salt change or explicit rotation.
+ - **Least exposure**: Keys are never rendered in the UI; only masked last-4 is returned.
+diff --git a/src/Rest/SettingsController.php b/src/Rest/SettingsController.php
+index 96ad3e7192089bec93ccadbe97733818ca9a3acb..4902eb7c7562806eb5166753f39c2cbc83e85a81
+--- a/src/Rest/SettingsController.php
++++ b/src/Rest/SettingsController.php
+@@ -8,6 +8,7 @@
+ namespace AgentWP\Rest;
+ 
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+ use WP_REST_Request;
+ use WP_REST_Response;
+@@ -110,6 +111,8 @@
+ 	 * @return WP_REST_Response
+ 	 */
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+ 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+ 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+@@ -326,44 +329,35 @@
+ 	 * @return string|WP_Error
+ 	 */
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+ 		}
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+ 
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+-	 * @return string
++	 * @return void
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return;
++		}
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
+-		}
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return;
+ 		}
+ 
+-		return hash( 'sha256', $material, true );
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 	}
+ 
+ 	/**
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+
+thinking
+**Evaluating unexpected environment changes**
+exec
+/bin/zsh -lc "sed -n '90,220p' src/Rest/SettingsController.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 53ms:
+						'type'    => 'string',
+						'default' => 'month',
+					),
+				),
+			)
+		);
+	}
+
+	/**
+	 * Permissions check for settings routes.
+	 *
+	 * @return bool
+	 */
+	public function permissions_check() {
+		return current_user_can( 'manage_woocommerce' );
+	}
+
+	/**
+	 * Get settings payload.
+	 *
+file update:
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 923877c2401dbc2d34b694591d415377c2ac75ff..4077029eab5be85a487df49432f96bd81b9bb925
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -359,7 +359,7 @@
+ flowchart TB
+   UI[Admin UI: API Key Entry]
+   REST[POST /settings/api-key]
+-  ENC[Encryption Service: AES-256-GCM]
++  ENC[Encryption Service: AES-256-CTR]
+   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
+   OPT[(wp_options: agentwp_api_key)]
+   OPENAI[(OpenAI API)]
+@@ -371,8 +371,8 @@
+ ```
+ 
+ ### BYOK Handling
+-- **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
+-- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
++- **Key derivation**: Use WordPress salts as input to derive encryption key.
++- **Encryption**: AES-256-CTR with random IV per encryption; store IV with ciphertext.
+ - **Decryption**: Only performed server-side just-in-time for API calls.
+ - **Rotation**: Re-encrypt on salt change or explicit rotation.
+ - **Least exposure**: Keys are never rendered in the UI; only masked last-4 is returned.
+diff --git a/src/Rest/SettingsController.php b/src/Rest/SettingsController.php
+index 96ad3e7192089bec93ccadbe97733818ca9a3acb..4902eb7c7562806eb5166753f39c2cbc83e85a81
+--- a/src/Rest/SettingsController.php
++++ b/src/Rest/SettingsController.php
+@@ -8,6 +8,7 @@
+ namespace AgentWP\Rest;
+ 
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+ use WP_REST_Request;
+ use WP_REST_Response;
+@@ -110,6 +111,8 @@
+ 	 * @return WP_REST_Response
+ 	 */
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+ 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+ 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+@@ -326,44 +329,35 @@
+ 	 * @return string|WP_Error
+ 	 */
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+ 		}
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+ 
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+-	 * @return string
++	 * @return void
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return;
++		}
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
+-		}
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return;
+ 		}
+ 
+-		return hash( 'sha256', $material, true );
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 	}
+ 
+ 	/**
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+
+thinking
+**Checking later encryption methods**
+exec
+/bin/zsh -lc "sed -n '300,420p' src/Rest/SettingsController.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+	 */
+	private function validate_openai_api_key( $api_key ) {
+		$response = wp_remote_get(
+			'https://api.openai.com/v1/models',
+			array(
+				'timeout'     => 3,
+				'redirection' => 0,
+				'headers'     => array(
+					'Authorization' => 'Bearer ' . $api_key,
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return new WP_Error( 'agentwp_openai_unreachable', __( 'OpenAI API is unreachable.', 'agentwp' ) );
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		if ( 200 !== $code ) {
+			return new WP_Error( 'agentwp_openai_invalid', __( 'OpenAI rejected the API key.', 'agentwp' ) );
+file update:
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 923877c2401dbc2d34b694591d415377c2ac75ff..4077029eab5be85a487df49432f96bd81b9bb925
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -359,7 +359,7 @@
+ flowchart TB
+   UI[Admin UI: API Key Entry]
+   REST[POST /settings/api-key]
+-  ENC[Encryption Service: AES-256-GCM]
++  ENC[Encryption Service: AES-256-CTR]
+   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
+   OPT[(wp_options: agentwp_api_key)]
+   OPENAI[(OpenAI API)]
+@@ -371,8 +371,8 @@
+ ```
+ 
+ ### BYOK Handling
+-- **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
+-- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
++- **Key derivation**: Use WordPress salts as input to derive encryption key.
++- **Encryption**: AES-256-CTR with random IV per encryption; store IV with ciphertext.
+ - **Decryption**: Only performed server-side just-in-time for API calls.
+ - **Rotation**: Re-encrypt on salt change or explicit rotation.
+ - **Least exposure**: Keys are never rendered in the UI; only masked last-4 is returned.
+diff --git a/src/Rest/SettingsController.php b/src/Rest/SettingsController.php
+index 96ad3e7192089bec93ccadbe97733818ca9a3acb..4902eb7c7562806eb5166753f39c2cbc83e85a81
+--- a/src/Rest/SettingsController.php
++++ b/src/Rest/SettingsController.php
+@@ -8,6 +8,7 @@
+ namespace AgentWP\Rest;
+ 
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+ use WP_REST_Request;
+ use WP_REST_Response;
+@@ -110,6 +111,8 @@
+ 	 * @return WP_REST_Response
+ 	 */
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+ 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+ 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+@@ -326,44 +329,35 @@
+ 	 * @return string|WP_Error
+ 	 */
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+ 		}
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+ 
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+-	 * @return string
++	 * @return void
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return;
++		}
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
+-		}
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return;
+ 		}
+ 
+-		return hash( 'sha256', $material, true );
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 	}
+ 
+ 	/**
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+Reconnecting... 1/5
+
+thinking
+**Preparing final summary response**
+codex
+Status: DONE
+
+Summary of changes:
+- Added AES-256-CTR encryption/decryption with legacy AES-256-GCM support and rotation logic in `src/Security/Encryption.php`.
+- Switched API key storage to the new encryption class and added automatic rotation on settings fetch in `src/Rest/SettingsController.php`.
+- Updated encryption details in `docs/ARCHITECTURE.md` to match AES-256-CTR behavior.
+
+How to verify (exact commands):
+- No verification commands provided.
+
+Risks / follow-ups:
+- If WordPress salts rotate, re-encryption only works when prior materials are supplied via the `agentwp_encryption_rotation_materials` filter; otherwise the key must be re-entered.
+- Saving keys depends on OpenSSL being available; failures return a generic encryption error.
+file update:
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 923877c2401dbc2d34b694591d415377c2ac75ff..4077029eab5be85a487df49432f96bd81b9bb925
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -359,7 +359,7 @@
+ flowchart TB
+   UI[Admin UI: API Key Entry]
+   REST[POST /settings/api-key]
+-  ENC[Encryption Service: AES-256-GCM]
++  ENC[Encryption Service: AES-256-CTR]
+   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
+   OPT[(wp_options: agentwp_api_key)]
+   OPENAI[(OpenAI API)]
+@@ -371,8 +371,8 @@
+ ```
+ 
+ ### BYOK Handling
+-- **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
+-- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
++- **Key derivation**: Use WordPress salts as input to derive encryption key.
++- **Encryption**: AES-256-CTR with random IV per encryption; store IV with ciphertext.
+ - **Decryption**: Only performed server-side just-in-time for API calls.
+ - **Rotation**: Re-encrypt on salt change or explicit rotation.
+ - **Least exposure**: Keys are never rendered in the UI; only masked last-4 is returned.
+diff --git a/src/Rest/SettingsController.php b/src/Rest/SettingsController.php
+index 96ad3e7192089bec93ccadbe97733818ca9a3acb..4902eb7c7562806eb5166753f39c2cbc83e85a81
+--- a/src/Rest/SettingsController.php
++++ b/src/Rest/SettingsController.php
+@@ -8,6 +8,7 @@
+ namespace AgentWP\Rest;
+ 
+ use AgentWP\Plugin;
++use AgentWP\Security\Encryption;
+ use WP_Error;
+ use WP_REST_Request;
+ use WP_REST_Response;
+@@ -110,6 +111,8 @@
+ 	 * @return WP_REST_Response
+ 	 */
+ 	public function get_settings( $request ) {
++		$this->maybe_rotate_api_key();
++
+ 		$settings = $this->read_settings();
+ 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
+ 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+@@ -326,44 +329,35 @@
+ 	 * @return string|WP_Error
+ 	 */
+ 	private function encrypt_api_key( $api_key ) {
+-		if ( ! function_exists( 'openssl_encrypt' ) ) {
+-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
+-		}
++		$encryption = new Encryption();
++		$encrypted  = $encryption->encrypt( $api_key );
+ 
+-		try {
+-			$nonce = random_bytes( 12 );
+-		} catch ( \Exception $exception ) {
+-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
+-		}
+-
+-		$key = $this->get_encryption_key();
+-		$tag = '';
+-
+-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
+-		if ( false === $ciphertext ) {
++		if ( '' === $encrypted ) {
+ 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+ 		}
+ 
+-		return base64_encode( $nonce . $tag . $ciphertext );
++		return $encrypted;
+ 	}
+ 
+ 	/**
+-	 * Derive encryption key from WordPress salts.
++	 * Re-encrypt stored API key with current salts when needed.
+ 	 *
+-	 * @return string
++	 * @return void
+ 	 */
+-	private function get_encryption_key() {
+-		$material = '';
++	private function maybe_rotate_api_key() {
++		$stored = get_option( Plugin::OPTION_API_KEY, '' );
++		if ( '' === $stored ) {
++			return;
++		}
+ 
+-		if ( defined( 'LOGGED_IN_KEY' ) ) {
+-			$material .= LOGGED_IN_KEY;
+-		}
++		$encryption = new Encryption();
++		$rotated    = $encryption->rotate( $stored );
+ 
+-		if ( defined( 'LOGGED_IN_SALT' ) ) {
+-			$material .= LOGGED_IN_SALT;
++		if ( '' === $rotated || $rotated === $stored ) {
++			return;
+ 		}
+ 
+-		return hash( 'sha256', $material, true );
++		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+ 	}
+ 
+ 	/**
+diff --git a/src/Security/Encryption.php b/src/Security/Encryption.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..729e7c0153a7c747da2105fbe8551f34599d8091
+--- /dev/null
++++ b/src/Security/Encryption.php
+@@ -0,0 +1,319 @@
++<?php
++/**
++ * Encryption helper for API keys.
++ *
++ * @package AgentWP
++ */
++
++namespace AgentWP\Security;
++
++class Encryption {
++	const VERSION = 'awp1';
++	const DELIMITER = ':';
++	const CIPHER = 'aes-256-ctr';
++	const LEGACY_CIPHER = 'aes-256-gcm';
++	const LEGACY_NONCE_LENGTH = 12;
++	const LEGACY_TAG_LENGTH = 16;
++
++	/**
++	 * Encrypt plaintext.
++	 *
++	 * @param string $plaintext Plaintext value.
++	 * @return string
++	 */
++	public function encrypt( string $plaintext ): string {
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_encrypt' ) ) {
++			return '';
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return '';
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 ) {
++			return '';
++		}
++
++		try {
++			$iv = random_bytes( $iv_length );
++		} catch ( \Exception $exception ) {
++			return '';
++		}
++
++		$key = $this->derive_key( $material );
++
++		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
++		if ( false === $ciphertext ) {
++			return '';
++		}
++
++		$fingerprint = $this->get_fingerprint( $material );
++
++		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
++	}
++
++	/**
++	 * Decrypt ciphertext.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function decrypt( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( ! function_exists( 'openssl_decrypt' ) ) {
++			return '';
++		}
++
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null !== $payload ) {
++			$materials = $this->get_key_material_candidates();
++			foreach ( $materials as $material ) {
++				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
++					continue;
++				}
++
++				$key       = $this->derive_key( $material );
++				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
++
++				if ( false !== $plaintext ) {
++					return $plaintext;
++				}
++			}
++
++			return '';
++		}
++
++		$legacy = $this->parse_legacy_payload( $ciphertext );
++		if ( null === $legacy ) {
++			return '';
++		}
++
++		$materials = $this->get_key_material_candidates();
++		foreach ( $materials as $material ) {
++			$key       = $this->derive_key( $material );
++			$plaintext = openssl_decrypt(
++				$legacy['ciphertext'],
++				self::LEGACY_CIPHER,
++				$key,
++				OPENSSL_RAW_DATA,
++				$legacy['nonce'],
++				$legacy['tag']
++			);
++
++			if ( false !== $plaintext ) {
++				return $plaintext;
++			}
++		}
++
++		return '';
++	}
++
++	/**
++	 * Check if a value is encrypted.
++	 *
++	 * @param string $data Input value.
++	 * @return bool
++	 */
++	public function isEncrypted( string $data ): bool {
++		if ( '' === $data ) {
++			return false;
++		}
++
++		if ( null !== $this->parse_payload( $data ) ) {
++			return true;
++		}
++
++		return null !== $this->parse_legacy_payload( $data );
++	}
++
++	/**
++	 * Re-encrypt ciphertext with current salts when possible.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return string
++	 */
++	public function rotate( string $ciphertext ): string {
++		if ( '' === $ciphertext ) {
++			return '';
++		}
++
++		if ( $this->is_current_encryption( $ciphertext ) ) {
++			return $ciphertext;
++		}
++
++		$plaintext = $this->decrypt( $ciphertext );
++		if ( '' === $plaintext ) {
++			return '';
++		}
++
++		return $this->encrypt( $plaintext );
++	}
++
++	/**
++	 * Parse current payload format.
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_payload( string $data ) {
++		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
++			return null;
++		}
++
++		$parts = explode( self::DELIMITER, $data, 3 );
++		if ( 3 !== count( $parts ) ) {
++			return null;
++		}
++
++		list( $version, $fingerprint, $payload ) = $parts;
++		if ( self::VERSION !== $version || '' === $fingerprint || '' === $payload ) {
++			return null;
++		}
++
++		$decoded = base64_decode( $payload, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$iv_length = $this->get_iv_length();
++		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
++			return null;
++		}
++
++		return array(
++			'fingerprint' => $fingerprint,
++			'iv'          => substr( $decoded, 0, $iv_length ),
++			'ciphertext'  => substr( $decoded, $iv_length ),
++		);
++	}
++
++	/**
++	 * Parse legacy payload format (AES-256-GCM).
++	 *
++	 * @param string $data Payload.
++	 * @return array|null
++	 */
++	private function parse_legacy_payload( string $data ) {
++		$decoded = base64_decode( $data, true );
++		if ( false === $decoded ) {
++			return null;
++		}
++
++		$min_length = self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH + 1;
++		if ( strlen( $decoded ) < $min_length ) {
++			return null;
++		}
++
++		return array(
++			'nonce'      => substr( $decoded, 0, self::LEGACY_NONCE_LENGTH ),
++			'tag'        => substr( $decoded, self::LEGACY_NONCE_LENGTH, self::LEGACY_TAG_LENGTH ),
++			'ciphertext' => substr( $decoded, self::LEGACY_NONCE_LENGTH + self::LEGACY_TAG_LENGTH ),
++		);
++	}
++
++	/**
++	 * Determine if ciphertext is encrypted with current salts.
++	 *
++	 * @param string $ciphertext Ciphertext value.
++	 * @return bool
++	 */
++	private function is_current_encryption( string $ciphertext ): bool {
++		$payload = $this->parse_payload( $ciphertext );
++		if ( null === $payload ) {
++			return false;
++		}
++
++		$material = $this->get_key_material();
++		if ( '' === $material ) {
++			return false;
++		}
++
++		return hash_equals( $payload['fingerprint'], $this->get_fingerprint( $material ) );
++	}
++
++	/**
++	 * Collect key material candidates for rotation.
++	 *
++	 * @return array
++	 */
++	private function get_key_material_candidates(): array {
++		$materials = array();
++		$current   = $this->get_key_material();
++
++		if ( '' !== $current ) {
++			$materials[] = $current;
++		}
++
++		if ( function_exists( 'apply_filters' ) ) {
++			$rotations = apply_filters( 'agentwp_encryption_rotation_materials', array() );
++			if ( is_array( $rotations ) ) {
++				foreach ( $rotations as $rotation ) {
++					if ( is_string( $rotation ) && '' !== $rotation ) {
++						$materials[] = $rotation;
++					}
++				}
++			}
++		}
++
++		return array_values( array_unique( $materials ) );
++	}
++
++	/**
++	 * Derive key material.
++	 *
++	 * @return string
++	 */
++	private function get_key_material(): string {
++		$material = '';
++
++		if ( defined( 'LOGGED_IN_KEY' ) ) {
++			$material .= (string) LOGGED_IN_KEY;
++		}
++
++		if ( defined( 'LOGGED_IN_SALT' ) ) {
++			$material .= (string) LOGGED_IN_SALT;
++		}
++
++		return $material;
++	}
++
++	/**
++	 * Derive a 256-bit key from material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function derive_key( string $material ): string {
++		return hash( 'sha256', $material, true );
++	}
++
++	/**
++	 * Get a fingerprint for key material.
++	 *
++	 * @param string $material Key material.
++	 * @return string
++	 */
++	private function get_fingerprint( string $material ): string {
++		return hash( 'sha256', $material );
++	}
++
++	/**
++	 * Return IV length for the cipher.
++	 *
++	 * @return int
++	 */
++	private function get_iv_length(): int {
++		$length = openssl_cipher_iv_length( self::CIPHER );
++
++		return false === $length ? 0 : (int) $length;
++	}
++}
+
+tokens used
+63,841

@@ -359,7 +359,7 @@ AgentWP never stores or logs plaintext API keys. Keys are encrypted at rest usin
 flowchart TB
   UI[Admin UI: API Key Entry]
   REST[POST /settings/api-key]
-  ENC[Encryption Service: AES-256-GCM]
+  ENC[Encryption Service: AES-256-CTR]
   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
   OPT[(wp_options: agentwp_api_key)]
   OPENAI[(OpenAI API)]
@@ -371,8 +371,8 @@ flowchart TB
 ```
 
 ### BYOK Handling
-- **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
-- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
+- **Key derivation**: Use WordPress salts as input to derive encryption key.
+- **Encryption**: AES-256-CTR with random IV per encryption; store IV with ciphertext.
 - **Decryption**: Only performed server-side just-in-time for API calls.
 - **Rotation**: Re-encrypt on salt change or explicit rotation.
 - **Least exposure**: Keys are never rendered in the UI; only masked last-4 is returned.

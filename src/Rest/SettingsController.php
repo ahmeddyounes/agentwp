@@ -8,6 +8,7 @@
 namespace AgentWP\Rest;
 
 use AgentWP\Plugin;
+use AgentWP\Security\Encryption;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -110,6 +111,8 @@ class SettingsController {
 	 * @return WP_REST_Response
 	 */
 	public function get_settings( $request ) {
+		$this->maybe_rotate_api_key();
+
 		$settings = $this->read_settings();
 		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
 		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
@@ -326,44 +329,35 @@ class SettingsController {
 	 * @return string|WP_Error
 	 */
 	private function encrypt_api_key( $api_key ) {
-		if ( ! function_exists( 'openssl_encrypt' ) ) {
-			return new WP_Error( 'agentwp_encryption_missing', __( 'Encryption is unavailable on this server.', 'agentwp' ) );
-		}
+		$encryption = new Encryption();
+		$encrypted  = $encryption->encrypt( $api_key );
 
-		try {
-			$nonce = random_bytes( 12 );
-		} catch ( \Exception $exception ) {
-			return new WP_Error( 'agentwp_encryption_nonce', __( 'Unable to generate encryption nonce.', 'agentwp' ) );
-		}
-
-		$key = $this->get_encryption_key();
-		$tag = '';
-
-		$ciphertext = openssl_encrypt( $api_key, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag );
-		if ( false === $ciphertext ) {
+		if ( '' === $encrypted ) {
 			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
 		}
 
-		return base64_encode( $nonce . $tag . $ciphertext );
+		return $encrypted;
 	}
 
 	/**
-	 * Derive encryption key from WordPress salts.
+	 * Re-encrypt stored API key with current salts when needed.
 	 *
-	 * @return string
+	 * @return void
 	 */
-	private function get_encryption_key() {
-		$material = '';
-
-		if ( defined( 'LOGGED_IN_KEY' ) ) {
-			$material .= LOGGED_IN_KEY;
+	private function maybe_rotate_api_key() {
+		$stored = get_option( Plugin::OPTION_API_KEY, '' );
+		if ( '' === $stored ) {
+			return;
 		}
 
-		if ( defined( 'LOGGED_IN_SALT' ) ) {
-			$material .= LOGGED_IN_SALT;
+		$encryption = new Encryption();
+		$rotated    = $encryption->rotate( $stored );
+
+		if ( '' === $rotated || $rotated === $stored ) {
+			return;
 		}
 
-		return hash( 'sha256', $material, true );
+		update_option( Plugin::OPTION_API_KEY, $rotated, false );
 	}
 
 	/**
