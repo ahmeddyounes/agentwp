@@ -8,6 +8,7 @@
 namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
+use AgentWP\Intent\Engine;
 use WP_REST_Server;
 
 class IntentController extends RestController {
@@ -40,13 +41,39 @@ class IntentController extends RestController {
 			return $this->response_error( 'agentwp_invalid_request', $validation->get_error_message(), 400 );
 		}
 
-		return $this->response_success(
-			array(
-				'intent_id' => wp_generate_uuid4(),
-				'status'    => 'received',
-				'message'   => __( 'Intent received for processing.', 'agentwp' ),
-			)
-		);
+		$prompt = '';
+		if ( isset( $validation['prompt'] ) ) {
+			$prompt = (string) $validation['prompt'];
+		}
+
+		if ( '' === $prompt && isset( $validation['input'] ) ) {
+			$prompt = (string) $validation['input'];
+		}
+
+		$prompt = trim( $prompt );
+		if ( '' === $prompt ) {
+			return $this->response_error( 'agentwp_missing_prompt', __( 'Please provide a prompt.', 'agentwp' ), 400 );
+		}
+
+		$context  = isset( $validation['context'] ) && is_array( $validation['context'] )
+			? $validation['context']
+			: array();
+		$metadata = isset( $validation['metadata'] ) && is_array( $validation['metadata'] )
+			? $validation['metadata']
+			: array();
+
+		$engine   = new Engine();
+		$response = $engine->handle( $prompt, $context, $metadata );
+
+		if ( ! $response->is_success() ) {
+			return $this->response_error( 'agentwp_intent_failed', $response->get_message(), $response->get_status() );
+		}
+
+		$data               = $response->get_data();
+		$data['intent_id']  = wp_generate_uuid4();
+		$data['status']     = 'handled';
+
+		return $this->response_success( $data );
 	}
 
 	/**
@@ -57,9 +84,12 @@ class IntentController extends RestController {
 	private function get_intent_schema() {
 		return array(
 			'type'     => 'object',
-			'required'             => array( 'prompt' ),
 			'properties'           => array(
 				'prompt'   => array(
+					'type'      => 'string',
+					'minLength' => 1,
+				),
+				'input'    => array(
 					'type'      => 'string',
 					'minLength' => 1,
 				),
