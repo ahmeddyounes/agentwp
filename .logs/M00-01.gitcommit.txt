@@ -1,0 +1,24 @@
+[main aa9c085] M00-01: implement
+ 21 files changed, 3734 insertions(+)
+ create mode 100644 .idea/.gitignore
+ create mode 100644 .idea/agentwp.iml
+ create mode 100644 .idea/modules.xml
+ create mode 100644 .idea/php.xml
+ create mode 100644 .idea/vcs.xml
+ create mode 100644 .logs/M00-01.codex.fix1.last.md
+ create mode 100644 .logs/M00-01.codex.fix1.raw.txt
+ create mode 100644 .logs/M00-01.codex.fix2.last.md
+ create mode 100644 .logs/M00-01.codex.fix2.raw.txt
+ create mode 100644 .logs/M00-01.codex.impl.last.md
+ create mode 100644 .logs/M00-01.codex.impl.raw.txt
+ create mode 100644 .plans/M00-01.md
+ create mode 100644 .t2/after_prompts/.gitkeep
+ create mode 100644 .t2/config.json
+ create mode 100644 .t2/handoff/M00-01.md
+ create mode 100644 .t2/state.json
+ create mode 100644 docs/ARCHITECTURE.md
+ create mode 100644 docs/agentwp-prd.md
+ create mode 100644 scripts/agent_csv_runner.py
+ create mode 100644 scripts/agentflow.py
+ create mode 100644 tasks.csv
+

@@ -1,6 +1,8 @@
 {
-  "completed_task_ids": [],
+  "completed_task_ids": [
+    "M00-01"
+  ],
   "claude_sessions": {},
   "gemini_sessions": {},
-  "updated_at": "2026-01-06T17:56:14.657394Z"
+  "updated_at": "2026-01-06T18:10:32.619062Z"
 }
