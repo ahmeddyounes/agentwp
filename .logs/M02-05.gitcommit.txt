@@ -1,0 +1,9 @@
+[main e58563d] M02-05: implement
+ 8 files changed, 8017 insertions(+), 4 deletions(-)
+ create mode 100644 .logs/M02-04.gitcommit.txt
+ create mode 100644 .logs/M02-05.codex.impl.last.md
+ create mode 100644 .logs/M02-05.codex.impl.raw.txt
+ create mode 100644 .plans/M02-05.md
+ create mode 100644 .t2/handoff/M02-05.md
+ create mode 100644 src/Handlers/StockHandler.php
+
