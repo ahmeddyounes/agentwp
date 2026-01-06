@@ -1,0 +1,33 @@
+{
+    "commands": {
+        "format": "",
+        "lint": "",
+        "test": ""
+    },
+    "retries": 2,
+    "verify_after_prompts": false,
+    "agents": {
+        "default": "codex",
+        "fallback": "claude",
+        "after_agent": "same"
+    },
+    "codex": {
+        "full_auto": true
+    },
+    "claude": {
+        "output_format": "json",
+        "permission_mode": "acceptEdits",
+        "dangerously_skip_permissions": true
+    },
+    "gemini": {
+        "model": "gemini-3-pro-preview",
+        "include_directories": ".plans,.t2/handoff",
+        "resume_strategy": "per_task",
+        "capture_session_id": true,
+        "output_format": "json",
+        "approval_mode": "yolo",
+        "yolo": false,
+        "sandbox": false,
+        "debug": false
+    }
+}

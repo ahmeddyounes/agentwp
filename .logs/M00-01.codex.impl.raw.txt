@@ -1,0 +1,412 @@
+Updated the architecture doc to round out the WooCommerce schema coverage, add a second Draft-Confirm flow diagram, and tighten the BYOK AES-256 details in `docs/ARCHITECTURE.md`.
+
+Status: DONE
+
+Summary of changes
+- Expanded the database ERD to include standard WooCommerce order item tables in `docs/ARCHITECTURE.md`.
+- Clarified BYOK encryption as AES-256-GCM with nonce + auth tag handling in `docs/ARCHITECTURE.md`.
+- Added a lifecycle flowchart for Draft-Confirm alongside the sequence diagram in `docs/ARCHITECTURE.md`.
+
+How to verify (exact commands)
+- No verification commands provided.
+
+Risks / follow-ups
+- Validate the REST endpoint list and schemas against the eventual controller implementation to avoid drift.
+
+OpenAI Codex v0.77.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019b9472-7648-7343-b788-90b76e93fb6f
+--------
+user
+You are implementing task M00-01 in this git repository.
+
+1) Read the spec: .plans/M00-01.md
+2) Read handoff/context: .t2/handoff/M00-01.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+
+thinking
+**Considering approach to read instructions**
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 45ms:
+docs
+README.md
+scripts
+tasks.csv
+
+thinking
+**Reviewing specification document**
+exec
+/bin/zsh -lc 'cat .plans/M00-01.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 54ms:
+# M00-01 — Technical Architecture Document
+
+Create a comprehensive technical architecture document in Markdown format covering: 1) System overview diagram showing WordPress plugin structure, React frontend, PHP backend, and OpenAI API integration. 2) Database schema using only standard WooCommerce tables plus wp_options for settings (no custom tables). 3) REST API endpoint specification for /wp-json/agentwp/v1/* routes. 4) Security architecture for BYOK (Bring Your Own Key) with AES-256 encryption. 5) Data flow diagrams for the Draft-Confirm protocol. 6) Component hierarchy for React Command Deck. Save to /docs/ARCHITECTURE.md. Acceptance Criteria: Document covers all major subsystems, includes Mermaid diagrams, specifies all API endpoints with request/response schemas, and passes technical review.
+
+thinking
+**Preparing for transition**
+exec
+/bin/zsh -lc 'cat .t2/handoff/M00-01.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 52ms:
+# Handoff: M00-01
+
+Created: 2026-01-06T17:30:47.674652Z
+
+Spec: .plans/M00-01.md
+
+
+## 2026-01-06T17:33:54.826239Z — codex — impl
+
+Command:
+```
+codex exec --color never --full-auto --output-last-message /Users/ahmedyounis/Documents/Projects/agentwp/.logs/M00-01.codex.impl.last.md -
+```
+
+Return code: 0
+
+Agent final message (file: M00-01.codex.impl.last.md):
+
+Status: DONE
+
+
+thinking
+**Checking for existing architecture document**
+exec
+/bin/zsh -lc 'ls docs' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 52ms:
+agentwp-prd.md
+ARCHITECTURE.md
+
+thinking
+**Opening architecture documentation**
+exec
+/bin/zsh -lc 'cat docs/ARCHITECTURE.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 64ms:
+# AgentWP Technical Architecture
+
+## 1) System Overview
+
+AgentWP is a WordPress plugin that provides a React-powered admin UI (Command Deck) and a PHP backend that integrates with WooCommerce and the OpenAI API. The plugin exposes REST endpoints under `/wp-json/agentwp/v1` and uses standard WooCommerce tables plus `wp_options` for settings and encrypted BYOK storage.
+
+```mermaid
+flowchart LR
+  subgraph WP[WordPress + WooCommerce]
+    WPCore[WordPress Core]
+    WC[WooCommerce]
+    DB[(MySQL: wp_* tables)]
+    WPCore --> WC
+    WPCore --> DB
+    WC --> DB
+  end
+
+  subgraph AgentWP[AgentWP Plugin]
+    PHP[PHP Backend (AgentWP\*)]
+    REST[REST API /wp-json/agentwp/v1/*]
+
+thinking
+**Reviewing and enhancing architecture documentation**
+
+I'll carefully check the existing architecture doc against the spec, considering minor improvements like adding standard Woo tables to the ER diagram, updating encryption details to AES-256-GCM for better security accuracy, and including an extra data flow diagram to ensure plural diagrams for the Draft-Confirm protocol. Since the document mostly aligns with the spec, I’ll apply these small, focused enhancements to fully satisfy the implementation requirements.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/docs/ARCHITECTURE.md
+@@ -97,2 +97,16 @@
+ 
++  wp_woocommerce_order_items {
++    bigint order_item_id PK
++    bigint order_id FK
++    string order_item_name
++    string order_item_type
++  }
++
++  wp_woocommerce_order_itemmeta {
++    bigint meta_id PK
++    bigint order_item_id FK
++    string meta_key
++    longtext meta_value
++  }
++
+   wp_posts ||--o{ wp_postmeta : has
+@@ -100,3 +114,5 @@
+   wp_posts ||--o{ wp_wc_order_stats : order_stats
+-  wp_posts ||--o{ wp_wc_order_product_lookup : order_items
++  wp_posts ||--o{ wp_wc_order_product_lookup : product_lookup
++  wp_posts ||--o{ wp_woocommerce_order_items : order_items
++  wp_woocommerce_order_items ||--o{ wp_woocommerce_order_itemmeta : item_meta
+ ```
+@@ -345,3 +361,3 @@
+   REST[POST /settings/api-key]
+-  ENC[Encryption Service: AES-256-CTR]
++  ENC[Encryption Service: AES-256-GCM]
+   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
+@@ -358,3 +374,3 @@
+ - **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
+-- **Encryption**: AES-256-CTR with random nonce per encryption; store nonce with ciphertext.
++- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
+ - **Decryption**: Only performed server-side just-in-time for API calls.
+@@ -387,2 +403,14 @@
+ 
++```mermaid
++flowchart LR
++  Intent[Intent received] --> Draft[Create draft]
++  Draft --> Store[Store transient (TTL)]
++  Store --> Preview[Return draft_id + preview]
++  Preview --> Decision{User decision}
++  Decision -->|Confirm| Execute[Execute action]
++  Decision -->|Cancel| Cancel[Discard draft]
++  Execute --> Result[Return result]
++  Cancel --> Result
++```
++
+ ### Draft Payload Example
+apply_patch(auto_approved=true) exited 0 in 21ms:
+Success. Updated the following files:
+M docs/ARCHITECTURE.md
+file update:
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 817dcf31b9dd9b7825c7567fdaa8880e072f8817..923877c2401dbc2d34b694591d415377c2ac75ff
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -95,10 +95,26 @@
+     decimal product_net_revenue
+   }
+ 
++  wp_woocommerce_order_items {
++    bigint order_item_id PK
++    bigint order_id FK
++    string order_item_name
++    string order_item_type
++  }
++
++  wp_woocommerce_order_itemmeta {
++    bigint meta_id PK
++    bigint order_item_id FK
++    string meta_key
++    longtext meta_value
++  }
++
+   wp_posts ||--o{ wp_postmeta : has
+   wp_users ||--o{ wp_usermeta : has
+   wp_posts ||--o{ wp_wc_order_stats : order_stats
+-  wp_posts ||--o{ wp_wc_order_product_lookup : order_items
++  wp_posts ||--o{ wp_wc_order_product_lookup : product_lookup
++  wp_posts ||--o{ wp_woocommerce_order_items : order_items
++  wp_woocommerce_order_items ||--o{ wp_woocommerce_order_itemmeta : item_meta
+ ```
+ 
+ ### Settings and Storage Rules
+@@ -343,7 +359,7 @@
+ flowchart TB
+   UI[Admin UI: API Key Entry]
+   REST[POST /settings/api-key]
+-  ENC[Encryption Service: AES-256-CTR]
++  ENC[Encryption Service: AES-256-GCM]
+   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
+   OPT[(wp_options: agentwp_api_key)]
+   OPENAI[(OpenAI API)]
+@@ -356,7 +372,7 @@
+ 
+ ### BYOK Handling
+ - **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
+-- **Encryption**: AES-256-CTR with random nonce per encryption; store nonce with ciphertext.
++- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
+ - **Decryption**: Only performed server-side just-in-time for API calls.
+ - **Rotation**: Re-encrypt on salt change or explicit rotation.
+ - **Least exposure**: Keys are never rendered in the UI; only masked last-4 is returned.
+@@ -385,6 +401,18 @@
+   REST->>CommandDeck: Success response
+ ```
+ 
++```mermaid
++flowchart LR
++  Intent[Intent received] --> Draft[Create draft]
++  Draft --> Store[Store transient (TTL)]
++  Store --> Preview[Return draft_id + preview]
++  Preview --> Decision{User decision}
++  Decision -->|Confirm| Execute[Execute action]
++  Decision -->|Cancel| Cancel[Discard draft]
++  Execute --> Result[Return result]
++  Cancel --> Result
++```
++
+ ### Draft Payload Example
+ ```json
+ {
+
+file update:
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 817dcf31b9dd9b7825c7567fdaa8880e072f8817..923877c2401dbc2d34b694591d415377c2ac75ff
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -95,10 +95,26 @@
+     decimal product_net_revenue
+   }
+ 
++  wp_woocommerce_order_items {
++    bigint order_item_id PK
++    bigint order_id FK
++    string order_item_name
++    string order_item_type
++  }
++
++  wp_woocommerce_order_itemmeta {
++    bigint meta_id PK
++    bigint order_item_id FK
++    string meta_key
++    longtext meta_value
++  }
++
+   wp_posts ||--o{ wp_postmeta : has
+   wp_users ||--o{ wp_usermeta : has
+   wp_posts ||--o{ wp_wc_order_stats : order_stats
+-  wp_posts ||--o{ wp_wc_order_product_lookup : order_items
++  wp_posts ||--o{ wp_wc_order_product_lookup : product_lookup
++  wp_posts ||--o{ wp_woocommerce_order_items : order_items
++  wp_woocommerce_order_items ||--o{ wp_woocommerce_order_itemmeta : item_meta
+ ```
+ 
+ ### Settings and Storage Rules
+@@ -343,7 +359,7 @@
+ flowchart TB
+   UI[Admin UI: API Key Entry]
+   REST[POST /settings/api-key]
+-  ENC[Encryption Service: AES-256-CTR]
++  ENC[Encryption Service: AES-256-GCM]
+   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
+   OPT[(wp_options: agentwp_api_key)]
+   OPENAI[(OpenAI API)]
+@@ -356,7 +372,7 @@
+ 
+ ### BYOK Handling
+ - **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
+-- **Encryption**: AES-256-CTR with random nonce per encryption; store nonce with ciphertext.
++- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
+ - **Decryption**: Only performed server-side just-in-time for API calls.
+ - **Rotation**: Re-encrypt on salt change or explicit rotation.
+ - **Least exposure**: Keys are never rendered in the UI; only masked last-4 is returned.
+@@ -385,6 +401,18 @@
+   REST->>CommandDeck: Success response
+ ```
+ 
++```mermaid
++flowchart LR
++  Intent[Intent received] --> Draft[Create draft]
++  Draft --> Store[Store transient (TTL)]
++  Store --> Preview[Return draft_id + preview]
++  Preview --> Decision{User decision}
++  Decision -->|Confirm| Execute[Execute action]
++  Decision -->|Cancel| Cancel[Discard draft]
++  Execute --> Result[Return result]
++  Cancel --> Result
++```
++
+ ### Draft Payload Example
+ ```json
+ {
+
+
+thinking
+**Preparing final status message**
+codex
+Updated the architecture doc to round out the WooCommerce schema coverage, add a second Draft-Confirm flow diagram, and tighten the BYOK AES-256 details in `docs/ARCHITECTURE.md`.
+
+Status: DONE
+
+Summary of changes
+- Expanded the database ERD to include standard WooCommerce order item tables in `docs/ARCHITECTURE.md`.
+- Clarified BYOK encryption as AES-256-GCM with nonce + auth tag handling in `docs/ARCHITECTURE.md`.
+- Added a lifecycle flowchart for Draft-Confirm alongside the sequence diagram in `docs/ARCHITECTURE.md`.
+
+How to verify (exact commands)
+- No verification commands provided.
+
+Risks / follow-ups
+- Validate the REST endpoint list and schemas against the eventual controller implementation to avoid drift.
+file update:
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 817dcf31b9dd9b7825c7567fdaa8880e072f8817..923877c2401dbc2d34b694591d415377c2ac75ff
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -95,10 +95,26 @@
+     decimal product_net_revenue
+   }
+ 
++  wp_woocommerce_order_items {
++    bigint order_item_id PK
++    bigint order_id FK
++    string order_item_name
++    string order_item_type
++  }
++
++  wp_woocommerce_order_itemmeta {
++    bigint meta_id PK
++    bigint order_item_id FK
++    string meta_key
++    longtext meta_value
++  }
++
+   wp_posts ||--o{ wp_postmeta : has
+   wp_users ||--o{ wp_usermeta : has
+   wp_posts ||--o{ wp_wc_order_stats : order_stats
+-  wp_posts ||--o{ wp_wc_order_product_lookup : order_items
++  wp_posts ||--o{ wp_wc_order_product_lookup : product_lookup
++  wp_posts ||--o{ wp_woocommerce_order_items : order_items
++  wp_woocommerce_order_items ||--o{ wp_woocommerce_order_itemmeta : item_meta
+ ```
+ 
+ ### Settings and Storage Rules
+@@ -343,7 +359,7 @@
+ flowchart TB
+   UI[Admin UI: API Key Entry]
+   REST[POST /settings/api-key]
+-  ENC[Encryption Service: AES-256-CTR]
++  ENC[Encryption Service: AES-256-GCM]
+   SALTS[WordPress Salts\nLOGGED_IN_KEY + LOGGED_IN_SALT]
+   OPT[(wp_options: agentwp_api_key)]
+   OPENAI[(OpenAI API)]
+@@ -356,7 +372,7 @@
+ 
+ ### BYOK Handling
+ - **Key derivation**: Use WordPress salts as input to derive encryption key and IV (HKDF or equivalent).
+-- **Encryption**: AES-256-CTR with random nonce per encryption; store nonce with ciphertext.
++- **Encryption**: AES-256-GCM with random nonce per encryption; store nonce + auth tag with ciphertext.
+ - **Decryption**: Only performed server-side just-in-time for API calls.
+ - **Rotation**: Re-encrypt on salt change or explicit rotation.
+ - **Least exposure**: Keys are never rendered in the UI; only masked last-4 is returned.
+@@ -385,6 +401,18 @@
+   REST->>CommandDeck: Success response
+ ```
+ 
++```mermaid
++flowchart LR
++  Intent[Intent received] --> Draft[Create draft]
++  Draft --> Store[Store transient (TTL)]
++  Store --> Preview[Return draft_id + preview]
++  Preview --> Decision{User decision}
++  Decision -->|Confirm| Execute[Execute action]
++  Decision -->|Cancel| Cancel[Discard draft]
++  Execute --> Result[Return result]
++  Cancel --> Result
++```
++
+ ### Draft Payload Example
+ ```json
+ {
+
+tokens used
+14,042
