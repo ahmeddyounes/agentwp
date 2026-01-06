@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      PLUGIN_SLUG: agentwp
+      RELEASE_ZIP: agentwp-${{ github.ref_name }}.zip
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        if: hashFiles('composer.json') != ''
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          tools: composer
+
+      - name: Setup Node
+        if: hashFiles('react/package.json') != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: react/package-lock.json
+
+      - name: Install PHP dependencies (production)
+        if: hashFiles('composer.json') != ''
+        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
+
+      - name: Build frontend assets
+        if: hashFiles('react/package.json') != ''
+        run: |
+          if [ -f react/package-lock.json ]; then
+            npm ci --prefix react
+          else
+            npm install --prefix react
+          fi
+          npm --prefix react run build --if-present
+          if [ -d react/dist ]; then
+            mkdir -p assets
+            rsync -a react/dist/ assets/
+          fi
+
+      - name: Generate changelog
+        run: |
+          mkdir -p dist
+          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${GITHUB_REF_NAME}$" | head -n 1 || true)
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..${GITHUB_REF_NAME}"
+          else
+            RANGE="${GITHUB_REF_NAME}"
+          fi
+          git log "$RANGE" --pretty=format:"- %s (%h)" > dist/CHANGELOG.md
+
+      - name: Create release package
+        run: |
+          mkdir -p dist/package/${PLUGIN_SLUG}
+          rsync -a \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.idea' \
+            --exclude '.logs' \
+            --exclude '.plans' \
+            --exclude '.t2' \
+            --exclude 'docker' \
+            --exclude 'docker-compose.yml' \
+            --exclude 'docs' \
+            --exclude 'react' \
+            --exclude 'scripts' \
+            --exclude 'node_modules' \
+            --exclude '**/node_modules' \
+            --exclude 'tests' \
+            --exclude 'coverage' \
+            --exclude 'tasks.csv' \
+            --exclude 'setup.sh' \
+            --exclude '.env.example' \
+            ./ dist/package/${PLUGIN_SLUG}/
+          cd dist/package
+          zip -r "../${RELEASE_ZIP}" "${PLUGIN_SLUG}"
+
+      - name: Enforce size limit
+        run: |
+          size=$(stat -c%s "dist/${RELEASE_ZIP}")
+          limit=$((10 * 1024 * 1024))
+          if [ "$size" -gt "$limit" ]; then
+            echo "Release zip exceeds 10MB (${size} bytes)."
+            exit 1
+          fi
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ env.RELEASE_ZIP }}
+          body_path: dist/CHANGELOG.md

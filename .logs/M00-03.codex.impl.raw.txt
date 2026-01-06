@@ -1,0 +1,4824 @@
+Implemented CI/CD workflows for PR checks, tagged releases, and weekly security audits, plus SARIF conversion and branch protection guidance to satisfy M00-03.
+
+Status: DONE
+
+Summary of changes:
+- Added CI workflow for PHP/Node linting, tests, and build verification in `.github/workflows/ci.yml`.
+- Added tag-based release workflow that builds assets, packages a CodeCanyon-ready zip, enforces size, and publishes release notes in `.github/workflows/release.yml`.
+- Added weekly security audit workflow with Composer/npm scans uploaded to the Security tab in `.github/workflows/security.yml`.
+- Added SARIF conversion helper in `scripts/audit_to_sarif.py` and branch protection guidance in `docs/branch-protection.md`.
+
+How to verify (exact commands):
+- N/A (no local verification commands specified)
+
+Risks / follow-ups:
+- CI steps skip PHPCS/PHPUnit/Jest/ESLint when configs or scripts are missing; ensure those tools/configs are added as the codebase grows.
+- Release packaging currently excludes `react/` and `scripts/`; confirm the final plugin layout and adjust exclusions as needed.
+- Composer audit requires `composer.lock`; add it once PHP dependencies are introduced.
+
+OpenAI Codex v0.77.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019b9480-e989-7163-bd45-0f0cdc715c08
+--------
+user
+You are implementing task M00-03 in this git repository.
+
+1) Read the spec: .plans/M00-03.md
+2) Read handoff/context: .t2/handoff/M00-03.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+
+thinking
+**Preparing to read instructions**
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 55ms:
+docker
+docker-compose.yml
+docs
+react
+README.md
+scripts
+setup.sh
+tasks.csv
+
+thinking
+**Reading specification files**
+exec
+/bin/zsh -lc 'cat .plans/M00-03.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 64ms:
+# M00-03 — CI/CD Pipeline Configuration
+
+Create GitHub Actions workflows in .github/workflows/ for: 1) ci.yml - runs on PR: PHP linting (PHPCS with WordPress standards), PHPUnit tests, Jest tests, ESLint, build verification. 2) release.yml - runs on tag: builds production assets, creates CodeCanyon-ready ZIP, generates changelog from commits. 3) security.yml - runs weekly: dependency vulnerability scanning with Composer audit and npm audit. Include branch protection rules documentation. Acceptance Criteria: CI blocks merges on test failures, release workflow produces valid plugin ZIP under 10MB, security scans report to GitHub Security tab.
+
+thinking
+**Preparing for handoff**
+exec
+/bin/zsh -lc 'cat .t2/handoff/M00-03.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 54ms:
+# Handoff: M00-03
+
+Created: 2026-01-06T18:10:34.974279Z
+
+Spec: .plans/M00-03.md
+
+thinking
+**Checking for existing workflows**
+exec
+/bin/zsh -lc 'ls -a' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 61ms:
+.
+..
+.env.example
+.git
+.idea
+.logs
+.plans
+.t2
+docker
+docker-compose.yml
+docs
+react
+README.md
+scripts
+setup.sh
+tasks.csv
+
+thinking
+**Searching for project config files**
+exec
+/bin/zsh -lc 'rg --files' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 74ms:
+react/src/App.jsx
+react/src/main.jsx
+react/src/index.css
+react/package.json
+react/vite.config.js
+react/index.html
+docker-compose.yml
+scripts/seed-woocommerce.php
+scripts/agent_csv_runner.py
+scripts/wp-setup.sh
+scripts/agentflow.py
+tasks.csv
+README.md
+docs/agentwp-prd.md
+docs/ARCHITECTURE.md
+docker/wordpress/Dockerfile
+setup.sh
+
+thinking
+**Evaluating project language and CI needs**
+exec
+/bin/zsh -lc 'cat README.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+# agentwp
+
+thinking
+**Inspecting Docker and WordPress setup**
+exec
+/bin/zsh -lc 'rg --files docker' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 49ms:
+docker/wordpress/Dockerfile
+exec
+/bin/zsh -lc 'cat docker/wordpress/Dockerfile' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 44ms:
+FROM wordpress:6.4.3-php8.1-apache
+
+ARG WOOCOMMERCE_VERSION=8.4.0
+
+RUN set -eux; \
+  apt-get update; \
+  apt-get install -y --no-install-recommends ca-certificates curl less unzip; \
+  curl -L -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar; \
+  chmod +x /usr/local/bin/wp; \
+  curl -L -o /usr/local/bin/mhsendmail https://github.com/mailhog/mhsendmail/releases/download/v0.2.0/mhsendmail_linux_amd64; \
+  chmod +x /usr/local/bin/mhsendmail; \
+  echo "sendmail_path = /usr/local/bin/mhsendmail --smtp-addr=mailhog:1025" > /usr/local/etc/php/conf.d/mailhog.ini; \
+  curl -L -o /tmp/woocommerce.zip https://downloads.wordpress.org/plugin/woocommerce.${WOOCOMMERCE_VERSION}.zip; \
+  unzip -q /tmp/woocommerce.zip -d /usr/src/wordpress/wp-content/plugins; \
+  rm -f /tmp/woocommerce.zip; \
+  apt-get clean; \
+  rm -rf /var/lib/apt/lists/*
+
+thinking
+**Checking for PHP presence and React setup**
+exec
+/bin/zsh -lc 'cat react/package.json' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 63ms:
+{
+  "name": "agentwp-react",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "vite": "^5.0.0"
+  }
+}
+
+thinking
+**Evaluating workflow setup requirements**
+exec
+/bin/zsh -lc 'rg -n "phpunit|phpcs|eslint|jest|composer" -S .' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 67ms:
+./tasks.csv:4:M00-03,"CI/CD Pipeline Configuration","Create GitHub Actions workflows in .github/workflows/ for: 1) ci.yml - runs on PR: PHP linting (PHPCS with WordPress standards), PHPUnit tests, Jest tests, ESLint, build verification. 2) release.yml - runs on tag: builds production assets, creates CodeCanyon-ready ZIP, generates changelog from commits. 3) security.yml - runs weekly: dependency vulnerability scanning with Composer audit and npm audit. Include branch protection rules documentation. Acceptance Criteria: CI blocks merges on test failures, release workflow produces valid plugin ZIP under 10MB, security scans report to GitHub Security tab."
+./tasks.csv:5:M01-01,"WordPress Plugin Scaffold","Create the core plugin file structure following WordPress coding standards: 1) Main plugin file (agentwp.php) with proper headers, activation/deactivation hooks, and autoloader. 2) PSR-4 autoloading via Composer for /src directory. 3) Namespace: AgentWP\*. 4) Directory structure: /src (PHP classes), /assets (compiled JS/CSS), /react (source), /includes (legacy compatibility), /languages (i18n). 5) Activation hook creates default options, deactivation cleans transients, uninstall.php removes all data. 6) Admin menu registration under WooCommerce menu. 7) Enqueue scripts only on plugin pages and WooCommerce screens. Acceptance Criteria: Plugin activates without errors on WordPress 6.4+ with WooCommerce 8.0+, passes WordPress Plugin Check, no PHP notices/warnings."
+./tasks.csv:29:M05-01,"Unit Test Suite","Create comprehensive unit tests: 1) PHP tests using PHPUnit + WP_Mock. 2) Test directories mirror src structure: tests/Unit/*, tests/Integration/*. 3) Unit test coverage targets: Encryption class (100%), Intent handlers (90%+), API client (80%+). 4) Mock OpenAI responses using recorded fixtures. 5) JavaScript tests using Jest + React Testing Library. 6) Test all React components for: rendering, user interactions, accessibility. 7) Snapshot tests for Action Cards. 8) GitHub Action runs tests on every PR. 9) Coverage reports generated with PHPUnit coverage + Istanbul. Acceptance Criteria: 80%+ line coverage on PHP, 75%+ on JavaScript, all tests pass in CI, test suite completes in <5 minutes, no flaky tests."
+./tasks.csv:31:M05-03,"Security Audit Implementation","Implement security best practices and audit readiness: 1) PHPCS security ruleset (WordPress VIP). 2) Static analysis with PHPStan level 6. 3) SQL injection prevention: verify all queries use $wpdb->prepare(). 4) XSS prevention: verify all output escaped (esc_html, esc_attr, wp_kses). 5) CSRF protection: verify nonce checks on all state-changing endpoints. 6) Capability checks: verify current_user_can() on all admin functions. 7) Input validation: verify all inputs sanitized and validated. 8) Sensitive data handling: verify API keys never logged, no PII in error reports. 9) Create SECURITY.md documenting security architecture. 10) Dependency audit: no known vulnerabilities in composer.json/package.json. Acceptance Criteria: Zero PHPCS security warnings, PHPStan passes at level 6, manual code review checklist completed, security documentation ready for auditor review."
+
+
+
+thinking
+**Designing comprehensive CI workflows**
+
+I'm outlining CI workflows that run PHP linting, PHPUnit, Jest, ESLint, and build verification conditionally based on the presence of config files like composer.json and react/package.json. I'll also plan release and security workflows with dependency vulnerability scans reporting to GitHub’s Security tab by converting audit outputs to SARIF format via custom scripts. Since the repo lacks current plugin scaffolding and configs, the workflows will gracefully skip steps if configs are missing, preparing for future additions without blocking merges prematurely.
+thinking
+**Refining CI and release workflows with scripts**
+
+I’m finalizing CI workflows using `npm run ... --if-present` to avoid failures if JS scripts are missing, and conditionally running PHP steps only when composer.json exists. I’ll create a Python script to convert npm and composer audit JSON outputs into SARIF for GitHub Security tab uploads. The release workflow will build assets, generate changelog from git tags, package the plugin zip carefully excluding dev files but including built assets, and enforce size limits. I’ll also add branch protection docs recommending required CI status checks. This setup balances thorough checks with graceful handling of the current incomplete repo state.
+thinking
+**Ensuring all jobs run for branch protection**
+
+I’m designing the workflows so jobs always run to keep branch protection happy; conditional steps handle presence of composer or react files, skipping tasks inside with messages instead of skipping jobs entirely. This way, required checks won’t be marked skipped and block merges unintentionally. I’ll implement careful step-level conditionals for installs, linting, tests, and package tasks in both PHP and Node jobs.
+file update
+A /Users/ahmedyounis/Documents/Projects/agentwp/scripts/audit_to_sarif.py
+#!/usr/bin/env python3
+import argparse
+import json
+import os
+import sys
+
+
+def load_json(path):
+    with open(path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def map_level(severity):
+    if not severity:
+        return "warning"
+    severity = severity.lower()
+    if severity in ("critical", "high"):
+        return "error"
+    if severity in ("moderate", "medium"):
+        return "warning"
+    if severity in ("low", "info"):
+        return "note"
+    return "warning"
+
+
+def sarif_skeleton(tool_name, info_uri):
+    return {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": tool_name,
+                        "informationUri": info_uri,
+                        "rules": [],
+                    }
+                },
+                "results": [],
+            }
+        ],
+    }
+
+
+def add_rule(rules, rule_map, rule_id, title, help_uri=None):
+    if rule_id in rule_map:
+        return
+    rule = {
+        "id": rule_id,
+        "name": rule_id,
+        "shortDescription": {"text": title or rule_id},
+    }
+    if help_uri:
+        rule["helpUri"] = help_uri
+    rule_map[rule_id] = rule
+    rules.append(rule)
+
+
+def add_result(results, rule_id, level, message, location):
+    result = {
+        "ruleId": rule_id,
+        "level": level,
+        "message": {"text": message},
+    }
+    if location:
+        result["locations"] = [
+            {"physicalLocation": {"artifactLocation": {"uri": location}}}
+        ]
+    results.append(result)
+
+
+def composer_to_sarif(data, location):
+    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
+    run = sarif["runs"][0]
+    rules = run["tool"]["driver"]["rules"]
+    results = run["results"]
+    rule_map = {}
+
+    advisories = data.get("advisories", {})
+    for package, entries in advisories.items():
+        for index, advisory in enumerate(entries):
+            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
+            cve = advisory.get("cve")
+            rule_id = f"composer:{package}:{cve or index}"
+            severity = advisory.get("severity")
+            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
+            message = f"{package}: {title}"
+            if affected:
+                message = f"{message} (affected: {affected})"
+            help_uri = advisory.get("link") or advisory.get("url")
+            add_rule(rules, rule_map, rule_id, title, help_uri)
+            add_result(results, rule_id, map_level(severity), message, location)
+
+    return sarif
+
+
+def npm_v7_to_sarif(data, location):
+    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
+    run = sarif["runs"][0]
+    rules = run["tool"]["driver"]["rules"]
+    results = run["results"]
+    rule_map = {}
+
+    vulnerabilities = data.get("vulnerabilities", {})
+    for package, info in vulnerabilities.items():
+        via = info.get("via", [])
+        if isinstance(via, dict):
+            via = [via]
+        for entry in via:
+            if isinstance(entry, str):
+                continue
+            title = entry.get("title") or entry.get("name") or "npm advisory"
+            source = entry.get("source") or entry.get("url") or title
+            severity = entry.get("severity") or info.get("severity")
+            affected = entry.get("range") or info.get("range")
+            rule_id = f"npm:{package}:{source}"
+            message = f"{package}: {title}"
+            if affected:
+                message = f"{message} (affected: {affected})"
+            help_uri = entry.get("url")
+            add_rule(rules, rule_map, rule_id, title, help_uri)
+            add_result(results, rule_id, map_level(severity), message, location)
+
+    return sarif
+
+
+def npm_v6_to_sarif(data, location):
+    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
+    run = sarif["runs"][0]
+    rules = run["tool"]["driver"]["rules"]
+    results = run["results"]
+    rule_map = {}
+
+    advisories = data.get("advisories", {})
+    for advisory_id, advisory in advisories.items():
+        package = advisory.get("module_name") or advisory.get("name") or "package"
+        title = advisory.get("title") or "npm advisory"
+        severity = advisory.get("severity")
+        affected = advisory.get("vulnerable_versions")
+        rule_id = f"npm:{package}:{advisory_id}"
+        message = f"{package}: {title}"
+        if affected:
+            message = f"{message} (affected: {affected})"
+        help_uri = advisory.get("url")
+        add_rule(rules, rule_map, rule_id, title, help_uri)
+        add_result(results, rule_id, map_level(severity), message, location)
+
+    return sarif
+
+
+def write_sarif(output_path, sarif):
+    with open(output_path, "w", encoding="utf-8") as handle:
+        json.dump(sarif, handle, indent=2)
+        handle.write("\n")
+
+
+def resolve_location(preferred):
+    if preferred and os.path.exists(preferred):
+        return preferred
+    return preferred
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
+    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--location", default="")
+    args = parser.parse_args()
+
+    try:
+        data = load_json(args.input)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
+        return 2
+
+    location = resolve_location(args.location)
+    if args.tool == "composer":
+        sarif = composer_to_sarif(data, location)
+    else:
+        if "auditReportVersion" in data or "vulnerabilities" in data:
+            sarif = npm_v7_to_sarif(data, location)
+        else:
+            sarif = npm_v6_to_sarif(data, location)
+
+    write_sarif(args.output, sarif)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+apply_patch(auto_approved=true) exited 0 in 36ms:
+Success. Updated the following files:
+A scripts/audit_to_sarif.py
+file update:
+diff --git a/scripts/audit_to_sarif.py b/scripts/audit_to_sarif.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e7b00b3e88f7903ea4afe1bab6499f3932ac09
+--- /dev/null
++++ b/scripts/audit_to_sarif.py
+@@ -0,0 +1,191 @@
++#!/usr/bin/env python3
++import argparse
++import json
++import os
++import sys
++
++
++def load_json(path):
++    with open(path, "r", encoding="utf-8") as handle:
++        return json.load(handle)
++
++
++def map_level(severity):
++    if not severity:
++        return "warning"
++    severity = severity.lower()
++    if severity in ("critical", "high"):
++        return "error"
++    if severity in ("moderate", "medium"):
++        return "warning"
++    if severity in ("low", "info"):
++        return "note"
++    return "warning"
++
++
++def sarif_skeleton(tool_name, info_uri):
++    return {
++        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
++        "version": "2.1.0",
++        "runs": [
++            {
++                "tool": {
++                    "driver": {
++                        "name": tool_name,
++                        "informationUri": info_uri,
++                        "rules": [],
++                    }
++                },
++                "results": [],
++            }
++        ],
++    }
++
++
++def add_rule(rules, rule_map, rule_id, title, help_uri=None):
++    if rule_id in rule_map:
++        return
++    rule = {
++        "id": rule_id,
++        "name": rule_id,
++        "shortDescription": {"text": title or rule_id},
++    }
++    if help_uri:
++        rule["helpUri"] = help_uri
++    rule_map[rule_id] = rule
++    rules.append(rule)
++
++
++def add_result(results, rule_id, level, message, location):
++    result = {
++        "ruleId": rule_id,
++        "level": level,
++        "message": {"text": message},
++    }
++    if location:
++        result["locations"] = [
++            {"physicalLocation": {"artifactLocation": {"uri": location}}}
++        ]
++    results.append(result)
++
++
++def composer_to_sarif(data, location):
++    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for package, entries in advisories.items():
++        for index, advisory in enumerate(entries):
++            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
++            cve = advisory.get("cve")
++            rule_id = f"composer:{package}:{cve or index}"
++            severity = advisory.get("severity")
++            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = advisory.get("link") or advisory.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v7_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    vulnerabilities = data.get("vulnerabilities", {})
++    for package, info in vulnerabilities.items():
++        via = info.get("via", [])
++        if isinstance(via, dict):
++            via = [via]
++        for entry in via:
++            if isinstance(entry, str):
++                continue
++            title = entry.get("title") or entry.get("name") or "npm advisory"
++            source = entry.get("source") or entry.get("url") or title
++            severity = entry.get("severity") or info.get("severity")
++            affected = entry.get("range") or info.get("range")
++            rule_id = f"npm:{package}:{source}"
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = entry.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v6_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for advisory_id, advisory in advisories.items():
++        package = advisory.get("module_name") or advisory.get("name") or "package"
++        title = advisory.get("title") or "npm advisory"
++        severity = advisory.get("severity")
++        affected = advisory.get("vulnerable_versions")
++        rule_id = f"npm:{package}:{advisory_id}"
++        message = f"{package}: {title}"
++        if affected:
++            message = f"{message} (affected: {affected})"
++        help_uri = advisory.get("url")
++        add_rule(rules, rule_map, rule_id, title, help_uri)
++        add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def write_sarif(output_path, sarif):
++    with open(output_path, "w", encoding="utf-8") as handle:
++        json.dump(sarif, handle, indent=2)
++        handle.write("\n")
++
++
++def resolve_location(preferred):
++    if preferred and os.path.exists(preferred):
++        return preferred
++    return preferred
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
++    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
++    parser.add_argument("--input", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--location", default="")
++    args = parser.parse_args()
++
++    try:
++        data = load_json(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
++        return 2
++
++    location = resolve_location(args.location)
++    if args.tool == "composer":
++        sarif = composer_to_sarif(data, location)
++    else:
++        if "auditReportVersion" in data or "vulnerabilities" in data:
++            sarif = npm_v7_to_sarif(data, location)
++        else:
++            sarif = npm_v6_to_sarif(data, location)
++
++    write_sarif(args.output, sarif)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+file update:
+diff --git a/scripts/audit_to_sarif.py b/scripts/audit_to_sarif.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e7b00b3e88f7903ea4afe1bab6499f3932ac09
+--- /dev/null
++++ b/scripts/audit_to_sarif.py
+@@ -0,0 +1,191 @@
++#!/usr/bin/env python3
++import argparse
++import json
++import os
++import sys
++
++
++def load_json(path):
++    with open(path, "r", encoding="utf-8") as handle:
++        return json.load(handle)
++
++
++def map_level(severity):
++    if not severity:
++        return "warning"
++    severity = severity.lower()
++    if severity in ("critical", "high"):
++        return "error"
++    if severity in ("moderate", "medium"):
++        return "warning"
++    if severity in ("low", "info"):
++        return "note"
++    return "warning"
++
++
++def sarif_skeleton(tool_name, info_uri):
++    return {
++        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
++        "version": "2.1.0",
++        "runs": [
++            {
++                "tool": {
++                    "driver": {
++                        "name": tool_name,
++                        "informationUri": info_uri,
++                        "rules": [],
++                    }
++                },
++                "results": [],
++            }
++        ],
++    }
++
++
++def add_rule(rules, rule_map, rule_id, title, help_uri=None):
++    if rule_id in rule_map:
++        return
++    rule = {
++        "id": rule_id,
++        "name": rule_id,
++        "shortDescription": {"text": title or rule_id},
++    }
++    if help_uri:
++        rule["helpUri"] = help_uri
++    rule_map[rule_id] = rule
++    rules.append(rule)
++
++
++def add_result(results, rule_id, level, message, location):
++    result = {
++        "ruleId": rule_id,
++        "level": level,
++        "message": {"text": message},
++    }
++    if location:
++        result["locations"] = [
++            {"physicalLocation": {"artifactLocation": {"uri": location}}}
++        ]
++    results.append(result)
++
++
++def composer_to_sarif(data, location):
++    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for package, entries in advisories.items():
++        for index, advisory in enumerate(entries):
++            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
++            cve = advisory.get("cve")
++            rule_id = f"composer:{package}:{cve or index}"
++            severity = advisory.get("severity")
++            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = advisory.get("link") or advisory.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v7_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    vulnerabilities = data.get("vulnerabilities", {})
++    for package, info in vulnerabilities.items():
++        via = info.get("via", [])
++        if isinstance(via, dict):
++            via = [via]
++        for entry in via:
++            if isinstance(entry, str):
++                continue
++            title = entry.get("title") or entry.get("name") or "npm advisory"
++            source = entry.get("source") or entry.get("url") or title
++            severity = entry.get("severity") or info.get("severity")
++            affected = entry.get("range") or info.get("range")
++            rule_id = f"npm:{package}:{source}"
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = entry.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v6_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for advisory_id, advisory in advisories.items():
++        package = advisory.get("module_name") or advisory.get("name") or "package"
++        title = advisory.get("title") or "npm advisory"
++        severity = advisory.get("severity")
++        affected = advisory.get("vulnerable_versions")
++        rule_id = f"npm:{package}:{advisory_id}"
++        message = f"{package}: {title}"
++        if affected:
++            message = f"{message} (affected: {affected})"
++        help_uri = advisory.get("url")
++        add_rule(rules, rule_map, rule_id, title, help_uri)
++        add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def write_sarif(output_path, sarif):
++    with open(output_path, "w", encoding="utf-8") as handle:
++        json.dump(sarif, handle, indent=2)
++        handle.write("\n")
++
++
++def resolve_location(preferred):
++    if preferred and os.path.exists(preferred):
++        return preferred
++    return preferred
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
++    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
++    parser.add_argument("--input", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--location", default="")
++    args = parser.parse_args()
++
++    try:
++        data = load_json(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
++        return 2
++
++    location = resolve_location(args.location)
++    if args.tool == "composer":
++        sarif = composer_to_sarif(data, location)
++    else:
++        if "auditReportVersion" in data or "vulnerabilities" in data:
++            sarif = npm_v7_to_sarif(data, location)
++        else:
++            sarif = npm_v6_to_sarif(data, location)
++
++    write_sarif(args.output, sarif)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+
+thinking
+**Reviewing location resolution and adding doc file**
+file update
+A /Users/ahmedyounis/Documents/Projects/agentwp/docs/branch-protection.md
+# Branch Protection Rules
+
+Recommended branch protection for `main` to ensure CI gates merges:
+
+- Require a pull request before merging (dismiss stale approvals, require 1+ approval).
+- Require status checks to pass before merging:
+  - `CI / php`
+  - `CI / node`
+- Require branches to be up to date before merging.
+- Restrict direct pushes to `main` (enforce for admins if possible).
+- Require signed commits if your release process mandates it.
+
+Update the required checks list if job names change.
+apply_patch(auto_approved=true) exited 0 in 46ms:
+Success. Updated the following files:
+A docs/branch-protection.md
+file update:
+diff --git a/docs/branch-protection.md b/docs/branch-protection.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..57b2aeee84c21e8aefa073fbd6fd16349ea63088
+--- /dev/null
++++ b/docs/branch-protection.md
+@@ -0,0 +1,13 @@
++# Branch Protection Rules
++
++Recommended branch protection for `main` to ensure CI gates merges:
++
++- Require a pull request before merging (dismiss stale approvals, require 1+ approval).
++- Require status checks to pass before merging:
++  - `CI / php`
++  - `CI / node`
++- Require branches to be up to date before merging.
++- Restrict direct pushes to `main` (enforce for admins if possible).
++- Require signed commits if your release process mandates it.
++
++Update the required checks list if job names change.
+diff --git a/scripts/audit_to_sarif.py b/scripts/audit_to_sarif.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e7b00b3e88f7903ea4afe1bab6499f3932ac09
+--- /dev/null
++++ b/scripts/audit_to_sarif.py
+@@ -0,0 +1,191 @@
++#!/usr/bin/env python3
++import argparse
++import json
++import os
++import sys
++
++
++def load_json(path):
++    with open(path, "r", encoding="utf-8") as handle:
++        return json.load(handle)
++
++
++def map_level(severity):
++    if not severity:
++        return "warning"
++    severity = severity.lower()
++    if severity in ("critical", "high"):
++        return "error"
++    if severity in ("moderate", "medium"):
++        return "warning"
++    if severity in ("low", "info"):
++        return "note"
++    return "warning"
++
++
++def sarif_skeleton(tool_name, info_uri):
++    return {
++        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
++        "version": "2.1.0",
++        "runs": [
++            {
++                "tool": {
++                    "driver": {
++                        "name": tool_name,
++                        "informationUri": info_uri,
++                        "rules": [],
++                    }
++                },
++                "results": [],
++            }
++        ],
++    }
++
++
++def add_rule(rules, rule_map, rule_id, title, help_uri=None):
++    if rule_id in rule_map:
++        return
++    rule = {
++        "id": rule_id,
++        "name": rule_id,
++        "shortDescription": {"text": title or rule_id},
++    }
++    if help_uri:
++        rule["helpUri"] = help_uri
++    rule_map[rule_id] = rule
++    rules.append(rule)
++
++
++def add_result(results, rule_id, level, message, location):
++    result = {
++        "ruleId": rule_id,
++        "level": level,
++        "message": {"text": message},
++    }
++    if location:
++        result["locations"] = [
++            {"physicalLocation": {"artifactLocation": {"uri": location}}}
++        ]
++    results.append(result)
++
++
++def composer_to_sarif(data, location):
++    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for package, entries in advisories.items():
++        for index, advisory in enumerate(entries):
++            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
++            cve = advisory.get("cve")
++            rule_id = f"composer:{package}:{cve or index}"
++            severity = advisory.get("severity")
++            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = advisory.get("link") or advisory.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v7_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    vulnerabilities = data.get("vulnerabilities", {})
++    for package, info in vulnerabilities.items():
++        via = info.get("via", [])
++        if isinstance(via, dict):
++            via = [via]
++        for entry in via:
++            if isinstance(entry, str):
++                continue
++            title = entry.get("title") or entry.get("name") or "npm advisory"
++            source = entry.get("source") or entry.get("url") or title
++            severity = entry.get("severity") or info.get("severity")
++            affected = entry.get("range") or info.get("range")
++            rule_id = f"npm:{package}:{source}"
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = entry.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v6_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for advisory_id, advisory in advisories.items():
++        package = advisory.get("module_name") or advisory.get("name") or "package"
++        title = advisory.get("title") or "npm advisory"
++        severity = advisory.get("severity")
++        affected = advisory.get("vulnerable_versions")
++        rule_id = f"npm:{package}:{advisory_id}"
++        message = f"{package}: {title}"
++        if affected:
++            message = f"{message} (affected: {affected})"
++        help_uri = advisory.get("url")
++        add_rule(rules, rule_map, rule_id, title, help_uri)
++        add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def write_sarif(output_path, sarif):
++    with open(output_path, "w", encoding="utf-8") as handle:
++        json.dump(sarif, handle, indent=2)
++        handle.write("\n")
++
++
++def resolve_location(preferred):
++    if preferred and os.path.exists(preferred):
++        return preferred
++    return preferred
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
++    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
++    parser.add_argument("--input", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--location", default="")
++    args = parser.parse_args()
++
++    try:
++        data = load_json(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
++        return 2
++
++    location = resolve_location(args.location)
++    if args.tool == "composer":
++        sarif = composer_to_sarif(data, location)
++    else:
++        if "auditReportVersion" in data or "vulnerabilities" in data:
++            sarif = npm_v7_to_sarif(data, location)
++        else:
++            sarif = npm_v6_to_sarif(data, location)
++
++    write_sarif(args.output, sarif)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+file update:
+diff --git a/docs/branch-protection.md b/docs/branch-protection.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..57b2aeee84c21e8aefa073fbd6fd16349ea63088
+--- /dev/null
++++ b/docs/branch-protection.md
+@@ -0,0 +1,13 @@
++# Branch Protection Rules
++
++Recommended branch protection for `main` to ensure CI gates merges:
++
++- Require a pull request before merging (dismiss stale approvals, require 1+ approval).
++- Require status checks to pass before merging:
++  - `CI / php`
++  - `CI / node`
++- Require branches to be up to date before merging.
++- Restrict direct pushes to `main` (enforce for admins if possible).
++- Require signed commits if your release process mandates it.
++
++Update the required checks list if job names change.
+diff --git a/scripts/audit_to_sarif.py b/scripts/audit_to_sarif.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e7b00b3e88f7903ea4afe1bab6499f3932ac09
+--- /dev/null
++++ b/scripts/audit_to_sarif.py
+@@ -0,0 +1,191 @@
++#!/usr/bin/env python3
++import argparse
++import json
++import os
++import sys
++
++
++def load_json(path):
++    with open(path, "r", encoding="utf-8") as handle:
++        return json.load(handle)
++
++
++def map_level(severity):
++    if not severity:
++        return "warning"
++    severity = severity.lower()
++    if severity in ("critical", "high"):
++        return "error"
++    if severity in ("moderate", "medium"):
++        return "warning"
++    if severity in ("low", "info"):
++        return "note"
++    return "warning"
++
++
++def sarif_skeleton(tool_name, info_uri):
++    return {
++        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
++        "version": "2.1.0",
++        "runs": [
++            {
++                "tool": {
++                    "driver": {
++                        "name": tool_name,
++                        "informationUri": info_uri,
++                        "rules": [],
++                    }
++                },
++                "results": [],
++            }
++        ],
++    }
++
++
++def add_rule(rules, rule_map, rule_id, title, help_uri=None):
++    if rule_id in rule_map:
++        return
++    rule = {
++        "id": rule_id,
++        "name": rule_id,
++        "shortDescription": {"text": title or rule_id},
++    }
++    if help_uri:
++        rule["helpUri"] = help_uri
++    rule_map[rule_id] = rule
++    rules.append(rule)
++
++
++def add_result(results, rule_id, level, message, location):
++    result = {
++        "ruleId": rule_id,
++        "level": level,
++        "message": {"text": message},
++    }
++    if location:
++        result["locations"] = [
++            {"physicalLocation": {"artifactLocation": {"uri": location}}}
++        ]
++    results.append(result)
++
++
++def composer_to_sarif(data, location):
++    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for package, entries in advisories.items():
++        for index, advisory in enumerate(entries):
++            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
++            cve = advisory.get("cve")
++            rule_id = f"composer:{package}:{cve or index}"
++            severity = advisory.get("severity")
++            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = advisory.get("link") or advisory.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v7_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    vulnerabilities = data.get("vulnerabilities", {})
++    for package, info in vulnerabilities.items():
++        via = info.get("via", [])
++        if isinstance(via, dict):
++            via = [via]
++        for entry in via:
++            if isinstance(entry, str):
++                continue
++            title = entry.get("title") or entry.get("name") or "npm advisory"
++            source = entry.get("source") or entry.get("url") or title
++            severity = entry.get("severity") or info.get("severity")
++            affected = entry.get("range") or info.get("range")
++            rule_id = f"npm:{package}:{source}"
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = entry.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v6_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for advisory_id, advisory in advisories.items():
++        package = advisory.get("module_name") or advisory.get("name") or "package"
++        title = advisory.get("title") or "npm advisory"
++        severity = advisory.get("severity")
++        affected = advisory.get("vulnerable_versions")
++        rule_id = f"npm:{package}:{advisory_id}"
++        message = f"{package}: {title}"
++        if affected:
++            message = f"{message} (affected: {affected})"
++        help_uri = advisory.get("url")
++        add_rule(rules, rule_map, rule_id, title, help_uri)
++        add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def write_sarif(output_path, sarif):
++    with open(output_path, "w", encoding="utf-8") as handle:
++        json.dump(sarif, handle, indent=2)
++        handle.write("\n")
++
++
++def resolve_location(preferred):
++    if preferred and os.path.exists(preferred):
++        return preferred
++    return preferred
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
++    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
++    parser.add_argument("--input", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--location", default="")
++    args = parser.parse_args()
++
++    try:
++        data = load_json(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
++        return 2
++
++    location = resolve_location(args.location)
++    if args.tool == "composer":
++        sarif = composer_to_sarif(data, location)
++    else:
++        if "auditReportVersion" in data or "vulnerabilities" in data:
++            sarif = npm_v7_to_sarif(data, location)
++        else:
++            sarif = npm_v6_to_sarif(data, location)
++
++    write_sarif(args.output, sarif)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+
+thinking
+**Creating GitHub workflow files**
+
+I'm crafting detailed YAML workflows for CI, release, and security audit in .github/workflows, carefully handling PHP and Node jobs with conditional steps and dependency checks to make the automation robust and efficient.
+exec
+/bin/zsh -lc 'mkdir -p .github/workflows' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 56ms:
+
+file update:
+diff --git a/docs/branch-protection.md b/docs/branch-protection.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..57b2aeee84c21e8aefa073fbd6fd16349ea63088
+--- /dev/null
++++ b/docs/branch-protection.md
+@@ -0,0 +1,13 @@
++# Branch Protection Rules
++
++Recommended branch protection for `main` to ensure CI gates merges:
++
++- Require a pull request before merging (dismiss stale approvals, require 1+ approval).
++- Require status checks to pass before merging:
++  - `CI / php`
++  - `CI / node`
++- Require branches to be up to date before merging.
++- Restrict direct pushes to `main` (enforce for admins if possible).
++- Require signed commits if your release process mandates it.
++
++Update the required checks list if job names change.
+diff --git a/scripts/audit_to_sarif.py b/scripts/audit_to_sarif.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e7b00b3e88f7903ea4afe1bab6499f3932ac09
+--- /dev/null
++++ b/scripts/audit_to_sarif.py
+@@ -0,0 +1,191 @@
++#!/usr/bin/env python3
++import argparse
++import json
++import os
++import sys
++
++
++def load_json(path):
++    with open(path, "r", encoding="utf-8") as handle:
++        return json.load(handle)
++
++
++def map_level(severity):
++    if not severity:
++        return "warning"
++    severity = severity.lower()
++    if severity in ("critical", "high"):
++        return "error"
++    if severity in ("moderate", "medium"):
++        return "warning"
++    if severity in ("low", "info"):
++        return "note"
++    return "warning"
++
++
++def sarif_skeleton(tool_name, info_uri):
++    return {
++        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
++        "version": "2.1.0",
++        "runs": [
++            {
++                "tool": {
++                    "driver": {
++                        "name": tool_name,
++                        "informationUri": info_uri,
++                        "rules": [],
++                    }
++                },
++                "results": [],
++            }
++        ],
++    }
++
++
++def add_rule(rules, rule_map, rule_id, title, help_uri=None):
++    if rule_id in rule_map:
++        return
++    rule = {
++        "id": rule_id,
++        "name": rule_id,
++        "shortDescription": {"text": title or rule_id},
++    }
++    if help_uri:
++        rule["helpUri"] = help_uri
++    rule_map[rule_id] = rule
++    rules.append(rule)
++
++
++def add_result(results, rule_id, level, message, location):
++    result = {
++        "ruleId": rule_id,
++        "level": level,
++        "message": {"text": message},
++    }
++    if location:
++        result["locations"] = [
++            {"physicalLocation": {"artifactLocation": {"uri": location}}}
++        ]
++    results.append(result)
++
++
++def composer_to_sarif(data, location):
++    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for package, entries in advisories.items():
++        for index, advisory in enumerate(entries):
++            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
++            cve = advisory.get("cve")
++            rule_id = f"composer:{package}:{cve or index}"
++            severity = advisory.get("severity")
++            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = advisory.get("link") or advisory.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v7_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    vulnerabilities = data.get("vulnerabilities", {})
++    for package, info in vulnerabilities.items():
++        via = info.get("via", [])
++        if isinstance(via, dict):
++            via = [via]
++        for entry in via:
++            if isinstance(entry, str):
++                continue
++            title = entry.get("title") or entry.get("name") or "npm advisory"
++            source = entry.get("source") or entry.get("url") or title
++            severity = entry.get("severity") or info.get("severity")
++            affected = entry.get("range") or info.get("range")
++            rule_id = f"npm:{package}:{source}"
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = entry.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v6_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for advisory_id, advisory in advisories.items():
++        package = advisory.get("module_name") or advisory.get("name") or "package"
++        title = advisory.get("title") or "npm advisory"
++        severity = advisory.get("severity")
++        affected = advisory.get("vulnerable_versions")
++        rule_id = f"npm:{package}:{advisory_id}"
++        message = f"{package}: {title}"
++        if affected:
++            message = f"{message} (affected: {affected})"
++        help_uri = advisory.get("url")
++        add_rule(rules, rule_map, rule_id, title, help_uri)
++        add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def write_sarif(output_path, sarif):
++    with open(output_path, "w", encoding="utf-8") as handle:
++        json.dump(sarif, handle, indent=2)
++        handle.write("\n")
++
++
++def resolve_location(preferred):
++    if preferred and os.path.exists(preferred):
++        return preferred
++    return preferred
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
++    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
++    parser.add_argument("--input", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--location", default="")
++    args = parser.parse_args()
++
++    try:
++        data = load_json(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
++        return 2
++
++    location = resolve_location(args.location)
++    if args.tool == "composer":
++        sarif = composer_to_sarif(data, location)
++    else:
++        if "auditReportVersion" in data or "vulnerabilities" in data:
++            sarif = npm_v7_to_sarif(data, location)
++        else:
++            sarif = npm_v6_to_sarif(data, location)
++
++    write_sarif(args.output, sarif)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+
+thinking
+**Adding CI workflow configuration**
+file update
+A /Users/ahmedyounis/Documents/Projects/agentwp/.github/workflows/ci.yml
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    name: php
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          tools: composer
+
+      - name: Install PHP dependencies
+        if: hashFiles('composer.json') != ''
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Run PHPCS (WordPress)
+        if: hashFiles('composer.json') != ''
+        run: |
+          if [ ! -x vendor/bin/phpcs ]; then
+            echo "PHPCS not installed; skipping."
+            exit 0
+          fi
+          if find . -name '*.php' -not -path './vendor/*' -not -path './node_modules/*' -not -path './react/node_modules/*' | grep -q .; then
+            if [ -f phpcs.xml ] || [ -f phpcs.xml.dist ]; then
+              vendor/bin/phpcs
+            else
+              vendor/bin/phpcs --standard=WordPress --extensions=php --ignore=vendor/*,node_modules/*,react/node_modules/* .
+            fi
+          else
+            echo "No PHP files found; skipping PHPCS."
+          fi
+
+      - name: Run PHPUnit
+        if: hashFiles('composer.json') != ''
+        run: |
+          if [ ! -x vendor/bin/phpunit ]; then
+            echo "PHPUnit not installed; skipping."
+            exit 0
+          fi
+          if [ -f phpunit.xml ] || [ -f phpunit.xml.dist ] || [ -d tests ]; then
+            vendor/bin/phpunit
+          else
+            echo "No PHPUnit config/tests found; skipping."
+          fi
+
+  node:
+    name: node
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: react
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: react/package-lock.json
+
+      - name: Install Node dependencies
+        if: hashFiles('react/package.json') != ''
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Run ESLint
+        if: hashFiles('react/package.json') != ''
+        run: npm run lint --if-present
+
+      - name: Run Jest
+        if: hashFiles('react/package.json') != ''
+        run: npm run test --if-present -- --ci
+
+      - name: Build frontend
+        if: hashFiles('react/package.json') != ''
+        run: npm run build --if-present
+apply_patch(auto_approved=true) exited 0 in 48ms:
+Success. Updated the following files:
+A .github/workflows/ci.yml
+file update:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c7a636b08ccc631dad898d2b795b27174a0cf5f3
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,93 @@
++name: CI
++
++on:
++  pull_request:
++
++permissions:
++  contents: read
++
++jobs:
++  php:
++    name: php
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup PHP
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Install PHP dependencies
++        if: hashFiles('composer.json') != ''
++        run: composer install --no-interaction --no-progress --prefer-dist
++
++      - name: Run PHPCS (WordPress)
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpcs ]; then
++            echo "PHPCS not installed; skipping."
++            exit 0
++          fi
++          if find . -name '*.php' -not -path './vendor/*' -not -path './node_modules/*' -not -path './react/node_modules/*' | grep -q .; then
++            if [ -f phpcs.xml ] || [ -f phpcs.xml.dist ]; then
++              vendor/bin/phpcs
++            else
++              vendor/bin/phpcs --standard=WordPress --extensions=php --ignore=vendor/*,node_modules/*,react/node_modules/* .
++            fi
++          else
++            echo "No PHP files found; skipping PHPCS."
++          fi
++
++      - name: Run PHPUnit
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpunit ]; then
++            echo "PHPUnit not installed; skipping."
++            exit 0
++          fi
++          if [ -f phpunit.xml ] || [ -f phpunit.xml.dist ] || [ -d tests ]; then
++            vendor/bin/phpunit
++          else
++            echo "No PHPUnit config/tests found; skipping."
++          fi
++
++  node:
++    name: node
++    runs-on: ubuntu-latest
++    defaults:
++      run:
++        working-directory: react
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup Node
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Install Node dependencies
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f package-lock.json ]; then
++            npm ci
++          else
++            npm install
++          fi
++
++      - name: Run ESLint
++        if: hashFiles('react/package.json') != ''
++        run: npm run lint --if-present
++
++      - name: Run Jest
++        if: hashFiles('react/package.json') != ''
++        run: npm run test --if-present -- --ci
++
++      - name: Build frontend
++        if: hashFiles('react/package.json') != ''
++        run: npm run build --if-present
+diff --git a/docs/branch-protection.md b/docs/branch-protection.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..57b2aeee84c21e8aefa073fbd6fd16349ea63088
+--- /dev/null
++++ b/docs/branch-protection.md
+@@ -0,0 +1,13 @@
++# Branch Protection Rules
++
++Recommended branch protection for `main` to ensure CI gates merges:
++
++- Require a pull request before merging (dismiss stale approvals, require 1+ approval).
++- Require status checks to pass before merging:
++  - `CI / php`
++  - `CI / node`
++- Require branches to be up to date before merging.
++- Restrict direct pushes to `main` (enforce for admins if possible).
++- Require signed commits if your release process mandates it.
++
++Update the required checks list if job names change.
+diff --git a/scripts/audit_to_sarif.py b/scripts/audit_to_sarif.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e7b00b3e88f7903ea4afe1bab6499f3932ac09
+--- /dev/null
++++ b/scripts/audit_to_sarif.py
+@@ -0,0 +1,191 @@
++#!/usr/bin/env python3
++import argparse
++import json
++import os
++import sys
++
++
++def load_json(path):
++    with open(path, "r", encoding="utf-8") as handle:
++        return json.load(handle)
++
++
++def map_level(severity):
++    if not severity:
++        return "warning"
++    severity = severity.lower()
++    if severity in ("critical", "high"):
++        return "error"
++    if severity in ("moderate", "medium"):
++        return "warning"
++    if severity in ("low", "info"):
++        return "note"
++    return "warning"
++
++
++def sarif_skeleton(tool_name, info_uri):
++    return {
++        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
++        "version": "2.1.0",
++        "runs": [
++            {
++                "tool": {
++                    "driver": {
++                        "name": tool_name,
++                        "informationUri": info_uri,
++                        "rules": [],
++                    }
++                },
++                "results": [],
++            }
++        ],
++    }
++
++
++def add_rule(rules, rule_map, rule_id, title, help_uri=None):
++    if rule_id in rule_map:
++        return
++    rule = {
++        "id": rule_id,
++        "name": rule_id,
++        "shortDescription": {"text": title or rule_id},
++    }
++    if help_uri:
++        rule["helpUri"] = help_uri
++    rule_map[rule_id] = rule
++    rules.append(rule)
++
++
++def add_result(results, rule_id, level, message, location):
++    result = {
++        "ruleId": rule_id,
++        "level": level,
++        "message": {"text": message},
++    }
++    if location:
++        result["locations"] = [
++            {"physicalLocation": {"artifactLocation": {"uri": location}}}
++        ]
++    results.append(result)
++
++
++def composer_to_sarif(data, location):
++    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for package, entries in advisories.items():
++        for index, advisory in enumerate(entries):
++            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
++            cve = advisory.get("cve")
++            rule_id = f"composer:{package}:{cve or index}"
++            severity = advisory.get("severity")
++            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = advisory.get("link") or advisory.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v7_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    vulnerabilities = data.get("vulnerabilities", {})
++    for package, info in vulnerabilities.items():
++        via = info.get("via", [])
++        if isinstance(via, dict):
++            via = [via]
++        for entry in via:
++            if isinstance(entry, str):
++                continue
++            title = entry.get("title") or entry.get("name") or "npm advisory"
++            source = entry.get("source") or entry.get("url") or title
++            severity = entry.get("severity") or info.get("severity")
++            affected = entry.get("range") or info.get("range")
++            rule_id = f"npm:{package}:{source}"
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = entry.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v6_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for advisory_id, advisory in advisories.items():
++        package = advisory.get("module_name") or advisory.get("name") or "package"
++        title = advisory.get("title") or "npm advisory"
++        severity = advisory.get("severity")
++        affected = advisory.get("vulnerable_versions")
++        rule_id = f"npm:{package}:{advisory_id}"
++        message = f"{package}: {title}"
++        if affected:
++            message = f"{message} (affected: {affected})"
++        help_uri = advisory.get("url")
++        add_rule(rules, rule_map, rule_id, title, help_uri)
++        add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def write_sarif(output_path, sarif):
++    with open(output_path, "w", encoding="utf-8") as handle:
++        json.dump(sarif, handle, indent=2)
++        handle.write("\n")
++
++
++def resolve_location(preferred):
++    if preferred and os.path.exists(preferred):
++        return preferred
++    return preferred
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
++    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
++    parser.add_argument("--input", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--location", default="")
++    args = parser.parse_args()
++
++    try:
++        data = load_json(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
++        return 2
++
++    location = resolve_location(args.location)
++    if args.tool == "composer":
++        sarif = composer_to_sarif(data, location)
++    else:
++        if "auditReportVersion" in data or "vulnerabilities" in data:
++            sarif = npm_v7_to_sarif(data, location)
++        else:
++            sarif = npm_v6_to_sarif(data, location)
++
++    write_sarif(args.output, sarif)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+file update:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c7a636b08ccc631dad898d2b795b27174a0cf5f3
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,93 @@
++name: CI
++
++on:
++  pull_request:
++
++permissions:
++  contents: read
++
++jobs:
++  php:
++    name: php
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup PHP
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Install PHP dependencies
++        if: hashFiles('composer.json') != ''
++        run: composer install --no-interaction --no-progress --prefer-dist
++
++      - name: Run PHPCS (WordPress)
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpcs ]; then
++            echo "PHPCS not installed; skipping."
++            exit 0
++          fi
++          if find . -name '*.php' -not -path './vendor/*' -not -path './node_modules/*' -not -path './react/node_modules/*' | grep -q .; then
++            if [ -f phpcs.xml ] || [ -f phpcs.xml.dist ]; then
++              vendor/bin/phpcs
++            else
++              vendor/bin/phpcs --standard=WordPress --extensions=php --ignore=vendor/*,node_modules/*,react/node_modules/* .
++            fi
++          else
++            echo "No PHP files found; skipping PHPCS."
++          fi
++
++      - name: Run PHPUnit
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpunit ]; then
++            echo "PHPUnit not installed; skipping."
++            exit 0
++          fi
++          if [ -f phpunit.xml ] || [ -f phpunit.xml.dist ] || [ -d tests ]; then
++            vendor/bin/phpunit
++          else
++            echo "No PHPUnit config/tests found; skipping."
++          fi
++
++  node:
++    name: node
++    runs-on: ubuntu-latest
++    defaults:
++      run:
++        working-directory: react
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup Node
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Install Node dependencies
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f package-lock.json ]; then
++            npm ci
++          else
++            npm install
++          fi
++
++      - name: Run ESLint
++        if: hashFiles('react/package.json') != ''
++        run: npm run lint --if-present
++
++      - name: Run Jest
++        if: hashFiles('react/package.json') != ''
++        run: npm run test --if-present -- --ci
++
++      - name: Build frontend
++        if: hashFiles('react/package.json') != ''
++        run: npm run build --if-present
+diff --git a/docs/branch-protection.md b/docs/branch-protection.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..57b2aeee84c21e8aefa073fbd6fd16349ea63088
+--- /dev/null
++++ b/docs/branch-protection.md
+@@ -0,0 +1,13 @@
++# Branch Protection Rules
++
++Recommended branch protection for `main` to ensure CI gates merges:
++
++- Require a pull request before merging (dismiss stale approvals, require 1+ approval).
++- Require status checks to pass before merging:
++  - `CI / php`
++  - `CI / node`
++- Require branches to be up to date before merging.
++- Restrict direct pushes to `main` (enforce for admins if possible).
++- Require signed commits if your release process mandates it.
++
++Update the required checks list if job names change.
+diff --git a/scripts/audit_to_sarif.py b/scripts/audit_to_sarif.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e7b00b3e88f7903ea4afe1bab6499f3932ac09
+--- /dev/null
++++ b/scripts/audit_to_sarif.py
+@@ -0,0 +1,191 @@
++#!/usr/bin/env python3
++import argparse
++import json
++import os
++import sys
++
++
++def load_json(path):
++    with open(path, "r", encoding="utf-8") as handle:
++        return json.load(handle)
++
++
++def map_level(severity):
++    if not severity:
++        return "warning"
++    severity = severity.lower()
++    if severity in ("critical", "high"):
++        return "error"
++    if severity in ("moderate", "medium"):
++        return "warning"
++    if severity in ("low", "info"):
++        return "note"
++    return "warning"
++
++
++def sarif_skeleton(tool_name, info_uri):
++    return {
++        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
++        "version": "2.1.0",
++        "runs": [
++            {
++                "tool": {
++                    "driver": {
++                        "name": tool_name,
++                        "informationUri": info_uri,
++                        "rules": [],
++                    }
++                },
++                "results": [],
++            }
++        ],
++    }
++
++
++def add_rule(rules, rule_map, rule_id, title, help_uri=None):
++    if rule_id in rule_map:
++        return
++    rule = {
++        "id": rule_id,
++        "name": rule_id,
++        "shortDescription": {"text": title or rule_id},
++    }
++    if help_uri:
++        rule["helpUri"] = help_uri
++    rule_map[rule_id] = rule
++    rules.append(rule)
++
++
++def add_result(results, rule_id, level, message, location):
++    result = {
++        "ruleId": rule_id,
++        "level": level,
++        "message": {"text": message},
++    }
++    if location:
++        result["locations"] = [
++            {"physicalLocation": {"artifactLocation": {"uri": location}}}
++        ]
++    results.append(result)
++
++
++def composer_to_sarif(data, location):
++    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for package, entries in advisories.items():
++        for index, advisory in enumerate(entries):
++            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
++            cve = advisory.get("cve")
++            rule_id = f"composer:{package}:{cve or index}"
++            severity = advisory.get("severity")
++            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = advisory.get("link") or advisory.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v7_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    vulnerabilities = data.get("vulnerabilities", {})
++    for package, info in vulnerabilities.items():
++        via = info.get("via", [])
++        if isinstance(via, dict):
++            via = [via]
++        for entry in via:
++            if isinstance(entry, str):
++                continue
++            title = entry.get("title") or entry.get("name") or "npm advisory"
++            source = entry.get("source") or entry.get("url") or title
++            severity = entry.get("severity") or info.get("severity")
++            affected = entry.get("range") or info.get("range")
++            rule_id = f"npm:{package}:{source}"
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = entry.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v6_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for advisory_id, advisory in advisories.items():
++        package = advisory.get("module_name") or advisory.get("name") or "package"
++        title = advisory.get("title") or "npm advisory"
++        severity = advisory.get("severity")
++        affected = advisory.get("vulnerable_versions")
++        rule_id = f"npm:{package}:{advisory_id}"
++        message = f"{package}: {title}"
++        if affected:
++            message = f"{message} (affected: {affected})"
++        help_uri = advisory.get("url")
++        add_rule(rules, rule_map, rule_id, title, help_uri)
++        add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def write_sarif(output_path, sarif):
++    with open(output_path, "w", encoding="utf-8") as handle:
++        json.dump(sarif, handle, indent=2)
++        handle.write("\n")
++
++
++def resolve_location(preferred):
++    if preferred and os.path.exists(preferred):
++        return preferred
++    return preferred
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
++    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
++    parser.add_argument("--input", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--location", default="")
++    args = parser.parse_args()
++
++    try:
++        data = load_json(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
++        return 2
++
++    location = resolve_location(args.location)
++    if args.tool == "composer":
++        sarif = composer_to_sarif(data, location)
++    else:
++        if "auditReportVersion" in data or "vulnerabilities" in data:
++            sarif = npm_v7_to_sarif(data, location)
++        else:
++            sarif = npm_v6_to_sarif(data, location)
++
++    write_sarif(args.output, sarif)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+
+thinking
+**Reviewing release.yml file**
+file update
+A /Users/ahmedyounis/Documents/Projects/agentwp/.github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      PLUGIN_SLUG: agentwp
+      RELEASE_ZIP: agentwp-${{ github.ref_name }}.zip
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        if: hashFiles('composer.json') != ''
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          tools: composer
+
+      - name: Setup Node
+        if: hashFiles('react/package.json') != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: react/package-lock.json
+
+      - name: Install PHP dependencies (production)
+        if: hashFiles('composer.json') != ''
+        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
+
+      - name: Build frontend assets
+        if: hashFiles('react/package.json') != ''
+        run: |
+          if [ -f react/package-lock.json ]; then
+            npm ci --prefix react
+          else
+            npm install --prefix react
+          fi
+          npm --prefix react run build --if-present
+          if [ -d react/dist ]; then
+            mkdir -p assets
+            rsync -a react/dist/ assets/
+          fi
+
+      - name: Generate changelog
+        run: |
+          mkdir -p dist
+          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${GITHUB_REF_NAME}$" | head -n 1 || true)
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..${GITHUB_REF_NAME}"
+          else
+            RANGE="${GITHUB_REF_NAME}"
+          fi
+          git log "$RANGE" --pretty=format:"- %s (%h)" > dist/CHANGELOG.md
+
+      - name: Create release package
+        run: |
+          mkdir -p dist/package/${PLUGIN_SLUG}
+          rsync -a \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.idea' \
+            --exclude '.logs' \
+            --exclude '.plans' \
+            --exclude '.t2' \
+            --exclude 'docker' \
+            --exclude 'docker-compose.yml' \
+            --exclude 'docs' \
+            --exclude 'react' \
+            --exclude 'scripts' \
+            --exclude 'node_modules' \
+            --exclude '**/node_modules' \
+            --exclude 'tests' \
+            --exclude 'coverage' \
+            --exclude 'tasks.csv' \
+            --exclude 'setup.sh' \
+            --exclude '.env.example' \
+            ./ dist/package/${PLUGIN_SLUG}/
+          cd dist/package
+          zip -r "../${RELEASE_ZIP}" "${PLUGIN_SLUG}"
+
+      - name: Enforce size limit
+        run: |
+          size=$(stat -c%s "dist/${RELEASE_ZIP}")
+          limit=$((10 * 1024 * 1024))
+          if [ "$size" -gt "$limit" ]; then
+            echo "Release zip exceeds 10MB (${size} bytes)."
+            exit 1
+          fi
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ env.RELEASE_ZIP }}
+          body_path: dist/CHANGELOG.md
+apply_patch(auto_approved=true) exited 0 in 55ms:
+Success. Updated the following files:
+A .github/workflows/release.yml
+file update:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c7a636b08ccc631dad898d2b795b27174a0cf5f3
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,93 @@
++name: CI
++
++on:
++  pull_request:
++
++permissions:
++  contents: read
++
++jobs:
++  php:
++    name: php
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup PHP
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Install PHP dependencies
++        if: hashFiles('composer.json') != ''
++        run: composer install --no-interaction --no-progress --prefer-dist
++
++      - name: Run PHPCS (WordPress)
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpcs ]; then
++            echo "PHPCS not installed; skipping."
++            exit 0
++          fi
++          if find . -name '*.php' -not -path './vendor/*' -not -path './node_modules/*' -not -path './react/node_modules/*' | grep -q .; then
++            if [ -f phpcs.xml ] || [ -f phpcs.xml.dist ]; then
++              vendor/bin/phpcs
++            else
++              vendor/bin/phpcs --standard=WordPress --extensions=php --ignore=vendor/*,node_modules/*,react/node_modules/* .
++            fi
++          else
++            echo "No PHP files found; skipping PHPCS."
++          fi
++
++      - name: Run PHPUnit
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpunit ]; then
++            echo "PHPUnit not installed; skipping."
++            exit 0
++          fi
++          if [ -f phpunit.xml ] || [ -f phpunit.xml.dist ] || [ -d tests ]; then
++            vendor/bin/phpunit
++          else
++            echo "No PHPUnit config/tests found; skipping."
++          fi
++
++  node:
++    name: node
++    runs-on: ubuntu-latest
++    defaults:
++      run:
++        working-directory: react
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup Node
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Install Node dependencies
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f package-lock.json ]; then
++            npm ci
++          else
++            npm install
++          fi
++
++      - name: Run ESLint
++        if: hashFiles('react/package.json') != ''
++        run: npm run lint --if-present
++
++      - name: Run Jest
++        if: hashFiles('react/package.json') != ''
++        run: npm run test --if-present -- --ci
++
++      - name: Build frontend
++        if: hashFiles('react/package.json') != ''
++        run: npm run build --if-present
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..b255e41fc09cedef92a229aff29eea2268c1755f
+--- /dev/null
++++ b/.github/workflows/release.yml
+@@ -0,0 +1,106 @@
++name: Release
++
++on:
++  push:
++    tags:
++      - "v*"
++
++permissions:
++  contents: write
++
++jobs:
++  release:
++    runs-on: ubuntu-latest
++    env:
++      PLUGIN_SLUG: agentwp
++      RELEASE_ZIP: agentwp-${{ github.ref_name }}.zip
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++        with:
++          fetch-depth: 0
++
++      - name: Setup PHP
++        if: hashFiles('composer.json') != ''
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Setup Node
++        if: hashFiles('react/package.json') != ''
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Install PHP dependencies (production)
++        if: hashFiles('composer.json') != ''
++        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
++
++      - name: Build frontend assets
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f react/package-lock.json ]; then
++            npm ci --prefix react
++          else
++            npm install --prefix react
++          fi
++          npm --prefix react run build --if-present
++          if [ -d react/dist ]; then
++            mkdir -p assets
++            rsync -a react/dist/ assets/
++          fi
++
++      - name: Generate changelog
++        run: |
++          mkdir -p dist
++          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${GITHUB_REF_NAME}$" | head -n 1 || true)
++          if [ -n "$PREV_TAG" ]; then
++            RANGE="${PREV_TAG}..${GITHUB_REF_NAME}"
++          else
++            RANGE="${GITHUB_REF_NAME}"
++          fi
++          git log "$RANGE" --pretty=format:"- %s (%h)" > dist/CHANGELOG.md
++
++      - name: Create release package
++        run: |
++          mkdir -p dist/package/${PLUGIN_SLUG}
++          rsync -a \
++            --exclude '.git' \
++            --exclude '.github' \
++            --exclude '.idea' \
++            --exclude '.logs' \
++            --exclude '.plans' \
++            --exclude '.t2' \
++            --exclude 'docker' \
++            --exclude 'docker-compose.yml' \
++            --exclude 'docs' \
++            --exclude 'react' \
++            --exclude 'scripts' \
++            --exclude 'node_modules' \
++            --exclude '**/node_modules' \
++            --exclude 'tests' \
++            --exclude 'coverage' \
++            --exclude 'tasks.csv' \
++            --exclude 'setup.sh' \
++            --exclude '.env.example' \
++            ./ dist/package/${PLUGIN_SLUG}/
++          cd dist/package
++          zip -r "../${RELEASE_ZIP}" "${PLUGIN_SLUG}"
++
++      - name: Enforce size limit
++        run: |
++          size=$(stat -c%s "dist/${RELEASE_ZIP}")
++          limit=$((10 * 1024 * 1024))
++          if [ "$size" -gt "$limit" ]; then
++            echo "Release zip exceeds 10MB (${size} bytes)."
++            exit 1
++          fi
++
++      - name: Publish GitHub release
++        uses: softprops/action-gh-release@v2
++        with:
++          files: dist/${{ env.RELEASE_ZIP }}
++          body_path: dist/CHANGELOG.md
+diff --git a/docs/branch-protection.md b/docs/branch-protection.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..57b2aeee84c21e8aefa073fbd6fd16349ea63088
+--- /dev/null
++++ b/docs/branch-protection.md
+@@ -0,0 +1,13 @@
++# Branch Protection Rules
++
++Recommended branch protection for `main` to ensure CI gates merges:
++
++- Require a pull request before merging (dismiss stale approvals, require 1+ approval).
++- Require status checks to pass before merging:
++  - `CI / php`
++  - `CI / node`
++- Require branches to be up to date before merging.
++- Restrict direct pushes to `main` (enforce for admins if possible).
++- Require signed commits if your release process mandates it.
++
++Update the required checks list if job names change.
+diff --git a/scripts/audit_to_sarif.py b/scripts/audit_to_sarif.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e7b00b3e88f7903ea4afe1bab6499f3932ac09
+--- /dev/null
++++ b/scripts/audit_to_sarif.py
+@@ -0,0 +1,191 @@
++#!/usr/bin/env python3
++import argparse
++import json
++import os
++import sys
++
++
++def load_json(path):
++    with open(path, "r", encoding="utf-8") as handle:
++        return json.load(handle)
++
++
++def map_level(severity):
++    if not severity:
++        return "warning"
++    severity = severity.lower()
++    if severity in ("critical", "high"):
++        return "error"
++    if severity in ("moderate", "medium"):
++        return "warning"
++    if severity in ("low", "info"):
++        return "note"
++    return "warning"
++
++
++def sarif_skeleton(tool_name, info_uri):
++    return {
++        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
++        "version": "2.1.0",
++        "runs": [
++            {
++                "tool": {
++                    "driver": {
++                        "name": tool_name,
++                        "informationUri": info_uri,
++                        "rules": [],
++                    }
++                },
++                "results": [],
++            }
++        ],
++    }
++
++
++def add_rule(rules, rule_map, rule_id, title, help_uri=None):
++    if rule_id in rule_map:
++        return
++    rule = {
++        "id": rule_id,
++        "name": rule_id,
++        "shortDescription": {"text": title or rule_id},
++    }
++    if help_uri:
++        rule["helpUri"] = help_uri
++    rule_map[rule_id] = rule
++    rules.append(rule)
++
++
++def add_result(results, rule_id, level, message, location):
++    result = {
++        "ruleId": rule_id,
++        "level": level,
++        "message": {"text": message},
++    }
++    if location:
++        result["locations"] = [
++            {"physicalLocation": {"artifactLocation": {"uri": location}}}
++        ]
++    results.append(result)
++
++
++def composer_to_sarif(data, location):
++    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for package, entries in advisories.items():
++        for index, advisory in enumerate(entries):
++            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
++            cve = advisory.get("cve")
++            rule_id = f"composer:{package}:{cve or index}"
++            severity = advisory.get("severity")
++            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = advisory.get("link") or advisory.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v7_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    vulnerabilities = data.get("vulnerabilities", {})
++    for package, info in vulnerabilities.items():
++        via = info.get("via", [])
++        if isinstance(via, dict):
++            via = [via]
++        for entry in via:
++            if isinstance(entry, str):
++                continue
++            title = entry.get("title") or entry.get("name") or "npm advisory"
++            source = entry.get("source") or entry.get("url") or title
++            severity = entry.get("severity") or info.get("severity")
++            affected = entry.get("range") or info.get("range")
++            rule_id = f"npm:{package}:{source}"
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = entry.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v6_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for advisory_id, advisory in advisories.items():
++        package = advisory.get("module_name") or advisory.get("name") or "package"
++        title = advisory.get("title") or "npm advisory"
++        severity = advisory.get("severity")
++        affected = advisory.get("vulnerable_versions")
++        rule_id = f"npm:{package}:{advisory_id}"
++        message = f"{package}: {title}"
++        if affected:
++            message = f"{message} (affected: {affected})"
++        help_uri = advisory.get("url")
++        add_rule(rules, rule_map, rule_id, title, help_uri)
++        add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def write_sarif(output_path, sarif):
++    with open(output_path, "w", encoding="utf-8") as handle:
++        json.dump(sarif, handle, indent=2)
++        handle.write("\n")
++
++
++def resolve_location(preferred):
++    if preferred and os.path.exists(preferred):
++        return preferred
++    return preferred
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
++    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
++    parser.add_argument("--input", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--location", default="")
++    args = parser.parse_args()
++
++    try:
++        data = load_json(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
++        return 2
++
++    location = resolve_location(args.location)
++    if args.tool == "composer":
++        sarif = composer_to_sarif(data, location)
++    else:
++        if "auditReportVersion" in data or "vulnerabilities" in data:
++            sarif = npm_v7_to_sarif(data, location)
++        else:
++            sarif = npm_v6_to_sarif(data, location)
++
++    write_sarif(args.output, sarif)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+file update:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c7a636b08ccc631dad898d2b795b27174a0cf5f3
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,93 @@
++name: CI
++
++on:
++  pull_request:
++
++permissions:
++  contents: read
++
++jobs:
++  php:
++    name: php
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup PHP
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Install PHP dependencies
++        if: hashFiles('composer.json') != ''
++        run: composer install --no-interaction --no-progress --prefer-dist
++
++      - name: Run PHPCS (WordPress)
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpcs ]; then
++            echo "PHPCS not installed; skipping."
++            exit 0
++          fi
++          if find . -name '*.php' -not -path './vendor/*' -not -path './node_modules/*' -not -path './react/node_modules/*' | grep -q .; then
++            if [ -f phpcs.xml ] || [ -f phpcs.xml.dist ]; then
++              vendor/bin/phpcs
++            else
++              vendor/bin/phpcs --standard=WordPress --extensions=php --ignore=vendor/*,node_modules/*,react/node_modules/* .
++            fi
++          else
++            echo "No PHP files found; skipping PHPCS."
++          fi
++
++      - name: Run PHPUnit
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpunit ]; then
++            echo "PHPUnit not installed; skipping."
++            exit 0
++          fi
++          if [ -f phpunit.xml ] || [ -f phpunit.xml.dist ] || [ -d tests ]; then
++            vendor/bin/phpunit
++          else
++            echo "No PHPUnit config/tests found; skipping."
++          fi
++
++  node:
++    name: node
++    runs-on: ubuntu-latest
++    defaults:
++      run:
++        working-directory: react
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup Node
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Install Node dependencies
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f package-lock.json ]; then
++            npm ci
++          else
++            npm install
++          fi
++
++      - name: Run ESLint
++        if: hashFiles('react/package.json') != ''
++        run: npm run lint --if-present
++
++      - name: Run Jest
++        if: hashFiles('react/package.json') != ''
++        run: npm run test --if-present -- --ci
++
++      - name: Build frontend
++        if: hashFiles('react/package.json') != ''
++        run: npm run build --if-present
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..b255e41fc09cedef92a229aff29eea2268c1755f
+--- /dev/null
++++ b/.github/workflows/release.yml
+@@ -0,0 +1,106 @@
++name: Release
++
++on:
++  push:
++    tags:
++      - "v*"
++
++permissions:
++  contents: write
++
++jobs:
++  release:
++    runs-on: ubuntu-latest
++    env:
++      PLUGIN_SLUG: agentwp
++      RELEASE_ZIP: agentwp-${{ github.ref_name }}.zip
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++        with:
++          fetch-depth: 0
++
++      - name: Setup PHP
++        if: hashFiles('composer.json') != ''
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Setup Node
++        if: hashFiles('react/package.json') != ''
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Install PHP dependencies (production)
++        if: hashFiles('composer.json') != ''
++        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
++
++      - name: Build frontend assets
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f react/package-lock.json ]; then
++            npm ci --prefix react
++          else
++            npm install --prefix react
++          fi
++          npm --prefix react run build --if-present
++          if [ -d react/dist ]; then
++            mkdir -p assets
++            rsync -a react/dist/ assets/
++          fi
++
++      - name: Generate changelog
++        run: |
++          mkdir -p dist
++          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${GITHUB_REF_NAME}$" | head -n 1 || true)
++          if [ -n "$PREV_TAG" ]; then
++            RANGE="${PREV_TAG}..${GITHUB_REF_NAME}"
++          else
++            RANGE="${GITHUB_REF_NAME}"
++          fi
++          git log "$RANGE" --pretty=format:"- %s (%h)" > dist/CHANGELOG.md
++
++      - name: Create release package
++        run: |
++          mkdir -p dist/package/${PLUGIN_SLUG}
++          rsync -a \
++            --exclude '.git' \
++            --exclude '.github' \
++            --exclude '.idea' \
++            --exclude '.logs' \
++            --exclude '.plans' \
++            --exclude '.t2' \
++            --exclude 'docker' \
++            --exclude 'docker-compose.yml' \
++            --exclude 'docs' \
++            --exclude 'react' \
++            --exclude 'scripts' \
++            --exclude 'node_modules' \
++            --exclude '**/node_modules' \
++            --exclude 'tests' \
++            --exclude 'coverage' \
++            --exclude 'tasks.csv' \
++            --exclude 'setup.sh' \
++            --exclude '.env.example' \
++            ./ dist/package/${PLUGIN_SLUG}/
++          cd dist/package
++          zip -r "../${RELEASE_ZIP}" "${PLUGIN_SLUG}"
++
++      - name: Enforce size limit
++        run: |
++          size=$(stat -c%s "dist/${RELEASE_ZIP}")
++          limit=$((10 * 1024 * 1024))
++          if [ "$size" -gt "$limit" ]; then
++            echo "Release zip exceeds 10MB (${size} bytes)."
++            exit 1
++          fi
++
++      - name: Publish GitHub release
++        uses: softprops/action-gh-release@v2
++        with:
++          files: dist/${{ env.RELEASE_ZIP }}
++          body_path: dist/CHANGELOG.md
+diff --git a/docs/branch-protection.md b/docs/branch-protection.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..57b2aeee84c21e8aefa073fbd6fd16349ea63088
+--- /dev/null
++++ b/docs/branch-protection.md
+@@ -0,0 +1,13 @@
++# Branch Protection Rules
++
++Recommended branch protection for `main` to ensure CI gates merges:
++
++- Require a pull request before merging (dismiss stale approvals, require 1+ approval).
++- Require status checks to pass before merging:
++  - `CI / php`
++  - `CI / node`
++- Require branches to be up to date before merging.
++- Restrict direct pushes to `main` (enforce for admins if possible).
++- Require signed commits if your release process mandates it.
++
++Update the required checks list if job names change.
+diff --git a/scripts/audit_to_sarif.py b/scripts/audit_to_sarif.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e7b00b3e88f7903ea4afe1bab6499f3932ac09
+--- /dev/null
++++ b/scripts/audit_to_sarif.py
+@@ -0,0 +1,191 @@
++#!/usr/bin/env python3
++import argparse
++import json
++import os
++import sys
++
++
++def load_json(path):
++    with open(path, "r", encoding="utf-8") as handle:
++        return json.load(handle)
++
++
++def map_level(severity):
++    if not severity:
++        return "warning"
++    severity = severity.lower()
++    if severity in ("critical", "high"):
++        return "error"
++    if severity in ("moderate", "medium"):
++        return "warning"
++    if severity in ("low", "info"):
++        return "note"
++    return "warning"
++
++
++def sarif_skeleton(tool_name, info_uri):
++    return {
++        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
++        "version": "2.1.0",
++        "runs": [
++            {
++                "tool": {
++                    "driver": {
++                        "name": tool_name,
++                        "informationUri": info_uri,
++                        "rules": [],
++                    }
++                },
++                "results": [],
++            }
++        ],
++    }
++
++
++def add_rule(rules, rule_map, rule_id, title, help_uri=None):
++    if rule_id in rule_map:
++        return
++    rule = {
++        "id": rule_id,
++        "name": rule_id,
++        "shortDescription": {"text": title or rule_id},
++    }
++    if help_uri:
++        rule["helpUri"] = help_uri
++    rule_map[rule_id] = rule
++    rules.append(rule)
++
++
++def add_result(results, rule_id, level, message, location):
++    result = {
++        "ruleId": rule_id,
++        "level": level,
++        "message": {"text": message},
++    }
++    if location:
++        result["locations"] = [
++            {"physicalLocation": {"artifactLocation": {"uri": location}}}
++        ]
++    results.append(result)
++
++
++def composer_to_sarif(data, location):
++    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for package, entries in advisories.items():
++        for index, advisory in enumerate(entries):
++            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
++            cve = advisory.get("cve")
++            rule_id = f"composer:{package}:{cve or index}"
++            severity = advisory.get("severity")
++            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = advisory.get("link") or advisory.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v7_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    vulnerabilities = data.get("vulnerabilities", {})
++    for package, info in vulnerabilities.items():
++        via = info.get("via", [])
++        if isinstance(via, dict):
++            via = [via]
++        for entry in via:
++            if isinstance(entry, str):
++                continue
++            title = entry.get("title") or entry.get("name") or "npm advisory"
++            source = entry.get("source") or entry.get("url") or title
++            severity = entry.get("severity") or info.get("severity")
++            affected = entry.get("range") or info.get("range")
++            rule_id = f"npm:{package}:{source}"
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = entry.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v6_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for advisory_id, advisory in advisories.items():
++        package = advisory.get("module_name") or advisory.get("name") or "package"
++        title = advisory.get("title") or "npm advisory"
++        severity = advisory.get("severity")
++        affected = advisory.get("vulnerable_versions")
++        rule_id = f"npm:{package}:{advisory_id}"
++        message = f"{package}: {title}"
++        if affected:
++            message = f"{message} (affected: {affected})"
++        help_uri = advisory.get("url")
++        add_rule(rules, rule_map, rule_id, title, help_uri)
++        add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def write_sarif(output_path, sarif):
++    with open(output_path, "w", encoding="utf-8") as handle:
++        json.dump(sarif, handle, indent=2)
++        handle.write("\n")
++
++
++def resolve_location(preferred):
++    if preferred and os.path.exists(preferred):
++        return preferred
++    return preferred
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
++    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
++    parser.add_argument("--input", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--location", default="")
++    args = parser.parse_args()
++
++    try:
++        data = load_json(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
++        return 2
++
++    location = resolve_location(args.location)
++    if args.tool == "composer":
++        sarif = composer_to_sarif(data, location)
++    else:
++        if "auditReportVersion" in data or "vulnerabilities" in data:
++            sarif = npm_v7_to_sarif(data, location)
++        else:
++            sarif = npm_v6_to_sarif(data, location)
++
++    write_sarif(args.output, sarif)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+
+thinking
+**Checking deployment tools availability**
+file update
+A /Users/ahmedyounis/Documents/Projects/agentwp/.github/workflows/security.yml
+name: Security Audit
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  audits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        if: hashFiles('composer.json') != ''
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          tools: composer
+
+      - name: Setup Node
+        if: hashFiles('react/package.json') != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: react/package-lock.json
+
+      - name: Composer audit
+        if: hashFiles('composer.json') != ''
+        run: |
+          if [ ! -f composer.lock ]; then
+            echo "composer.lock not found; skipping composer audit."
+            exit 0
+          fi
+          composer audit --format=json --no-interaction > composer-audit.json || true
+          python3 scripts/audit_to_sarif.py \
+            --tool composer \
+            --input composer-audit.json \
+            --output composer-audit.sarif \
+            --location composer.lock
+
+      - name: Upload Composer SARIF
+        if: hashFiles('composer.json') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: composer-audit.sarif
+          category: composer-audit
+
+      - name: npm audit
+        if: hashFiles('react/package.json') != ''
+        run: |
+          if [ -f react/package-lock.json ]; then
+            npm ci --prefix react
+          else
+            npm install --package-lock-only --prefix react
+          fi
+          npm --prefix react audit --json > npm-audit.json || true
+          python3 scripts/audit_to_sarif.py \
+            --tool npm \
+            --input npm-audit.json \
+            --output npm-audit.sarif \
+            --location react/package-lock.json
+
+      - name: Upload npm SARIF
+        if: hashFiles('react/package.json') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: npm-audit.sarif
+          category: npm-audit
+apply_patch(auto_approved=true) exited 0 in 59ms:
+Success. Updated the following files:
+A .github/workflows/security.yml
+file update:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c7a636b08ccc631dad898d2b795b27174a0cf5f3
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,93 @@
++name: CI
++
++on:
++  pull_request:
++
++permissions:
++  contents: read
++
++jobs:
++  php:
++    name: php
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup PHP
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Install PHP dependencies
++        if: hashFiles('composer.json') != ''
++        run: composer install --no-interaction --no-progress --prefer-dist
++
++      - name: Run PHPCS (WordPress)
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpcs ]; then
++            echo "PHPCS not installed; skipping."
++            exit 0
++          fi
++          if find . -name '*.php' -not -path './vendor/*' -not -path './node_modules/*' -not -path './react/node_modules/*' | grep -q .; then
++            if [ -f phpcs.xml ] || [ -f phpcs.xml.dist ]; then
++              vendor/bin/phpcs
++            else
++              vendor/bin/phpcs --standard=WordPress --extensions=php --ignore=vendor/*,node_modules/*,react/node_modules/* .
++            fi
++          else
++            echo "No PHP files found; skipping PHPCS."
++          fi
++
++      - name: Run PHPUnit
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpunit ]; then
++            echo "PHPUnit not installed; skipping."
++            exit 0
++          fi
++          if [ -f phpunit.xml ] || [ -f phpunit.xml.dist ] || [ -d tests ]; then
++            vendor/bin/phpunit
++          else
++            echo "No PHPUnit config/tests found; skipping."
++          fi
++
++  node:
++    name: node
++    runs-on: ubuntu-latest
++    defaults:
++      run:
++        working-directory: react
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup Node
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Install Node dependencies
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f package-lock.json ]; then
++            npm ci
++          else
++            npm install
++          fi
++
++      - name: Run ESLint
++        if: hashFiles('react/package.json') != ''
++        run: npm run lint --if-present
++
++      - name: Run Jest
++        if: hashFiles('react/package.json') != ''
++        run: npm run test --if-present -- --ci
++
++      - name: Build frontend
++        if: hashFiles('react/package.json') != ''
++        run: npm run build --if-present
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..b255e41fc09cedef92a229aff29eea2268c1755f
+--- /dev/null
++++ b/.github/workflows/release.yml
+@@ -0,0 +1,106 @@
++name: Release
++
++on:
++  push:
++    tags:
++      - "v*"
++
++permissions:
++  contents: write
++
++jobs:
++  release:
++    runs-on: ubuntu-latest
++    env:
++      PLUGIN_SLUG: agentwp
++      RELEASE_ZIP: agentwp-${{ github.ref_name }}.zip
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++        with:
++          fetch-depth: 0
++
++      - name: Setup PHP
++        if: hashFiles('composer.json') != ''
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Setup Node
++        if: hashFiles('react/package.json') != ''
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Install PHP dependencies (production)
++        if: hashFiles('composer.json') != ''
++        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
++
++      - name: Build frontend assets
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f react/package-lock.json ]; then
++            npm ci --prefix react
++          else
++            npm install --prefix react
++          fi
++          npm --prefix react run build --if-present
++          if [ -d react/dist ]; then
++            mkdir -p assets
++            rsync -a react/dist/ assets/
++          fi
++
++      - name: Generate changelog
++        run: |
++          mkdir -p dist
++          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${GITHUB_REF_NAME}$" | head -n 1 || true)
++          if [ -n "$PREV_TAG" ]; then
++            RANGE="${PREV_TAG}..${GITHUB_REF_NAME}"
++          else
++            RANGE="${GITHUB_REF_NAME}"
++          fi
++          git log "$RANGE" --pretty=format:"- %s (%h)" > dist/CHANGELOG.md
++
++      - name: Create release package
++        run: |
++          mkdir -p dist/package/${PLUGIN_SLUG}
++          rsync -a \
++            --exclude '.git' \
++            --exclude '.github' \
++            --exclude '.idea' \
++            --exclude '.logs' \
++            --exclude '.plans' \
++            --exclude '.t2' \
++            --exclude 'docker' \
++            --exclude 'docker-compose.yml' \
++            --exclude 'docs' \
++            --exclude 'react' \
++            --exclude 'scripts' \
++            --exclude 'node_modules' \
++            --exclude '**/node_modules' \
++            --exclude 'tests' \
++            --exclude 'coverage' \
++            --exclude 'tasks.csv' \
++            --exclude 'setup.sh' \
++            --exclude '.env.example' \
++            ./ dist/package/${PLUGIN_SLUG}/
++          cd dist/package
++          zip -r "../${RELEASE_ZIP}" "${PLUGIN_SLUG}"
++
++      - name: Enforce size limit
++        run: |
++          size=$(stat -c%s "dist/${RELEASE_ZIP}")
++          limit=$((10 * 1024 * 1024))
++          if [ "$size" -gt "$limit" ]; then
++            echo "Release zip exceeds 10MB (${size} bytes)."
++            exit 1
++          fi
++
++      - name: Publish GitHub release
++        uses: softprops/action-gh-release@v2
++        with:
++          files: dist/${{ env.RELEASE_ZIP }}
++          body_path: dist/CHANGELOG.md
+diff --git a/.github/workflows/security.yml b/.github/workflows/security.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c50cf96912900e7ee82e595ed70458bd1466b94
+--- /dev/null
++++ b/.github/workflows/security.yml
+@@ -0,0 +1,75 @@
++name: Security Audit
++
++on:
++  schedule:
++    - cron: "0 3 * * 1"
++  workflow_dispatch:
++
++permissions:
++  contents: read
++  security-events: write
++
++jobs:
++  audits:
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup PHP
++        if: hashFiles('composer.json') != ''
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Setup Node
++        if: hashFiles('react/package.json') != ''
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Composer audit
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -f composer.lock ]; then
++            echo "composer.lock not found; skipping composer audit."
++            exit 0
++          fi
++          composer audit --format=json --no-interaction > composer-audit.json || true
++          python3 scripts/audit_to_sarif.py \
++            --tool composer \
++            --input composer-audit.json \
++            --output composer-audit.sarif \
++            --location composer.lock
++
++      - name: Upload Composer SARIF
++        if: hashFiles('composer.json') != ''
++        uses: github/codeql-action/upload-sarif@v3
++        with:
++          sarif_file: composer-audit.sarif
++          category: composer-audit
++
++      - name: npm audit
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f react/package-lock.json ]; then
++            npm ci --prefix react
++          else
++            npm install --package-lock-only --prefix react
++          fi
++          npm --prefix react audit --json > npm-audit.json || true
++          python3 scripts/audit_to_sarif.py \
++            --tool npm \
++            --input npm-audit.json \
++            --output npm-audit.sarif \
++            --location react/package-lock.json
++
++      - name: Upload npm SARIF
++        if: hashFiles('react/package.json') != ''
++        uses: github/codeql-action/upload-sarif@v3
++        with:
++          sarif_file: npm-audit.sarif
++          category: npm-audit
+diff --git a/docs/branch-protection.md b/docs/branch-protection.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..57b2aeee84c21e8aefa073fbd6fd16349ea63088
+--- /dev/null
++++ b/docs/branch-protection.md
+@@ -0,0 +1,13 @@
++# Branch Protection Rules
++
++Recommended branch protection for `main` to ensure CI gates merges:
++
++- Require a pull request before merging (dismiss stale approvals, require 1+ approval).
++- Require status checks to pass before merging:
++  - `CI / php`
++  - `CI / node`
++- Require branches to be up to date before merging.
++- Restrict direct pushes to `main` (enforce for admins if possible).
++- Require signed commits if your release process mandates it.
++
++Update the required checks list if job names change.
+diff --git a/scripts/audit_to_sarif.py b/scripts/audit_to_sarif.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e7b00b3e88f7903ea4afe1bab6499f3932ac09
+--- /dev/null
++++ b/scripts/audit_to_sarif.py
+@@ -0,0 +1,191 @@
++#!/usr/bin/env python3
++import argparse
++import json
++import os
++import sys
++
++
++def load_json(path):
++    with open(path, "r", encoding="utf-8") as handle:
++        return json.load(handle)
++
++
++def map_level(severity):
++    if not severity:
++        return "warning"
++    severity = severity.lower()
++    if severity in ("critical", "high"):
++        return "error"
++    if severity in ("moderate", "medium"):
++        return "warning"
++    if severity in ("low", "info"):
++        return "note"
++    return "warning"
++
++
++def sarif_skeleton(tool_name, info_uri):
++    return {
++        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
++        "version": "2.1.0",
++        "runs": [
++            {
++                "tool": {
++                    "driver": {
++                        "name": tool_name,
++                        "informationUri": info_uri,
++                        "rules": [],
++                    }
++                },
++                "results": [],
++            }
++        ],
++    }
++
++
++def add_rule(rules, rule_map, rule_id, title, help_uri=None):
++    if rule_id in rule_map:
++        return
++    rule = {
++        "id": rule_id,
++        "name": rule_id,
++        "shortDescription": {"text": title or rule_id},
++    }
++    if help_uri:
++        rule["helpUri"] = help_uri
++    rule_map[rule_id] = rule
++    rules.append(rule)
++
++
++def add_result(results, rule_id, level, message, location):
++    result = {
++        "ruleId": rule_id,
++        "level": level,
++        "message": {"text": message},
++    }
++    if location:
++        result["locations"] = [
++            {"physicalLocation": {"artifactLocation": {"uri": location}}}
++        ]
++    results.append(result)
++
++
++def composer_to_sarif(data, location):
++    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for package, entries in advisories.items():
++        for index, advisory in enumerate(entries):
++            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
++            cve = advisory.get("cve")
++            rule_id = f"composer:{package}:{cve or index}"
++            severity = advisory.get("severity")
++            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = advisory.get("link") or advisory.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v7_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    vulnerabilities = data.get("vulnerabilities", {})
++    for package, info in vulnerabilities.items():
++        via = info.get("via", [])
++        if isinstance(via, dict):
++            via = [via]
++        for entry in via:
++            if isinstance(entry, str):
++                continue
++            title = entry.get("title") or entry.get("name") or "npm advisory"
++            source = entry.get("source") or entry.get("url") or title
++            severity = entry.get("severity") or info.get("severity")
++            affected = entry.get("range") or info.get("range")
++            rule_id = f"npm:{package}:{source}"
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = entry.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v6_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for advisory_id, advisory in advisories.items():
++        package = advisory.get("module_name") or advisory.get("name") or "package"
++        title = advisory.get("title") or "npm advisory"
++        severity = advisory.get("severity")
++        affected = advisory.get("vulnerable_versions")
++        rule_id = f"npm:{package}:{advisory_id}"
++        message = f"{package}: {title}"
++        if affected:
++            message = f"{message} (affected: {affected})"
++        help_uri = advisory.get("url")
++        add_rule(rules, rule_map, rule_id, title, help_uri)
++        add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def write_sarif(output_path, sarif):
++    with open(output_path, "w", encoding="utf-8") as handle:
++        json.dump(sarif, handle, indent=2)
++        handle.write("\n")
++
++
++def resolve_location(preferred):
++    if preferred and os.path.exists(preferred):
++        return preferred
++    return preferred
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
++    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
++    parser.add_argument("--input", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--location", default="")
++    args = parser.parse_args()
++
++    try:
++        data = load_json(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
++        return 2
++
++    location = resolve_location(args.location)
++    if args.tool == "composer":
++        sarif = composer_to_sarif(data, location)
++    else:
++        if "auditReportVersion" in data or "vulnerabilities" in data:
++            sarif = npm_v7_to_sarif(data, location)
++        else:
++            sarif = npm_v6_to_sarif(data, location)
++
++    write_sarif(args.output, sarif)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+file update:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c7a636b08ccc631dad898d2b795b27174a0cf5f3
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,93 @@
++name: CI
++
++on:
++  pull_request:
++
++permissions:
++  contents: read
++
++jobs:
++  php:
++    name: php
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup PHP
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Install PHP dependencies
++        if: hashFiles('composer.json') != ''
++        run: composer install --no-interaction --no-progress --prefer-dist
++
++      - name: Run PHPCS (WordPress)
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpcs ]; then
++            echo "PHPCS not installed; skipping."
++            exit 0
++          fi
++          if find . -name '*.php' -not -path './vendor/*' -not -path './node_modules/*' -not -path './react/node_modules/*' | grep -q .; then
++            if [ -f phpcs.xml ] || [ -f phpcs.xml.dist ]; then
++              vendor/bin/phpcs
++            else
++              vendor/bin/phpcs --standard=WordPress --extensions=php --ignore=vendor/*,node_modules/*,react/node_modules/* .
++            fi
++          else
++            echo "No PHP files found; skipping PHPCS."
++          fi
++
++      - name: Run PHPUnit
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpunit ]; then
++            echo "PHPUnit not installed; skipping."
++            exit 0
++          fi
++          if [ -f phpunit.xml ] || [ -f phpunit.xml.dist ] || [ -d tests ]; then
++            vendor/bin/phpunit
++          else
++            echo "No PHPUnit config/tests found; skipping."
++          fi
++
++  node:
++    name: node
++    runs-on: ubuntu-latest
++    defaults:
++      run:
++        working-directory: react
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup Node
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Install Node dependencies
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f package-lock.json ]; then
++            npm ci
++          else
++            npm install
++          fi
++
++      - name: Run ESLint
++        if: hashFiles('react/package.json') != ''
++        run: npm run lint --if-present
++
++      - name: Run Jest
++        if: hashFiles('react/package.json') != ''
++        run: npm run test --if-present -- --ci
++
++      - name: Build frontend
++        if: hashFiles('react/package.json') != ''
++        run: npm run build --if-present
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..b255e41fc09cedef92a229aff29eea2268c1755f
+--- /dev/null
++++ b/.github/workflows/release.yml
+@@ -0,0 +1,106 @@
++name: Release
++
++on:
++  push:
++    tags:
++      - "v*"
++
++permissions:
++  contents: write
++
++jobs:
++  release:
++    runs-on: ubuntu-latest
++    env:
++      PLUGIN_SLUG: agentwp
++      RELEASE_ZIP: agentwp-${{ github.ref_name }}.zip
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++        with:
++          fetch-depth: 0
++
++      - name: Setup PHP
++        if: hashFiles('composer.json') != ''
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Setup Node
++        if: hashFiles('react/package.json') != ''
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Install PHP dependencies (production)
++        if: hashFiles('composer.json') != ''
++        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
++
++      - name: Build frontend assets
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f react/package-lock.json ]; then
++            npm ci --prefix react
++          else
++            npm install --prefix react
++          fi
++          npm --prefix react run build --if-present
++          if [ -d react/dist ]; then
++            mkdir -p assets
++            rsync -a react/dist/ assets/
++          fi
++
++      - name: Generate changelog
++        run: |
++          mkdir -p dist
++          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${GITHUB_REF_NAME}$" | head -n 1 || true)
++          if [ -n "$PREV_TAG" ]; then
++            RANGE="${PREV_TAG}..${GITHUB_REF_NAME}"
++          else
++            RANGE="${GITHUB_REF_NAME}"
++          fi
++          git log "$RANGE" --pretty=format:"- %s (%h)" > dist/CHANGELOG.md
++
++      - name: Create release package
++        run: |
++          mkdir -p dist/package/${PLUGIN_SLUG}
++          rsync -a \
++            --exclude '.git' \
++            --exclude '.github' \
++            --exclude '.idea' \
++            --exclude '.logs' \
++            --exclude '.plans' \
++            --exclude '.t2' \
++            --exclude 'docker' \
++            --exclude 'docker-compose.yml' \
++            --exclude 'docs' \
++            --exclude 'react' \
++            --exclude 'scripts' \
++            --exclude 'node_modules' \
++            --exclude '**/node_modules' \
++            --exclude 'tests' \
++            --exclude 'coverage' \
++            --exclude 'tasks.csv' \
++            --exclude 'setup.sh' \
++            --exclude '.env.example' \
++            ./ dist/package/${PLUGIN_SLUG}/
++          cd dist/package
++          zip -r "../${RELEASE_ZIP}" "${PLUGIN_SLUG}"
++
++      - name: Enforce size limit
++        run: |
++          size=$(stat -c%s "dist/${RELEASE_ZIP}")
++          limit=$((10 * 1024 * 1024))
++          if [ "$size" -gt "$limit" ]; then
++            echo "Release zip exceeds 10MB (${size} bytes)."
++            exit 1
++          fi
++
++      - name: Publish GitHub release
++        uses: softprops/action-gh-release@v2
++        with:
++          files: dist/${{ env.RELEASE_ZIP }}
++          body_path: dist/CHANGELOG.md
+diff --git a/.github/workflows/security.yml b/.github/workflows/security.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c50cf96912900e7ee82e595ed70458bd1466b94
+--- /dev/null
++++ b/.github/workflows/security.yml
+@@ -0,0 +1,75 @@
++name: Security Audit
++
++on:
++  schedule:
++    - cron: "0 3 * * 1"
++  workflow_dispatch:
++
++permissions:
++  contents: read
++  security-events: write
++
++jobs:
++  audits:
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup PHP
++        if: hashFiles('composer.json') != ''
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Setup Node
++        if: hashFiles('react/package.json') != ''
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Composer audit
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -f composer.lock ]; then
++            echo "composer.lock not found; skipping composer audit."
++            exit 0
++          fi
++          composer audit --format=json --no-interaction > composer-audit.json || true
++          python3 scripts/audit_to_sarif.py \
++            --tool composer \
++            --input composer-audit.json \
++            --output composer-audit.sarif \
++            --location composer.lock
++
++      - name: Upload Composer SARIF
++        if: hashFiles('composer.json') != ''
++        uses: github/codeql-action/upload-sarif@v3
++        with:
++          sarif_file: composer-audit.sarif
++          category: composer-audit
++
++      - name: npm audit
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f react/package-lock.json ]; then
++            npm ci --prefix react
++          else
++            npm install --package-lock-only --prefix react
++          fi
++          npm --prefix react audit --json > npm-audit.json || true
++          python3 scripts/audit_to_sarif.py \
++            --tool npm \
++            --input npm-audit.json \
++            --output npm-audit.sarif \
++            --location react/package-lock.json
++
++      - name: Upload npm SARIF
++        if: hashFiles('react/package.json') != ''
++        uses: github/codeql-action/upload-sarif@v3
++        with:
++          sarif_file: npm-audit.sarif
++          category: npm-audit
+diff --git a/docs/branch-protection.md b/docs/branch-protection.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..57b2aeee84c21e8aefa073fbd6fd16349ea63088
+--- /dev/null
++++ b/docs/branch-protection.md
+@@ -0,0 +1,13 @@
++# Branch Protection Rules
++
++Recommended branch protection for `main` to ensure CI gates merges:
++
++- Require a pull request before merging (dismiss stale approvals, require 1+ approval).
++- Require status checks to pass before merging:
++  - `CI / php`
++  - `CI / node`
++- Require branches to be up to date before merging.
++- Restrict direct pushes to `main` (enforce for admins if possible).
++- Require signed commits if your release process mandates it.
++
++Update the required checks list if job names change.
+diff --git a/scripts/audit_to_sarif.py b/scripts/audit_to_sarif.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e7b00b3e88f7903ea4afe1bab6499f3932ac09
+--- /dev/null
++++ b/scripts/audit_to_sarif.py
+@@ -0,0 +1,191 @@
++#!/usr/bin/env python3
++import argparse
++import json
++import os
++import sys
++
++
++def load_json(path):
++    with open(path, "r", encoding="utf-8") as handle:
++        return json.load(handle)
++
++
++def map_level(severity):
++    if not severity:
++        return "warning"
++    severity = severity.lower()
++    if severity in ("critical", "high"):
++        return "error"
++    if severity in ("moderate", "medium"):
++        return "warning"
++    if severity in ("low", "info"):
++        return "note"
++    return "warning"
++
++
++def sarif_skeleton(tool_name, info_uri):
++    return {
++        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
++        "version": "2.1.0",
++        "runs": [
++            {
++                "tool": {
++                    "driver": {
++                        "name": tool_name,
++                        "informationUri": info_uri,
++                        "rules": [],
++                    }
++                },
++                "results": [],
++            }
++        ],
++    }
++
++
++def add_rule(rules, rule_map, rule_id, title, help_uri=None):
++    if rule_id in rule_map:
++        return
++    rule = {
++        "id": rule_id,
++        "name": rule_id,
++        "shortDescription": {"text": title or rule_id},
++    }
++    if help_uri:
++        rule["helpUri"] = help_uri
++    rule_map[rule_id] = rule
++    rules.append(rule)
++
++
++def add_result(results, rule_id, level, message, location):
++    result = {
++        "ruleId": rule_id,
++        "level": level,
++        "message": {"text": message},
++    }
++    if location:
++        result["locations"] = [
++            {"physicalLocation": {"artifactLocation": {"uri": location}}}
++        ]
++    results.append(result)
++
++
++def composer_to_sarif(data, location):
++    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for package, entries in advisories.items():
++        for index, advisory in enumerate(entries):
++            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
++            cve = advisory.get("cve")
++            rule_id = f"composer:{package}:{cve or index}"
++            severity = advisory.get("severity")
++            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = advisory.get("link") or advisory.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v7_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    vulnerabilities = data.get("vulnerabilities", {})
++    for package, info in vulnerabilities.items():
++        via = info.get("via", [])
++        if isinstance(via, dict):
++            via = [via]
++        for entry in via:
++            if isinstance(entry, str):
++                continue
++            title = entry.get("title") or entry.get("name") or "npm advisory"
++            source = entry.get("source") or entry.get("url") or title
++            severity = entry.get("severity") or info.get("severity")
++            affected = entry.get("range") or info.get("range")
++            rule_id = f"npm:{package}:{source}"
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = entry.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v6_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for advisory_id, advisory in advisories.items():
++        package = advisory.get("module_name") or advisory.get("name") or "package"
++        title = advisory.get("title") or "npm advisory"
++        severity = advisory.get("severity")
++        affected = advisory.get("vulnerable_versions")
++        rule_id = f"npm:{package}:{advisory_id}"
++        message = f"{package}: {title}"
++        if affected:
++            message = f"{message} (affected: {affected})"
++        help_uri = advisory.get("url")
++        add_rule(rules, rule_map, rule_id, title, help_uri)
++        add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def write_sarif(output_path, sarif):
++    with open(output_path, "w", encoding="utf-8") as handle:
++        json.dump(sarif, handle, indent=2)
++        handle.write("\n")
++
++
++def resolve_location(preferred):
++    if preferred and os.path.exists(preferred):
++        return preferred
++    return preferred
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
++    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
++    parser.add_argument("--input", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--location", default="")
++    args = parser.parse_args()
++
++    try:
++        data = load_json(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
++        return 2
++
++    location = resolve_location(args.location)
++    if args.tool == "composer":
++        sarif = composer_to_sarif(data, location)
++    else:
++        if "auditReportVersion" in data or "vulnerabilities" in data:
++            sarif = npm_v7_to_sarif(data, location)
++        else:
++            sarif = npm_v6_to_sarif(data, location)
++
++    write_sarif(args.output, sarif)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+
+thinking
+**Preparing final response summary**
+
+I'm wrapping up the final message by outlining the CI/CD workflows, security audit script, and branch protection docs added, highlighting file paths and potential risks. I'll include a status, a concise summary of changes, note that no verification commands were provided, and list risks and follow-up steps to keep everything clear and complete.
+codex
+Implemented CI/CD workflows for PR checks, tagged releases, and weekly security audits, plus SARIF conversion and branch protection guidance to satisfy M00-03.
+
+Status: DONE
+
+Summary of changes:
+- Added CI workflow for PHP/Node linting, tests, and build verification in `.github/workflows/ci.yml`.
+- Added tag-based release workflow that builds assets, packages a CodeCanyon-ready zip, enforces size, and publishes release notes in `.github/workflows/release.yml`.
+- Added weekly security audit workflow with Composer/npm scans uploaded to the Security tab in `.github/workflows/security.yml`.
+- Added SARIF conversion helper in `scripts/audit_to_sarif.py` and branch protection guidance in `docs/branch-protection.md`.
+
+How to verify (exact commands):
+- N/A (no local verification commands specified)
+
+Risks / follow-ups:
+- CI steps skip PHPCS/PHPUnit/Jest/ESLint when configs or scripts are missing; ensure those tools/configs are added as the codebase grows.
+- Release packaging currently excludes `react/` and `scripts/`; confirm the final plugin layout and adjust exclusions as needed.
+- Composer audit requires `composer.lock`; add it once PHP dependencies are introduced.
+file update:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c7a636b08ccc631dad898d2b795b27174a0cf5f3
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,93 @@
++name: CI
++
++on:
++  pull_request:
++
++permissions:
++  contents: read
++
++jobs:
++  php:
++    name: php
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup PHP
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Install PHP dependencies
++        if: hashFiles('composer.json') != ''
++        run: composer install --no-interaction --no-progress --prefer-dist
++
++      - name: Run PHPCS (WordPress)
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpcs ]; then
++            echo "PHPCS not installed; skipping."
++            exit 0
++          fi
++          if find . -name '*.php' -not -path './vendor/*' -not -path './node_modules/*' -not -path './react/node_modules/*' | grep -q .; then
++            if [ -f phpcs.xml ] || [ -f phpcs.xml.dist ]; then
++              vendor/bin/phpcs
++            else
++              vendor/bin/phpcs --standard=WordPress --extensions=php --ignore=vendor/*,node_modules/*,react/node_modules/* .
++            fi
++          else
++            echo "No PHP files found; skipping PHPCS."
++          fi
++
++      - name: Run PHPUnit
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -x vendor/bin/phpunit ]; then
++            echo "PHPUnit not installed; skipping."
++            exit 0
++          fi
++          if [ -f phpunit.xml ] || [ -f phpunit.xml.dist ] || [ -d tests ]; then
++            vendor/bin/phpunit
++          else
++            echo "No PHPUnit config/tests found; skipping."
++          fi
++
++  node:
++    name: node
++    runs-on: ubuntu-latest
++    defaults:
++      run:
++        working-directory: react
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup Node
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Install Node dependencies
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f package-lock.json ]; then
++            npm ci
++          else
++            npm install
++          fi
++
++      - name: Run ESLint
++        if: hashFiles('react/package.json') != ''
++        run: npm run lint --if-present
++
++      - name: Run Jest
++        if: hashFiles('react/package.json') != ''
++        run: npm run test --if-present -- --ci
++
++      - name: Build frontend
++        if: hashFiles('react/package.json') != ''
++        run: npm run build --if-present
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..b255e41fc09cedef92a229aff29eea2268c1755f
+--- /dev/null
++++ b/.github/workflows/release.yml
+@@ -0,0 +1,106 @@
++name: Release
++
++on:
++  push:
++    tags:
++      - "v*"
++
++permissions:
++  contents: write
++
++jobs:
++  release:
++    runs-on: ubuntu-latest
++    env:
++      PLUGIN_SLUG: agentwp
++      RELEASE_ZIP: agentwp-${{ github.ref_name }}.zip
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++        with:
++          fetch-depth: 0
++
++      - name: Setup PHP
++        if: hashFiles('composer.json') != ''
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Setup Node
++        if: hashFiles('react/package.json') != ''
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Install PHP dependencies (production)
++        if: hashFiles('composer.json') != ''
++        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
++
++      - name: Build frontend assets
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f react/package-lock.json ]; then
++            npm ci --prefix react
++          else
++            npm install --prefix react
++          fi
++          npm --prefix react run build --if-present
++          if [ -d react/dist ]; then
++            mkdir -p assets
++            rsync -a react/dist/ assets/
++          fi
++
++      - name: Generate changelog
++        run: |
++          mkdir -p dist
++          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${GITHUB_REF_NAME}$" | head -n 1 || true)
++          if [ -n "$PREV_TAG" ]; then
++            RANGE="${PREV_TAG}..${GITHUB_REF_NAME}"
++          else
++            RANGE="${GITHUB_REF_NAME}"
++          fi
++          git log "$RANGE" --pretty=format:"- %s (%h)" > dist/CHANGELOG.md
++
++      - name: Create release package
++        run: |
++          mkdir -p dist/package/${PLUGIN_SLUG}
++          rsync -a \
++            --exclude '.git' \
++            --exclude '.github' \
++            --exclude '.idea' \
++            --exclude '.logs' \
++            --exclude '.plans' \
++            --exclude '.t2' \
++            --exclude 'docker' \
++            --exclude 'docker-compose.yml' \
++            --exclude 'docs' \
++            --exclude 'react' \
++            --exclude 'scripts' \
++            --exclude 'node_modules' \
++            --exclude '**/node_modules' \
++            --exclude 'tests' \
++            --exclude 'coverage' \
++            --exclude 'tasks.csv' \
++            --exclude 'setup.sh' \
++            --exclude '.env.example' \
++            ./ dist/package/${PLUGIN_SLUG}/
++          cd dist/package
++          zip -r "../${RELEASE_ZIP}" "${PLUGIN_SLUG}"
++
++      - name: Enforce size limit
++        run: |
++          size=$(stat -c%s "dist/${RELEASE_ZIP}")
++          limit=$((10 * 1024 * 1024))
++          if [ "$size" -gt "$limit" ]; then
++            echo "Release zip exceeds 10MB (${size} bytes)."
++            exit 1
++          fi
++
++      - name: Publish GitHub release
++        uses: softprops/action-gh-release@v2
++        with:
++          files: dist/${{ env.RELEASE_ZIP }}
++          body_path: dist/CHANGELOG.md
+diff --git a/.github/workflows/security.yml b/.github/workflows/security.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c50cf96912900e7ee82e595ed70458bd1466b94
+--- /dev/null
++++ b/.github/workflows/security.yml
+@@ -0,0 +1,75 @@
++name: Security Audit
++
++on:
++  schedule:
++    - cron: "0 3 * * 1"
++  workflow_dispatch:
++
++permissions:
++  contents: read
++  security-events: write
++
++jobs:
++  audits:
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup PHP
++        if: hashFiles('composer.json') != ''
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: "8.1"
++          tools: composer
++
++      - name: Setup Node
++        if: hashFiles('react/package.json') != ''
++        uses: actions/setup-node@v4
++        with:
++          node-version: "18"
++          cache: npm
++          cache-dependency-path: react/package-lock.json
++
++      - name: Composer audit
++        if: hashFiles('composer.json') != ''
++        run: |
++          if [ ! -f composer.lock ]; then
++            echo "composer.lock not found; skipping composer audit."
++            exit 0
++          fi
++          composer audit --format=json --no-interaction > composer-audit.json || true
++          python3 scripts/audit_to_sarif.py \
++            --tool composer \
++            --input composer-audit.json \
++            --output composer-audit.sarif \
++            --location composer.lock
++
++      - name: Upload Composer SARIF
++        if: hashFiles('composer.json') != ''
++        uses: github/codeql-action/upload-sarif@v3
++        with:
++          sarif_file: composer-audit.sarif
++          category: composer-audit
++
++      - name: npm audit
++        if: hashFiles('react/package.json') != ''
++        run: |
++          if [ -f react/package-lock.json ]; then
++            npm ci --prefix react
++          else
++            npm install --package-lock-only --prefix react
++          fi
++          npm --prefix react audit --json > npm-audit.json || true
++          python3 scripts/audit_to_sarif.py \
++            --tool npm \
++            --input npm-audit.json \
++            --output npm-audit.sarif \
++            --location react/package-lock.json
++
++      - name: Upload npm SARIF
++        if: hashFiles('react/package.json') != ''
++        uses: github/codeql-action/upload-sarif@v3
++        with:
++          sarif_file: npm-audit.sarif
++          category: npm-audit
+diff --git a/docs/branch-protection.md b/docs/branch-protection.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..57b2aeee84c21e8aefa073fbd6fd16349ea63088
+--- /dev/null
++++ b/docs/branch-protection.md
+@@ -0,0 +1,13 @@
++# Branch Protection Rules
++
++Recommended branch protection for `main` to ensure CI gates merges:
++
++- Require a pull request before merging (dismiss stale approvals, require 1+ approval).
++- Require status checks to pass before merging:
++  - `CI / php`
++  - `CI / node`
++- Require branches to be up to date before merging.
++- Restrict direct pushes to `main` (enforce for admins if possible).
++- Require signed commits if your release process mandates it.
++
++Update the required checks list if job names change.
+diff --git a/scripts/audit_to_sarif.py b/scripts/audit_to_sarif.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e7b00b3e88f7903ea4afe1bab6499f3932ac09
+--- /dev/null
++++ b/scripts/audit_to_sarif.py
+@@ -0,0 +1,191 @@
++#!/usr/bin/env python3
++import argparse
++import json
++import os
++import sys
++
++
++def load_json(path):
++    with open(path, "r", encoding="utf-8") as handle:
++        return json.load(handle)
++
++
++def map_level(severity):
++    if not severity:
++        return "warning"
++    severity = severity.lower()
++    if severity in ("critical", "high"):
++        return "error"
++    if severity in ("moderate", "medium"):
++        return "warning"
++    if severity in ("low", "info"):
++        return "note"
++    return "warning"
++
++
++def sarif_skeleton(tool_name, info_uri):
++    return {
++        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
++        "version": "2.1.0",
++        "runs": [
++            {
++                "tool": {
++                    "driver": {
++                        "name": tool_name,
++                        "informationUri": info_uri,
++                        "rules": [],
++                    }
++                },
++                "results": [],
++            }
++        ],
++    }
++
++
++def add_rule(rules, rule_map, rule_id, title, help_uri=None):
++    if rule_id in rule_map:
++        return
++    rule = {
++        "id": rule_id,
++        "name": rule_id,
++        "shortDescription": {"text": title or rule_id},
++    }
++    if help_uri:
++        rule["helpUri"] = help_uri
++    rule_map[rule_id] = rule
++    rules.append(rule)
++
++
++def add_result(results, rule_id, level, message, location):
++    result = {
++        "ruleId": rule_id,
++        "level": level,
++        "message": {"text": message},
++    }
++    if location:
++        result["locations"] = [
++            {"physicalLocation": {"artifactLocation": {"uri": location}}}
++        ]
++    results.append(result)
++
++
++def composer_to_sarif(data, location):
++    sarif = sarif_skeleton("Composer Audit", "https://getcomposer.org/doc/03-cli.md#audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for package, entries in advisories.items():
++        for index, advisory in enumerate(entries):
++            title = advisory.get("title") or advisory.get("advisory") or "Composer advisory"
++            cve = advisory.get("cve")
++            rule_id = f"composer:{package}:{cve or index}"
++            severity = advisory.get("severity")
++            affected = advisory.get("affectedVersions") or advisory.get("affected_versions")
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = advisory.get("link") or advisory.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v7_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    vulnerabilities = data.get("vulnerabilities", {})
++    for package, info in vulnerabilities.items():
++        via = info.get("via", [])
++        if isinstance(via, dict):
++            via = [via]
++        for entry in via:
++            if isinstance(entry, str):
++                continue
++            title = entry.get("title") or entry.get("name") or "npm advisory"
++            source = entry.get("source") or entry.get("url") or title
++            severity = entry.get("severity") or info.get("severity")
++            affected = entry.get("range") or info.get("range")
++            rule_id = f"npm:{package}:{source}"
++            message = f"{package}: {title}"
++            if affected:
++                message = f"{message} (affected: {affected})"
++            help_uri = entry.get("url")
++            add_rule(rules, rule_map, rule_id, title, help_uri)
++            add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def npm_v6_to_sarif(data, location):
++    sarif = sarif_skeleton("npm audit", "https://docs.npmjs.com/cli/v9/commands/npm-audit")
++    run = sarif["runs"][0]
++    rules = run["tool"]["driver"]["rules"]
++    results = run["results"]
++    rule_map = {}
++
++    advisories = data.get("advisories", {})
++    for advisory_id, advisory in advisories.items():
++        package = advisory.get("module_name") or advisory.get("name") or "package"
++        title = advisory.get("title") or "npm advisory"
++        severity = advisory.get("severity")
++        affected = advisory.get("vulnerable_versions")
++        rule_id = f"npm:{package}:{advisory_id}"
++        message = f"{package}: {title}"
++        if affected:
++            message = f"{message} (affected: {affected})"
++        help_uri = advisory.get("url")
++        add_rule(rules, rule_map, rule_id, title, help_uri)
++        add_result(results, rule_id, map_level(severity), message, location)
++
++    return sarif
++
++
++def write_sarif(output_path, sarif):
++    with open(output_path, "w", encoding="utf-8") as handle:
++        json.dump(sarif, handle, indent=2)
++        handle.write("\n")
++
++
++def resolve_location(preferred):
++    if preferred and os.path.exists(preferred):
++        return preferred
++    return preferred
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Convert audit JSON reports to SARIF.")
++    parser.add_argument("--tool", choices=["composer", "npm"], required=True)
++    parser.add_argument("--input", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--location", default="")
++    args = parser.parse_args()
++
++    try:
++        data = load_json(args.input)
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"Failed to read audit JSON: {exc}", file=sys.stderr)
++        return 2
++
++    location = resolve_location(args.location)
++    if args.tool == "composer":
++        sarif = composer_to_sarif(data, location)
++    else:
++        if "auditReportVersion" in data or "vulnerabilities" in data:
++            sarif = npm_v7_to_sarif(data, location)
++        else:
++            sarif = npm_v6_to_sarif(data, location)
++
++    write_sarif(args.output, sarif)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+tokens used
+35,835

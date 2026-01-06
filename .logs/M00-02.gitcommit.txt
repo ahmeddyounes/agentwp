@@ -1,0 +1,20 @@
+[main 059b953] M00-02: implement
+ 18 files changed, 6628 insertions(+), 2 deletions(-)
+ create mode 100644 .env.example
+ create mode 100644 .logs/M00-01.gitcommit.txt
+ create mode 100644 .logs/M00-02.codex.impl.last.md
+ create mode 100644 .logs/M00-02.codex.impl.raw.txt
+ create mode 100644 .plans/M00-02.md
+ create mode 100644 .t2/handoff/M00-02.md
+ create mode 100644 docker-compose.yml
+ create mode 100644 docker/wordpress/Dockerfile
+ create mode 100644 react/index.html
+ create mode 100644 react/package.json
+ create mode 100644 react/src/App.jsx
+ create mode 100644 react/src/index.css
+ create mode 100644 react/src/main.jsx
+ create mode 100644 react/vite.config.js
+ create mode 100644 scripts/seed-woocommerce.php
+ create mode 100755 scripts/wp-setup.sh
+ create mode 100755 setup.sh
+

@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    name: php
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          tools: composer
+
+      - name: Install PHP dependencies
+        if: hashFiles('composer.json') != ''
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Run PHPCS (WordPress)
+        if: hashFiles('composer.json') != ''
+        run: |
+          if [ ! -x vendor/bin/phpcs ]; then
+            echo "PHPCS not installed; skipping."
+            exit 0
+          fi
+          if find . -name '*.php' -not -path './vendor/*' -not -path './node_modules/*' -not -path './react/node_modules/*' | grep -q .; then
+            if [ -f phpcs.xml ] || [ -f phpcs.xml.dist ]; then
+              vendor/bin/phpcs
+            else
+              vendor/bin/phpcs --standard=WordPress --extensions=php --ignore=vendor/*,node_modules/*,react/node_modules/* .
+            fi
+          else
+            echo "No PHP files found; skipping PHPCS."
+          fi
+
+      - name: Run PHPUnit
+        if: hashFiles('composer.json') != ''
+        run: |
+          if [ ! -x vendor/bin/phpunit ]; then
+            echo "PHPUnit not installed; skipping."
+            exit 0
+          fi
+          if [ -f phpunit.xml ] || [ -f phpunit.xml.dist ] || [ -d tests ]; then
+            vendor/bin/phpunit
+          else
+            echo "No PHPUnit config/tests found; skipping."
+          fi
+
+  node:
+    name: node
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: react
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: react/package-lock.json
+
+      - name: Install Node dependencies
+        if: hashFiles('react/package.json') != ''
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Run ESLint
+        if: hashFiles('react/package.json') != ''
+        run: npm run lint --if-present
+
+      - name: Run Jest
+        if: hashFiles('react/package.json') != ''
+        run: npm run test --if-present -- --ci
+
+      - name: Build frontend
+        if: hashFiles('react/package.json') != ''
+        run: npm run build --if-present

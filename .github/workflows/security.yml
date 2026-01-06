@@ -1,0 +1,75 @@
+name: Security Audit
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  audits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        if: hashFiles('composer.json') != ''
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          tools: composer
+
+      - name: Setup Node
+        if: hashFiles('react/package.json') != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: react/package-lock.json
+
+      - name: Composer audit
+        if: hashFiles('composer.json') != ''
+        run: |
+          if [ ! -f composer.lock ]; then
+            echo "composer.lock not found; skipping composer audit."
+            exit 0
+          fi
+          composer audit --format=json --no-interaction > composer-audit.json || true
+          python3 scripts/audit_to_sarif.py \
+            --tool composer \
+            --input composer-audit.json \
+            --output composer-audit.sarif \
+            --location composer.lock
+
+      - name: Upload Composer SARIF
+        if: hashFiles('composer.json') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: composer-audit.sarif
+          category: composer-audit
+
+      - name: npm audit
+        if: hashFiles('react/package.json') != ''
+        run: |
+          if [ -f react/package-lock.json ]; then
+            npm ci --prefix react
+          else
+            npm install --package-lock-only --prefix react
+          fi
+          npm --prefix react audit --json > npm-audit.json || true
+          python3 scripts/audit_to_sarif.py \
+            --tool npm \
+            --input npm-audit.json \
+            --output npm-audit.sarif \
+            --location react/package-lock.json
+
+      - name: Upload npm SARIF
+        if: hashFiles('react/package.json') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: npm-audit.sarif
+          category: npm-audit
