@@ -1,0 +1,24 @@
+[main b31b75e] M02-01: implement
+ 23 files changed, 35861 insertions(+), 10 deletions(-)
+ create mode 100644 .logs/M01-06.gitcommit.txt
+ create mode 100644 .logs/M02-01.codex.impl.last.md
+ create mode 100644 .logs/M02-01.codex.impl.raw.txt
+ create mode 100644 .plans/M02-01.md
+ create mode 100644 .t2/handoff/M02-01.md
+ create mode 100644 src/Intent/ContextBuilder.php
+ create mode 100644 src/Intent/Engine.php
+ create mode 100644 src/Intent/FunctionRegistry.php
+ create mode 100644 src/Intent/Handler.php
+ create mode 100644 src/Intent/Handlers/AnalyticsQueryHandler.php
+ create mode 100644 src/Intent/Handlers/BaseHandler.php
+ create mode 100644 src/Intent/Handlers/CustomerLookupHandler.php
+ create mode 100644 src/Intent/Handlers/EmailDraftHandler.php
+ create mode 100644 src/Intent/Handlers/FallbackHandler.php
+ create mode 100644 src/Intent/Handlers/OrderRefundHandler.php
+ create mode 100644 src/Intent/Handlers/OrderSearchHandler.php
+ create mode 100644 src/Intent/Handlers/OrderStatusHandler.php
+ create mode 100644 src/Intent/Handlers/ProductStockHandler.php
+ create mode 100644 src/Intent/Intent.php
+ create mode 100644 src/Intent/IntentClassifier.php
+ create mode 100644 src/Intent/MemoryStore.php
+

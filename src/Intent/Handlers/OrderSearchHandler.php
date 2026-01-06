@@ -8,6 +8,7 @@
 namespace AgentWP\Intent\Handlers;
 
 use AgentWP\AI\Response;
+use AgentWP\Handlers\OrderSearchHandler as OrderSearchService;
 use AgentWP\Intent\Intent;
 
 class OrderSearchHandler extends BaseHandler {
@@ -20,7 +21,26 @@ class OrderSearchHandler extends BaseHandler {
 	 * @return Response
 	 */
 	public function handle( array $context ): Response {
-		$message = 'I can search orders. Share an order ID, customer email, or date range.';
-		return $this->build_response( $context, $message );
+		$query = isset( $context['input'] ) ? (string) $context['input'] : '';
+		$query = trim( $query );
+
+		$search = new OrderSearchService();
+		$result = $search->handle(
+			array(
+				'query' => $query,
+			)
+		);
+
+		if ( ! $result->is_success() ) {
+			return $result;
+		}
+
+		$data    = $result->get_data();
+		$count   = isset( $data['count'] ) ? intval( $data['count'] ) : 0;
+		$message = 0 === $count
+			? 'I could not find any orders that match.'
+			: sprintf( 'Found %d order%s matching your request.', $count, 1 === $count ? '' : 's' );
+
+		return $this->build_response( $context, $message, $data );
 	}
 }

@@ -31,7 +31,7 @@ class SearchOrders extends AbstractFunction {
 				),
 				'email'      => array(
 					'type'        => 'string',
-					'description' => 'Customer email address.',
+					'description' => 'Customer billing or shipping email address.',
 				),
 				'status'     => array(
 					'type'        => 'string',
