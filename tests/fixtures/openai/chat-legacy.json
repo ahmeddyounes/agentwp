@@ -1,0 +1,17 @@
+{
+  "id": "chatcmpl-legacy",
+  "model": "gpt-4o-mini",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "function_call": {
+          "name": "draft_email",
+          "arguments": "{\"tone\":\"friendly\"}"
+        }
+      }
+    }
+  ]
+}

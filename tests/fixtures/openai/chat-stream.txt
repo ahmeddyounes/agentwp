@@ -1,0 +1,5 @@
+data: {"id":"chatcmpl-stream","model":"gpt-4o-mini","choices":[{"delta":{"content":"Hello "}}]}
+data: {"id":"chatcmpl-stream","choices":[{"delta":{"content":"world","tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"search_orders","arguments":"{\"order_id\":123"}}]}}]}
+data: {"id":"chatcmpl-stream","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]}}]}
+data: {"id":"chatcmpl-stream","usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}
+data: [DONE]

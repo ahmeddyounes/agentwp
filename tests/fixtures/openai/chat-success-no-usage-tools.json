@@ -1,0 +1,23 @@
+{
+  "id": "chatcmpl-125",
+  "model": "gpt-4o-mini",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "call_1",
+            "type": "function",
+            "function": {
+              "name": "search_orders",
+              "arguments": "{\"order_id\":123}"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

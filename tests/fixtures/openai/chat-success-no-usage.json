@@ -1,0 +1,13 @@
+{
+  "id": "chatcmpl-124",
+  "model": "gpt-4o-mini",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Here is a response without usage."
+      }
+    }
+  ]
+}

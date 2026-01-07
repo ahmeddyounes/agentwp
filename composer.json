@@ -11,5 +11,15 @@
   "require": {
     "php": ">=7.4",
     "yethee/tiktoken": "^0.1.2"
+  },
+  "require-dev": {
+    "10up/wp_mock": "^1.0",
+    "mockery/mockery": "^1.6",
+    "phpunit/phpunit": "^9.6"
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "AgentWP\\Tests\\": "tests/"
+    }
   }
 }

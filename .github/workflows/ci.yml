@@ -19,6 +19,7 @@ jobs:
         with:
           php-version: "8.1"
           tools: composer
+          coverage: xdebug
 
       - name: Install PHP dependencies
         if: hashFiles('composer.json') != ''
@@ -43,6 +44,8 @@ jobs:
 
       - name: Run PHPUnit
         if: hashFiles('composer.json') != ''
+        env:
+          XDEBUG_MODE: coverage
         run: |
           if [ ! -x vendor/bin/phpunit ]; then
             echo "PHPUnit not installed; skipping."

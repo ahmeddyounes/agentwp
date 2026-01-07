@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+  bootstrap="tests/bootstrap.php"
+  colors="true"
+  cacheResult="false"
+  backupGlobals="false"
+>
+  <testsuites>
+    <testsuite name="unit">
+      <directory suffix="Test.php">tests/Unit</directory>
+    </testsuite>
+    <testsuite name="integration">
+      <directory suffix="Test.php">tests/Integration</directory>
+    </testsuite>
+  </testsuites>
+
+  <coverage processUncoveredFiles="true">
+    <include>
+      <directory suffix=".php">src/Security</directory>
+      <directory suffix=".php">src/Intent/Handlers</directory>
+      <file>src/AI/OpenAIClient.php</file>
+    </include>
+    <report>
+      <html outputDirectory="build/coverage/phpunit" />
+      <text outputFile="build/coverage/phpunit.txt" />
+    </report>
+  </coverage>
+
+  <php>
+    <ini name="display_errors" value="1" />
+    <ini name="error_reporting" value="-1" />
+  </php>
+</phpunit>
