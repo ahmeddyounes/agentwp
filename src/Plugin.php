@@ -221,6 +221,7 @@ class Plugin {
 		$script .= 'root.style.colorScheme=theme;';
 		$script .= '})();';
 
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Inline script is generated from safe values.
 		echo '<script>' . $script . '</script>';
 	}
 

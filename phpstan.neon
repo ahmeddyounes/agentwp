@@ -1,0 +1,18 @@
+includes:
+  - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+  level: 6
+  paths:
+    - agentwp.php
+    - src
+    - uninstall.php
+  excludePaths:
+    - assets
+    - docker
+    - docs
+    - languages
+    - node_modules
+    - react
+    - tests
+    - vendor

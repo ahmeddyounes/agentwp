@@ -1,0 +1,22 @@
+[main a369076] M05-02: implement
+ 20 files changed, 38148 insertions(+), 2 deletions(-)
+ create mode 100644 .logs/M05-01.gitcommit.txt
+ create mode 100644 .logs/M05-02.codex.impl.last.md
+ create mode 100644 .logs/M05-02.codex.impl.raw.txt
+ create mode 100644 .plans/M05-02.md
+ create mode 100644 .t2/handoff/M05-02.md
+ create mode 100644 .wp-env.json
+ create mode 100644 docs/integration-tests.md
+ create mode 100644 package.json
+ create mode 100644 playwright.config.cjs
+ create mode 100644 tests/e2e/command-deck.spec.js
+ create mode 100644 tests/e2e/helpers/wp.js
+ create mode 100644 tests/e2e/intent-flow.spec.js
+ create mode 100644 tests/e2e/openai.spec.js
+ create mode 100644 tests/e2e/rest-api.spec.js
+ create mode 100644 tests/e2e/woocommerce.spec.js
+ create mode 100644 tests/fixtures/openai/54ba30f164b23236c55ccaab74c99d73ebfb9b05.json
+ create mode 100644 tests/fixtures/openai/f0dacf52138a5ddda002c7e93d2c931b3d8dad84.json
+ create mode 100644 tests/wp-env/mu-plugins/agentwp-openai-vcr.php
+ create mode 100644 tests/wp-env/mu-plugins/agentwp-test-tools.php
+

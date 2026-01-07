@@ -38,6 +38,11 @@ abstract class RestController extends WP_REST_Controller {
 			);
 		}
 
+		$nonce_error = $this->verify_nonce( $request );
+		if ( is_wp_error( $nonce_error ) ) {
+			return $nonce_error;
+		}
+
 		$rate_error = self::check_rate_limit( $request );
 		if ( is_wp_error( $rate_error ) ) {
 			return $rate_error;
@@ -66,6 +71,46 @@ abstract class RestController extends WP_REST_Controller {
 		}
 
 		return $payload;
+	}
+
+	/**
+	 * Verify REST nonce for state-changing requests.
+	 *
+	 * @param WP_REST_Request $request Request instance.
+	 * @return true|WP_Error
+	 */
+	protected function verify_nonce( $request ) {
+		$method = strtoupper( $request->get_method() );
+		if ( in_array( $method, array( 'GET', 'HEAD', 'OPTIONS' ), true ) ) {
+			return true;
+		}
+
+		$nonce = $request->get_header( 'X-WP-Nonce' );
+		if ( ! $nonce ) {
+			$nonce = $request->get_param( '_wpnonce' );
+		}
+		if ( ! $nonce ) {
+			$nonce = $request->get_param( '_wp_rest_nonce' );
+		}
+
+		$nonce = is_string( $nonce ) ? $nonce : '';
+		if ( '' === $nonce ) {
+			return new WP_Error(
+				'agentwp_missing_nonce',
+				__( 'Missing security nonce.', 'agentwp' ),
+				array( 'status' => 403 )
+			);
+		}
+
+		if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+			return new WP_Error(
+				'agentwp_invalid_nonce',
+				__( 'Invalid security nonce.', 'agentwp' ),
+				array( 'status' => 403 )
+			);
+		}
+
+		return true;
 	}
 
 	/**
@@ -197,6 +242,8 @@ abstract class RestController extends WP_REST_Controller {
 
 		$body      = $request->get_json_params();
 		$body_keys = is_array( $body ) ? array_keys( $body ) : array();
+		$query     = $request->get_query_params();
+		$query_keys = is_array( $query ) ? array_keys( $query ) : array();
 
 		$entry = array(
 			'time'      => gmdate( 'c' ),
@@ -205,9 +252,8 @@ abstract class RestController extends WP_REST_Controller {
 			'status'    => intval( $status ),
 			'error'     => $error_code,
 			'user_id'   => intval( $user_id ),
-			'ip'        => isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '',
-			'query'     => $request->get_query_params(),
-			'body_keys' => $body_keys,
+			'query_keys' => $query_keys,
+			'body_keys'  => $body_keys,
 		);
 
 		$logs[] = $entry;

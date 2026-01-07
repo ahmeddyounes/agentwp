@@ -751,7 +751,8 @@ class AnalyticsHandler {
 	private function table_exists( $table ) {
 		global $wpdb;
 
-		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		$like  = $wpdb->esc_like( $table );
+		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $like ) );
 		return $found === $table;
 	}
 
@@ -769,7 +770,13 @@ class AnalyticsHandler {
 		}
 
 		global $wpdb;
-		$result = $wpdb->get_var( $wpdb->prepare( 'SHOW COLUMNS FROM ' . $table . ' LIKE %s', $column ) );
+		$result = $wpdb->get_var(
+			$wpdb->prepare(
+				'SHOW COLUMNS FROM %i LIKE %s',
+				$table,
+				$column
+			)
+		);
 		$cache[ $key ] = ! empty( $result );
 
 		return $cache[ $key ];

@@ -671,7 +671,14 @@ class Index {
 			return $supported;
 		}
 
-		$indexes = $wpdb->get_results( "SHOW INDEX FROM {$table} WHERE Index_type = 'FULLTEXT'", ARRAY_A );
+		$indexes = $wpdb->get_results(
+			$wpdb->prepare(
+				'SHOW INDEX FROM %i WHERE Index_type = %s',
+				$table,
+				'FULLTEXT'
+			),
+			ARRAY_A
+		);
 		$supported = ! empty( $indexes );
 
 		return $supported;
