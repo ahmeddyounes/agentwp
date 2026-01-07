@@ -1,0 +1,9 @@
+[main 9d6247c] M03-01: implement
+ 7 files changed, 10613 insertions(+), 2 deletions(-)
+ create mode 100644 .logs/M02-06.gitcommit.txt
+ create mode 100644 .logs/M03-01.codex.impl.last.md
+ create mode 100644 .logs/M03-01.codex.impl.raw.txt
+ create mode 100644 .plans/M03-01.md
+ create mode 100644 .t2/handoff/M03-01.md
+ create mode 100644 src/Context/EmailContextBuilder.php
+
