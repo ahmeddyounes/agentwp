@@ -389,6 +389,10 @@ class Plugin {
 			API\RestController::log_request( $request, $status, $error_code );
 		}
 
+		if ( $result instanceof \WP_REST_Response ) {
+			$this->add_no_cache_headers( $result );
+		}
+
 		return $result;
 	}
 
@@ -403,6 +407,18 @@ class Plugin {
 		$route = is_string( $route ) ? $route : '';
 
 		return ( 0 === strpos( $route, '/' . API\RestController::REST_NAMESPACE ) );
+	}
+
+	/**
+	 * Add no-cache headers for AgentWP REST responses.
+	 *
+	 * @param \WP_REST_Response $response Response instance.
+	 * @return void
+	 */
+	private function add_no_cache_headers( $response ) {
+		$response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+		$response->header( 'Pragma', 'no-cache' );
+		$response->header( 'Expires', 'Wed, 11 Jan 1984 05:00:00 GMT' );
 	}
 
 	/**

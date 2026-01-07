@@ -14,6 +14,14 @@ test('settings endpoint returns defaults', async ({ page }) => {
   expect(json?.data?.settings).toBeTruthy();
 });
 
+test('health endpoint sends no-cache headers', async ({ page }) => {
+  const response = await page.request.get('/wp-json/agentwp/v1/health');
+  const headers = response.headers();
+
+  expect(response.ok()).toBeTruthy();
+  expect(headers['cache-control']).toContain('no-store');
+});
+
 test('intent rejects empty prompt', async ({ page }) => {
   const { response, json } = await apiPost(page, '/wp-json/agentwp/v1/intent', { prompt: '' });
 

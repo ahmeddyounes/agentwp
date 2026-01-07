@@ -1,0 +1,76 @@
+name: Compatibility
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    name: PHP ${{ matrix.php }} / WP ${{ matrix.wp }} / WC ${{ matrix.wc }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.0", "8.1", "8.2", "8.3"]
+        wp: ["6.4", "6.5", "6.6"]
+        wc: ["8.0", "8.5", "9.0"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run compatibility matrix smoke checks
+        env:
+          WP_VERSION: ${{ matrix.wp }}
+          WC_VERSION: ${{ matrix.wc }}
+          PHP_VERSION: ${{ matrix.php }}
+        run: bash scripts/compatibility/run-matrix.sh
+
+  extended:
+    name: Extended compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run extended compatibility setup
+        env:
+          WP_VERSION: "6.6"
+          WC_VERSION: "9.0"
+          PHP_VERSION: "8.3"
+          AGENTWP_KEEP_ENV: "1"
+          AGENTWP_WC_SUBSCRIPTIONS_ZIP: ${{ secrets.AGENTWP_WC_SUBSCRIPTIONS_ZIP }}
+          AGENTWP_WPML_ZIP: ${{ secrets.AGENTWP_WPML_ZIP }}
+          AGENTWP_WP_ROCKET_ZIP: ${{ secrets.AGENTWP_WP_ROCKET_ZIP }}
+        run: bash scripts/compatibility/run-extended.sh
+
+      - name: Run jQuery compatibility test
+        env:
+          AGENTWP_BASE_URL: http://localhost:8888
+        run: npx playwright test tests/e2e/jquery-compat.spec.js
+
+      - name: Stop wp-env
+        run: npm run wp-env:stop

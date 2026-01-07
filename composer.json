@@ -9,7 +9,7 @@
     }
   },
   "require": {
-    "php": ">=7.4",
+    "php": ">=8.0",
     "yethee/tiktoken": "^0.1.2"
   },
   "require-dev": {

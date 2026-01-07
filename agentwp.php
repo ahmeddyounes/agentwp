@@ -5,7 +5,7 @@
  * Description: React-powered admin UI for WooCommerce automation.
  * Version: 0.1.0
  * Requires at least: 6.4
- * Requires PHP: 7.4
+ * Requires PHP: 8.0
  * WC requires at least: 8.0
  * Author: AgentWP
  * Text Domain: agentwp
@@ -50,6 +50,13 @@ register_deactivation_hook( __FILE__, array( 'AgentWP\\Plugin', 'deactivate' ) )
 add_action(
 	'plugins_loaded',
 	function () {
+		if ( class_exists( 'AgentWP\\Compatibility\\Environment' ) ) {
+			AgentWP\Compatibility\Environment::boot();
+			if ( ! AgentWP\Compatibility\Environment::is_compatible() ) {
+				return;
+			}
+		}
+
 		if ( class_exists( 'AgentWP\\Plugin' ) ) {
 			AgentWP\Plugin::init();
 		}
