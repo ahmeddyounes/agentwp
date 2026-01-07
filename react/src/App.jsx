@@ -21,6 +21,8 @@ import {
   resolveTheme,
   THEME_STORAGE_KEY,
 } from './theme.js';
+import { SpeechRecognition, attachSpeechRecognitionNamespace } from './voice/SpeechRecognition.js';
+import { SpeechSynthesis, attachSpeechSynthesisNamespace } from './voice/SpeechSynthesis.js';
 
 const OPEN_STATE_KEY = 'agentwp-command-deck-open';
 const DRAFT_HISTORY_KEY = 'agentwp-draft-history';
@@ -64,6 +66,7 @@ const SEARCH_TYPES = ['products', 'orders', 'customers'];
 const THEME_TRANSITION_MS = 150;
 const OFFLINE_CACHE_LIMIT = 3;
 const CHART_FALLBACK_BARS = [36, 62, 48, 84, 56, 74];
+const WAKE_WORD = 'Hey Agent';
 const ChartPlaceholderCard = ({ title }) => (
   <div className="rounded-2xl border border-slate-800/80 bg-slate-950/40 px-4 py-4">
     <div className="flex items-center justify-between gap-3">
@@ -185,6 +188,15 @@ const RATE_LIMIT_MESSAGE = 'Too many requests right now. Please wait and retry.'
 const AUTH_ERROR_MESSAGE = 'Authorization failed. Check your API key and permissions.';
 const VALIDATION_ERROR_MESSAGE = 'Please check your request and try again.';
 const OFFLINE_BANNER_TEXT = 'Agent Offline';
+const SPEECH_ERROR_MESSAGES = {
+  'not-allowed': 'Microphone access is blocked. Check browser permissions.',
+  'audio-capture': 'No microphone was found. Connect a mic and try again.',
+  'no-speech': 'No speech detected. Try again and speak a little louder.',
+  aborted: 'Voice capture stopped.',
+  'network': 'Speech recognition network error. Try again.',
+  'service-not-allowed': 'Speech recognition is disabled by the browser.',
+  'language-not-supported': 'Speech recognition language not supported.',
+};
 
 const OPENAI_ERROR_CODE_MESSAGES = {
   invalid_api_key: 'The OpenAI API key is invalid. Update it in settings.',
@@ -567,6 +579,17 @@ const truncateText = (value, limit = 140) => {
     return trimmed;
   }
   return `${trimmed.slice(0, Math.max(1, limit - 3))}...`;
+};
+
+const getSpeechErrorMessage = (error) => {
+  if (!error) {
+    return '';
+  }
+  if (typeof error === 'string') {
+    return SPEECH_ERROR_MESSAGES[error] || error;
+  }
+  const code = `${error.error || error.name || ''}`.toLowerCase();
+  return SPEECH_ERROR_MESSAGES[code] || error.message || 'Speech recognition error.';
 };
 
 const buildMailtoLink = (subject, body, recipient = '') => {
@@ -952,6 +975,15 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
   const [isPromptFocused, setIsPromptFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState('');
+  const [voiceSupported] = useState(() => SpeechRecognition.isSupported());
+  const [ttsSupported] = useState(() => SpeechSynthesis.isSupported());
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState('');
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [finalTranscript, setFinalTranscript] = useState('');
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
+  const [wakeWordDetected, setWakeWordDetected] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [errorState, setErrorState] = useState(null);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [isOffline, setIsOffline] = useState(
@@ -977,6 +1009,10 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
   const inputRef = useRef(null);
   const modalRef = useRef(null);
   const responseHtmlRef = useRef(null);
+  const recognitionRef = useRef(null);
+  const speechRef = useRef(null);
+  const voiceBasePromptRef = useRef('');
+  const wakeWordEnabledRef = useRef(wakeWordEnabled);
   const lastActiveRef = useRef(null);
   const requestControllerRef = useRef(null);
   const searchControllerRef = useRef(null);
@@ -1027,6 +1063,24 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
     () => (Array.isArray(draftHistory) ? draftHistory.slice(0, OFFLINE_CACHE_LIMIT) : []),
     [draftHistory]
   );
+  const voiceStatusLabel = useMemo(() => {
+    if (!voiceSupported) {
+      return 'Voice not supported in this browser.';
+    }
+    if (voiceError) {
+      return 'Voice error';
+    }
+    if (isListening) {
+      if (wakeWordEnabled) {
+        return wakeWordDetected
+          ? 'Wake word heard. Speak your command...'
+          : `Listening for "${WAKE_WORD}"...`;
+      }
+      return 'Listening for a command...';
+    }
+    return 'Voice idle.';
+  }, [isListening, voiceError, voiceSupported, wakeWordDetected, wakeWordEnabled]);
+  const canSpeakResponse = ttsSupported && Boolean(response) && !errorState;
 
   useLayoutEffect(() => {
     if (!themeRoot) {
@@ -1080,6 +1134,122 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
       window.removeEventListener('offline', updateStatus);
     };
   }, []);
+
+  useEffect(() => {
+    wakeWordEnabledRef.current = wakeWordEnabled;
+  }, [wakeWordEnabled]);
+
+  useEffect(() => {
+    if (voiceSupported) {
+      attachSpeechRecognitionNamespace();
+    }
+    if (ttsSupported) {
+      attachSpeechSynthesisNamespace();
+    }
+  }, [ttsSupported, voiceSupported]);
+
+  useEffect(() => {
+    if (!voiceSupported) {
+      return undefined;
+    }
+    const recognition = new SpeechRecognition({
+      lang: 'en-US',
+      interimResults: true,
+      continuous: true,
+      wakeWord: WAKE_WORD.toLowerCase(),
+      wakeWordEnabled: wakeWordEnabledRef.current,
+      autoRestart: wakeWordEnabledRef.current,
+      onStart: () => {
+        setIsListening(true);
+        setVoiceError('');
+        setWakeWordDetected(false);
+      },
+      onEnd: () => {
+        setIsListening(false);
+        setInterimTranscript('');
+        setWakeWordDetected(false);
+      },
+      onError: (event) => {
+        setIsListening(false);
+        setVoiceError(getSpeechErrorMessage(event));
+        setWakeWordDetected(false);
+      },
+      onWakeWord: () => {
+        setWakeWordDetected(true);
+        setInterimTranscript('');
+        setFinalTranscript('');
+      },
+      onResult: ({ interim }) => {
+        if (!interim) {
+          setInterimTranscript('');
+          return;
+        }
+        setInterimTranscript(interim);
+      },
+      onFinal: (text, info) => {
+        const transcript = info?.transcript || text;
+        if (!transcript) {
+          return;
+        }
+        const basePrompt = voiceBasePromptRef.current;
+        const mergedPrompt = basePrompt ? `${basePrompt} ${transcript}`.trim() : transcript;
+        setInterimTranscript('');
+        setFinalTranscript(transcript);
+        setPrompt(mergedPrompt);
+        inputRef.current?.focus();
+        if (recognitionRef.current) {
+          recognitionRef.current.stop();
+        }
+      },
+    });
+    recognitionRef.current = recognition;
+    return () => {
+      recognition.destroy();
+      recognitionRef.current = null;
+    };
+  }, [voiceSupported]);
+
+  useEffect(() => {
+    if (!recognitionRef.current) {
+      return;
+    }
+    recognitionRef.current.setWakeWordEnabled(wakeWordEnabled);
+    recognitionRef.current.setWakeWord(WAKE_WORD.toLowerCase());
+    recognitionRef.current.options.autoRestart = wakeWordEnabled;
+  }, [wakeWordEnabled]);
+
+  useEffect(() => {
+    if (!ttsSupported) {
+      return undefined;
+    }
+    const tts = new SpeechSynthesis({
+      lang: 'en-US',
+      onStart: () => setIsSpeaking(true),
+      onEnd: () => setIsSpeaking(false),
+      onError: () => setIsSpeaking(false),
+    });
+    speechRef.current = tts;
+    return () => {
+      tts.stop();
+      speechRef.current = null;
+    };
+  }, [ttsSupported]);
+
+  useEffect(() => {
+    if (isOpen) {
+      return;
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    if (speechRef.current) {
+      speechRef.current.stop();
+    }
+    setInterimTranscript('');
+    setIsListening(false);
+    setIsSpeaking(false);
+    setWakeWordDetected(false);
+  }, [isOpen]);
 
   const persistThemePreference = useCallback(async (theme) => {
     const restNonce = getRestNonce();
@@ -1541,6 +1711,49 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
       isTypeaheadOpen,
     ]
   );
+
+  const handleVoiceToggle = useCallback(() => {
+    if (!voiceSupported || !recognitionRef.current) {
+      return;
+    }
+    setVoiceError('');
+    setWakeWordDetected(false);
+    if (isListening) {
+      recognitionRef.current.stop();
+      return;
+    }
+    recognitionRef.current.resetTranscripts();
+    setInterimTranscript('');
+    setFinalTranscript('');
+    voiceBasePromptRef.current = prompt.trim();
+    const started = recognitionRef.current.start();
+    if (!started) {
+      setVoiceError('Unable to start voice recognition.');
+    }
+  }, [isListening, prompt, voiceSupported]);
+
+  const handleWakeWordToggle = useCallback(() => {
+    setWakeWordEnabled((prev) => !prev);
+    setWakeWordDetected(false);
+    setInterimTranscript('');
+    setFinalTranscript('');
+  }, []);
+
+  const handleSpeakResponse = useCallback(() => {
+    if (!ttsSupported || !speechRef.current) {
+      return;
+    }
+    if (isSpeaking) {
+      speechRef.current.stop();
+      setIsSpeaking(false);
+      return;
+    }
+    const text = stripMarkdownToPlainText(response);
+    if (!text) {
+      return;
+    }
+    speechRef.current.speak(text);
+  }, [isSpeaking, response, ttsSupported]);
 
   const addDraftToHistory = useCallback((draft) => {
     if (!draft?.markdown) {
@@ -2191,6 +2404,11 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
   const handleSubmit = useCallback(
     (event) => {
       event.preventDefault();
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setInterimTranscript('');
+      setWakeWordDetected(false);
       submitCommand(prompt);
     },
     [prompt, submitCommand]
@@ -2729,6 +2947,22 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
                       disabled={isOffline}
                       className="flex-1 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
+                    {voiceSupported ? (
+                      <button
+                        type="button"
+                        onClick={handleVoiceToggle}
+                        aria-pressed={isListening}
+                        aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
+                        title={isListening ? 'Stop voice input' : 'Start voice input'}
+                        className={`inline-flex items-center justify-center rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-widest transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${
+                          isListening
+                            ? 'border-emerald-400/70 bg-emerald-500/20 text-emerald-100'
+                            : 'border-slate-600/70 bg-slate-900/80 text-white hover:border-slate-400/80 hover:bg-slate-900'
+                        }`}
+                      >
+                        {isListening ? 'Listening' : 'Voice'}
+                      </button>
+                    ) : null}
                     <button
                       type="submit"
                       disabled={loading || isOffline || !prompt.trim()}
@@ -2799,6 +3033,47 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
                     </div>
                   )}
                 </div>
+                {voiceSupported ? (
+                  <div className="mt-3 rounded-2xl border border-slate-800/80 bg-slate-950/40 px-4 py-3 text-xs text-slate-300">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <label className="inline-flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={wakeWordEnabled}
+                          onChange={handleWakeWordToggle}
+                          className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950 text-emerald-400 focus:ring-emerald-300"
+                        />
+                        <span className="text-xs text-slate-400">{`Wake word "${WAKE_WORD}"`}</span>
+                      </label>
+                      <span className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+                        {voiceStatusLabel}
+                      </span>
+                    </div>
+                    {(finalTranscript || interimTranscript || voiceError || isListening) && (
+                      <div className="mt-2 space-y-1" aria-live="polite">
+                        {finalTranscript ? (
+                          <p className="text-sm text-slate-100">
+                            <span className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+                              Final
+                            </span>
+                            <span className="ml-2">{finalTranscript}</span>
+                          </p>
+                        ) : null}
+                        {interimTranscript ? (
+                          <p className="text-xs text-slate-400">
+                            <span className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+                              Interim
+                            </span>
+                            <span className="ml-2">{interimTranscript}</span>
+                          </p>
+                        ) : null}
+                        {voiceError ? (
+                          <p className="text-xs text-rose-300">{voiceError}</p>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </form>
 
               <div className="rounded-2xl border border-slate-800/80 bg-slate-950/40 px-4 py-4">
@@ -2807,29 +3082,45 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
                     <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
                       Latest response
                     </p>
-                    {hasDraft && lastSuccessfulCommand ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleFavoriteCommand(lastSuccessfulCommand)}
-                        aria-pressed={isLastCommandFavorited}
-                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-widest transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${
-                          isLastCommandFavorited
-                            ? 'border-amber-400/70 bg-amber-500/10 text-amber-200'
-                            : 'border-slate-700/70 text-slate-200 hover:border-slate-500/80 hover:text-white'
-                        }`}
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
-                          <path
-                            d="M12 3.4l2.4 4.9 5.4.8-3.9 3.8.9 5.3-4.8-2.5-4.8 2.5.9-5.3-3.9-3.8 5.4-.8L12 3.4z"
-                            fill={isLastCommandFavorited ? 'currentColor' : 'none'}
-                            stroke="currentColor"
-                            strokeWidth="1.6"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        {isLastCommandFavorited ? 'Starred' : 'Star'}
-                      </button>
-                    ) : null}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {ttsSupported ? (
+                        <button
+                          type="button"
+                          onClick={handleSpeakResponse}
+                          disabled={!canSpeakResponse}
+                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-widest transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${
+                            canSpeakResponse
+                              ? 'border-slate-700/70 text-slate-200 hover:border-slate-500/80 hover:text-white'
+                              : 'cursor-not-allowed border-slate-700/50 text-slate-500'
+                          } ${isSpeaking ? 'border-emerald-400/70 bg-emerald-500/10 text-emerald-200' : ''}`}
+                        >
+                          {isSpeaking ? 'Stop Voice' : 'Speak'}
+                        </button>
+                      ) : null}
+                      {hasDraft && lastSuccessfulCommand ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleFavoriteCommand(lastSuccessfulCommand)}
+                          aria-pressed={isLastCommandFavorited}
+                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-widest transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${
+                            isLastCommandFavorited
+                              ? 'border-amber-400/70 bg-amber-500/10 text-amber-200'
+                              : 'border-slate-700/70 text-slate-200 hover:border-slate-500/80 hover:text-white'
+                          }`}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+                            <path
+                              d="M12 3.4l2.4 4.9 5.4.8-3.9 3.8.9 5.3-4.8-2.5-4.8 2.5.9-5.3-3.9-3.8 5.4-.8L12 3.4z"
+                              fill={isLastCommandFavorited ? 'currentColor' : 'none'}
+                              stroke="currentColor"
+                              strokeWidth="1.6"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          {isLastCommandFavorited ? 'Starred' : 'Star'}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 )}
                 <div
