@@ -73,7 +73,7 @@ const resolveTooltipValue = (context) => {
   return context.raw;
 };
 
-const usePrefersDark = (fallback = true) => {
+const usePrefersDark = (fallback = false) => {
   const [prefersDark, setPrefersDark] = useState(() => {
     if (typeof window === 'undefined' || !window.matchMedia) {
       return fallback;

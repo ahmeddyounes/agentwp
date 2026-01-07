@@ -1,18 +1,18 @@
 .agentwp-card {
-  --card-surface: #0c1322;
-  --card-surface-muted: #111827;
-  --card-border: rgba(148, 163, 184, 0.25);
-  --card-text: #e2e8f0;
-  --card-muted: #94a3b8;
-  --card-accent: #38bdf8;
-  --card-accent-soft: rgba(56, 189, 248, 0.18);
-  --card-shadow: 0 24px 50px rgba(15, 23, 42, 0.4);
-  --card-ring: rgba(56, 189, 248, 0.5);
-  --card-button-bg: rgba(15, 23, 42, 0.35);
-  --card-button-border: rgba(148, 163, 184, 0.35);
-  --card-button-text: var(--card-text);
-  --card-button-hover-bg: rgba(148, 163, 184, 0.2);
-  --card-link: #7dd3fc;
+  --card-surface: var(--awp-card-surface);
+  --card-surface-muted: var(--awp-card-surface-muted);
+  --card-border: var(--awp-card-border);
+  --card-text: var(--awp-card-text);
+  --card-muted: var(--awp-card-muted);
+  --card-accent: var(--awp-card-accent);
+  --card-accent-soft: var(--awp-card-accent-soft);
+  --card-shadow: var(--awp-card-shadow);
+  --card-ring: var(--awp-card-ring);
+  --card-button-bg: var(--awp-card-button-bg);
+  --card-button-border: var(--awp-card-button-border);
+  --card-button-text: var(--awp-card-button-text);
+  --card-button-hover-bg: var(--awp-card-button-hover-bg);
+  --card-link: var(--awp-card-link);
 
   display: flex;
   flex-direction: column;
@@ -37,70 +37,42 @@
   border: 0;
 }
 
-.agentwp-card[data-theme='light'] {
-  --card-surface: #ffffff;
-  --card-surface-muted: #f1f5f9;
-  --card-border: rgba(148, 163, 184, 0.55);
-  --card-text: #0f172a;
-  --card-muted: #475569;
-  --card-accent: #0ea5e9;
-  --card-accent-soft: rgba(14, 165, 233, 0.12);
-  --card-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
-  --card-ring: rgba(14, 165, 233, 0.45);
-  --card-button-bg: rgba(15, 23, 42, 0.04);
-  --card-button-border: rgba(148, 163, 184, 0.6);
-  --card-button-text: #0f172a;
-  --card-button-hover-bg: rgba(148, 163, 184, 0.2);
-  --card-link: #0284c7;
-}
-
 .agentwp-card--accent {
   border-left: 4px solid var(--card-accent);
   padding-left: 1rem;
 }
 
 .agentwp-card--danger {
-  --card-accent: #f87171;
-  --card-accent-soft: rgba(248, 113, 113, 0.2);
+  --card-accent: var(--awp-card-accent-danger);
+  --card-accent-soft: var(--awp-card-accent-danger-soft);
 }
 
 .agentwp-card--success {
-  --card-accent: #22c55e;
-  --card-accent-soft: rgba(34, 197, 94, 0.16);
+  --card-accent: var(--awp-card-accent-success);
+  --card-accent-soft: var(--awp-card-accent-success-soft);
 }
 
 .agentwp-card--info {
-  --card-accent: #38bdf8;
-  --card-accent-soft: rgba(56, 189, 248, 0.16);
+  --card-accent: var(--awp-card-accent-info);
+  --card-accent-soft: var(--awp-card-accent-info-soft);
 }
 
 .agentwp-card--chart {
-  --card-accent: #a78bfa;
-  --card-accent-soft: rgba(167, 139, 250, 0.16);
+  --card-accent: var(--awp-card-accent-chart);
+  --card-accent-soft: var(--awp-card-accent-chart-soft);
 }
 
 .agentwp-card--error {
-  --card-accent: #fb7185;
-  --card-surface: #2a0f18;
-  --card-border: rgba(248, 113, 113, 0.45);
-  --card-text: #fee2e2;
-  --card-muted: #fecaca;
-  --card-link: #fecaca;
-  --card-button-bg: rgba(248, 113, 113, 0.25);
-  --card-button-border: rgba(248, 113, 113, 0.65);
-  --card-button-text: #ffffff;
-  --card-button-hover-bg: rgba(248, 113, 113, 0.35);
-}
-
-.agentwp-card--error[data-theme='light'] {
-  --card-surface: #fee2e2;
-  --card-text: #7f1d1d;
-  --card-muted: #9f1239;
-  --card-border: rgba(239, 68, 68, 0.45);
-  --card-link: #b91c1c;
-  --card-button-text: #7f1d1d;
-  --card-button-bg: rgba(239, 68, 68, 0.12);
-  --card-button-hover-bg: rgba(239, 68, 68, 0.2);
+  --card-accent: var(--awp-card-error-accent);
+  --card-surface: var(--awp-card-error-surface);
+  --card-border: var(--awp-card-error-border);
+  --card-text: var(--awp-card-error-text);
+  --card-muted: var(--awp-card-error-muted);
+  --card-link: var(--awp-card-error-link);
+  --card-button-bg: var(--awp-card-error-button-bg);
+  --card-button-border: var(--awp-card-error-button-border);
+  --card-button-text: var(--awp-card-error-button-text);
+  --card-button-hover-bg: var(--awp-card-error-button-hover-bg);
 }
 
 @keyframes agentwp-card-in {
@@ -204,14 +176,14 @@
 }
 
 .agentwp-card__button--danger {
-  background: #ef4444;
-  border-color: #f87171;
-  color: #ffffff;
+  background: var(--awp-danger-strong);
+  border-color: var(--awp-danger-strong-border);
+  color: var(--awp-danger-strong-text);
 }
 
 .agentwp-card__button--danger:hover {
-  background: #dc2626;
-  border-color: #fca5a5;
+  background: var(--awp-danger-strong-hover);
+  border-color: var(--awp-danger-strong-hover-border);
 }
 
 .agentwp-card__button--muted {
@@ -290,7 +262,7 @@
 
 .agentwp-card__chart-bar {
   border-radius: 8px 8px 4px 4px;
-  background: linear-gradient(180deg, var(--card-accent), rgba(15, 23, 42, 0.2));
+  background: linear-gradient(180deg, var(--card-accent), var(--awp-card-bar-shadow));
   min-height: 30px;
 }
 

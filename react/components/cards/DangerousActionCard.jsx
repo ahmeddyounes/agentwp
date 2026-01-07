@@ -22,7 +22,7 @@ export default function DangerousActionCard({
   cancelLabel = 'Cancel',
   onExecute,
   onCancel,
-  theme = 'dark',
+  theme = 'auto',
 }) {
   return (
     <BaseCard

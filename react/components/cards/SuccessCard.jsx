@@ -21,7 +21,7 @@ export default function SuccessCard({
   undoLabel = 'Undo',
   onUndo,
   undoHref,
-  theme = 'dark',
+  theme = 'auto',
   onStar,
   isStarred = false,
   starLabel = 'Star',

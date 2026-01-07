@@ -1,0 +1,10 @@
+[main 15b4624] M04-02: implement
+ 11 files changed, 41940 insertions(+), 71 deletions(-)
+ create mode 100644 .logs/M04-01.gitcommit.txt
+ create mode 100644 .logs/M04-02.codex.impl.last.md
+ create mode 100644 .logs/M04-02.codex.impl.raw.txt
+ create mode 100644 .plans/M04-02.md
+ create mode 100644 .t2/handoff/M04-02.md
+ create mode 100644 react/components/HistoryPanel.jsx
+ create mode 100644 src/API/HistoryController.php
+

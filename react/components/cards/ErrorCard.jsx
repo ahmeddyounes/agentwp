@@ -23,7 +23,7 @@ export default function ErrorCard({
   onRetry,
   onReport,
   reportHref,
-  theme = 'dark',
+  theme = 'auto',
 }) {
   const reportAction = onReport ? (
     <button type="button" className="agentwp-card__link" onClick={onReport}>

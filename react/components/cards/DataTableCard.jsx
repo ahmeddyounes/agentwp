@@ -34,7 +34,7 @@ export default function DataTableCard({
   pageSize = 10,
   getRowId,
   emptyMessage = 'No data available.',
-  theme = 'dark',
+  theme = 'auto',
 }) {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [page, setPage] = useState(1);

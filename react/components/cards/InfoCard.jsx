@@ -19,7 +19,7 @@ export default function InfoCard({
   title,
   subtitle,
   children,
-  theme = 'dark',
+  theme = 'auto',
 }) {
   return (
     <BaseCard

@@ -5,21 +5,419 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
+  --awp-bg-primary: #f8fafc;
+  --awp-bg-secondary: #f1f5f9;
+  --awp-text-primary: #0f172a;
+  --awp-text-secondary: #475569;
+  --awp-accent: #0ea5e9;
+  --awp-danger: #e11d48;
+  --awp-success: #16a34a;
+  --awp-border: rgba(148, 163, 184, 0.6);
+
+  --awp-slate-950: 248 250 252;
+  --awp-slate-900: 241 245 249;
+  --awp-slate-800: 226 232 240;
+  --awp-slate-700: 203 213 225;
+  --awp-slate-600: 148 163 184;
+  --awp-slate-500: 100 116 139;
+  --awp-slate-400: 71 85 105;
+  --awp-slate-300: 51 65 85;
+  --awp-slate-200: 30 41 59;
+  --awp-slate-100: 15 23 42;
+
+  --awp-sky-100: 3 105 161;
+  --awp-sky-300: 14 165 233;
+  --awp-sky-400: 56 189 248;
+  --awp-sky-500: 125 211 252;
+  --awp-sky-700: 224 242 254;
+
+  --awp-emerald-100: 22 101 52;
+  --awp-emerald-300: 5 150 105;
+  --awp-emerald-400: 16 185 129;
+  --awp-emerald-500: 110 231 183;
+
+  --awp-amber-200: 146 64 14;
+  --awp-amber-300: 180 83 9;
+  --awp-amber-400: 217 119 6;
+  --awp-amber-500: 252 211 77;
+
+  --awp-rose-300: 190 18 60;
+  --awp-rose-400: 225 29 72;
+
+  --awp-white: 15 23 42;
+  --awp-black: 255 255 255;
+
+  --awp-deck-surface: 255 255 255;
+  --awp-deck-border: 148 163 184;
+  --awp-shadow-deck: 0 30px 80px rgba(15, 23, 42, 0.18);
+
+  --awp-body-bg: #f8fafc;
+  --awp-body-bg-secondary: #e2e8f0;
+  --awp-body-gradient-1: radial-gradient(circle at 12% 18%, rgba(14, 165, 233, 0.12), transparent 45%);
+  --awp-body-gradient-2: radial-gradient(circle at 80% 10%, rgba(99, 102, 241, 0.1), transparent 35%);
+  --awp-body-gradient-3: radial-gradient(circle at 20% 90%, rgba(16, 185, 129, 0.14), transparent 40%);
+  --awp-body-gradient-4: linear-gradient(160deg, #f8fafc 0%, #e2e8f0 50%, #f8fafc 100%);
+
+  --awp-link: #0284c7;
+  --awp-code-bg: rgba(148, 163, 184, 0.18);
+  --awp-pre-bg: rgba(241, 245, 249, 0.9);
+  --awp-pre-border: rgba(148, 163, 184, 0.35);
+
+  --awp-card-surface: #ffffff;
+  --awp-card-surface-muted: #f1f5f9;
+  --awp-card-border: rgba(148, 163, 184, 0.55);
+  --awp-card-text: #0f172a;
+  --awp-card-muted: #475569;
+  --awp-card-accent: #0ea5e9;
+  --awp-card-accent-soft: rgba(14, 165, 233, 0.12);
+  --awp-card-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+  --awp-card-ring: rgba(14, 165, 233, 0.45);
+  --awp-card-button-bg: rgba(15, 23, 42, 0.04);
+  --awp-card-button-border: rgba(148, 163, 184, 0.6);
+  --awp-card-button-text: #0f172a;
+  --awp-card-button-hover-bg: rgba(148, 163, 184, 0.2);
+  --awp-card-link: #0284c7;
+  --awp-card-accent-info: #0ea5e9;
+  --awp-card-accent-info-soft: rgba(14, 165, 233, 0.16);
+  --awp-card-accent-success: #16a34a;
+  --awp-card-accent-success-soft: rgba(22, 163, 74, 0.16);
+  --awp-card-accent-danger: #e11d48;
+  --awp-card-accent-danger-soft: rgba(225, 29, 72, 0.18);
+  --awp-card-accent-chart: #6366f1;
+  --awp-card-accent-chart-soft: rgba(99, 102, 241, 0.16);
+  --awp-card-bar-shadow: rgba(15, 23, 42, 0.12);
+  --awp-card-error-accent: #e11d48;
+  --awp-card-error-surface: #fee2e2;
+  --awp-card-error-border: rgba(239, 68, 68, 0.45);
+  --awp-card-error-text: #7f1d1d;
+  --awp-card-error-muted: #9f1239;
+  --awp-card-error-link: #b91c1c;
+  --awp-card-error-button-bg: rgba(239, 68, 68, 0.12);
+  --awp-card-error-button-border: rgba(239, 68, 68, 0.45);
+  --awp-card-error-button-text: #7f1d1d;
+  --awp-card-error-button-hover-bg: rgba(239, 68, 68, 0.2);
+
+  --awp-danger-strong: #dc2626;
+  --awp-danger-strong-border: #f87171;
+  --awp-danger-strong-hover: #b91c1c;
+  --awp-danger-strong-hover-border: #fecaca;
+  --awp-danger-strong-text: #ffffff;
+
+  --awp-chart-primary: #0284c7;
+  --awp-chart-secondary: #6366f1;
+  --awp-chart-bar-primary: #0ea5e9;
+  --awp-chart-bar-secondary: #94a3b8;
+  --awp-chart-doughnut-1: #0ea5e9;
+  --awp-chart-doughnut-2: #22c55e;
+  --awp-chart-doughnut-3: #f59e0b;
+  --awp-chart-doughnut-4: #ef4444;
+  --awp-chart-text: #0f172a;
+  --awp-chart-muted: #475569;
+  --awp-chart-grid: rgba(148, 163, 184, 0.35);
+  --awp-chart-tooltip-bg: #ffffff;
+  --awp-chart-tooltip-border: rgba(148, 163, 184, 0.6);
+  --awp-chart-tooltip-text: #0f172a;
+  --awp-chart-canvas: #f1f5f9;
+}
+
+:root[data-theme='dark'],
+[data-theme='dark'] {
   color-scheme: dark;
+  --awp-bg-primary: #05070c;
+  --awp-bg-secondary: #0a1120;
+  --awp-text-primary: #e2e8f0;
+  --awp-text-secondary: #94a3b8;
+  --awp-accent: #38bdf8;
+  --awp-danger: #f87171;
+  --awp-success: #22c55e;
+  --awp-border: rgba(148, 163, 184, 0.25);
+
+  --awp-slate-950: 2 6 23;
+  --awp-slate-900: 15 23 42;
+  --awp-slate-800: 30 41 59;
+  --awp-slate-700: 51 65 85;
+  --awp-slate-600: 71 85 105;
+  --awp-slate-500: 100 116 139;
+  --awp-slate-400: 148 163 184;
+  --awp-slate-300: 203 213 225;
+  --awp-slate-200: 226 232 240;
+  --awp-slate-100: 241 245 249;
+
+  --awp-sky-100: 224 242 254;
+  --awp-sky-300: 125 211 252;
+  --awp-sky-400: 56 189 248;
+  --awp-sky-500: 14 165 233;
+  --awp-sky-700: 3 105 161;
+
+  --awp-emerald-100: 209 250 229;
+  --awp-emerald-300: 110 231 183;
+  --awp-emerald-400: 52 211 153;
+  --awp-emerald-500: 34 197 94;
+
+  --awp-amber-200: 253 230 138;
+  --awp-amber-300: 252 211 77;
+  --awp-amber-400: 251 191 36;
+  --awp-amber-500: 245 158 11;
+
+  --awp-rose-300: 253 164 175;
+  --awp-rose-400: 251 113 133;
+
+  --awp-white: 255 255 255;
+  --awp-black: 0 0 0;
+
+  --awp-deck-surface: 12 17 28;
+  --awp-deck-border: 148 163 184;
+  --awp-shadow-deck: 0 30px 80px rgba(15, 23, 42, 0.55);
+
+  --awp-body-bg: #05070c;
+  --awp-body-bg-secondary: #0a1120;
+  --awp-body-gradient-1: radial-gradient(circle at 12% 18%, rgba(56, 189, 248, 0.12), transparent 45%);
+  --awp-body-gradient-2: radial-gradient(circle at 80% 10%, rgba(99, 102, 241, 0.12), transparent 35%);
+  --awp-body-gradient-3: radial-gradient(circle at 20% 90%, rgba(14, 116, 144, 0.2), transparent 40%);
+  --awp-body-gradient-4: linear-gradient(160deg, #05070c 0%, #0a1120 50%, #05070c 100%);
+
+  --awp-link: #7dd3fc;
+  --awp-code-bg: rgba(15, 23, 42, 0.8);
+  --awp-pre-bg: rgba(2, 6, 23, 0.9);
+  --awp-pre-border: rgba(148, 163, 184, 0.2);
+
+  --awp-card-surface: #0c1322;
+  --awp-card-surface-muted: #111827;
+  --awp-card-border: rgba(148, 163, 184, 0.25);
+  --awp-card-text: #e2e8f0;
+  --awp-card-muted: #94a3b8;
+  --awp-card-accent: #38bdf8;
+  --awp-card-accent-soft: rgba(56, 189, 248, 0.18);
+  --awp-card-shadow: 0 24px 50px rgba(15, 23, 42, 0.4);
+  --awp-card-ring: rgba(56, 189, 248, 0.5);
+  --awp-card-button-bg: rgba(15, 23, 42, 0.35);
+  --awp-card-button-border: rgba(148, 163, 184, 0.35);
+  --awp-card-button-text: #e2e8f0;
+  --awp-card-button-hover-bg: rgba(148, 163, 184, 0.2);
+  --awp-card-link: #7dd3fc;
+  --awp-card-accent-info: #38bdf8;
+  --awp-card-accent-info-soft: rgba(56, 189, 248, 0.16);
+  --awp-card-accent-success: #22c55e;
+  --awp-card-accent-success-soft: rgba(34, 197, 94, 0.16);
+  --awp-card-accent-danger: #f87171;
+  --awp-card-accent-danger-soft: rgba(248, 113, 113, 0.2);
+  --awp-card-accent-chart: #a78bfa;
+  --awp-card-accent-chart-soft: rgba(167, 139, 250, 0.16);
+  --awp-card-bar-shadow: rgba(15, 23, 42, 0.2);
+  --awp-card-error-accent: #fb7185;
+  --awp-card-error-surface: #2a0f18;
+  --awp-card-error-border: rgba(248, 113, 113, 0.45);
+  --awp-card-error-text: #fee2e2;
+  --awp-card-error-muted: #fecaca;
+  --awp-card-error-link: #fecaca;
+  --awp-card-error-button-bg: rgba(248, 113, 113, 0.25);
+  --awp-card-error-button-border: rgba(248, 113, 113, 0.65);
+  --awp-card-error-button-text: #ffffff;
+  --awp-card-error-button-hover-bg: rgba(248, 113, 113, 0.35);
+
+  --awp-danger-strong: #ef4444;
+  --awp-danger-strong-border: #f87171;
+  --awp-danger-strong-hover: #dc2626;
+  --awp-danger-strong-hover-border: #fca5a5;
+  --awp-danger-strong-text: #ffffff;
+
+  --awp-chart-primary: #38bdf8;
+  --awp-chart-secondary: #a78bfa;
+  --awp-chart-bar-primary: #38bdf8;
+  --awp-chart-bar-secondary: #64748b;
+  --awp-chart-doughnut-1: #38bdf8;
+  --awp-chart-doughnut-2: #22c55e;
+  --awp-chart-doughnut-3: #f59e0b;
+  --awp-chart-doughnut-4: #f97316;
+  --awp-chart-text: #e2e8f0;
+  --awp-chart-muted: #94a3b8;
+  --awp-chart-grid: rgba(148, 163, 184, 0.2);
+  --awp-chart-tooltip-bg: #0f172a;
+  --awp-chart-tooltip-border: rgba(148, 163, 184, 0.4);
+  --awp-chart-tooltip-text: #e2e8f0;
+  --awp-chart-canvas: #111827;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --awp-bg-primary: #05070c;
+    --awp-bg-secondary: #0a1120;
+    --awp-text-primary: #e2e8f0;
+    --awp-text-secondary: #94a3b8;
+    --awp-accent: #38bdf8;
+    --awp-danger: #f87171;
+    --awp-success: #22c55e;
+    --awp-border: rgba(148, 163, 184, 0.25);
+
+    --awp-slate-950: 2 6 23;
+    --awp-slate-900: 15 23 42;
+    --awp-slate-800: 30 41 59;
+    --awp-slate-700: 51 65 85;
+    --awp-slate-600: 71 85 105;
+    --awp-slate-500: 100 116 139;
+    --awp-slate-400: 148 163 184;
+    --awp-slate-300: 203 213 225;
+    --awp-slate-200: 226 232 240;
+    --awp-slate-100: 241 245 249;
+
+    --awp-sky-100: 224 242 254;
+    --awp-sky-300: 125 211 252;
+    --awp-sky-400: 56 189 248;
+    --awp-sky-500: 14 165 233;
+    --awp-sky-700: 3 105 161;
+
+    --awp-emerald-100: 209 250 229;
+    --awp-emerald-300: 110 231 183;
+    --awp-emerald-400: 52 211 153;
+    --awp-emerald-500: 34 197 94;
+
+    --awp-amber-200: 253 230 138;
+    --awp-amber-300: 252 211 77;
+    --awp-amber-400: 251 191 36;
+    --awp-amber-500: 245 158 11;
+
+    --awp-rose-300: 253 164 175;
+    --awp-rose-400: 251 113 133;
+
+    --awp-white: 255 255 255;
+    --awp-black: 0 0 0;
+
+    --awp-deck-surface: 12 17 28;
+    --awp-deck-border: 148 163 184;
+    --awp-shadow-deck: 0 30px 80px rgba(15, 23, 42, 0.55);
+
+    --awp-body-bg: #05070c;
+    --awp-body-bg-secondary: #0a1120;
+    --awp-body-gradient-1: radial-gradient(circle at 12% 18%, rgba(56, 189, 248, 0.12), transparent 45%);
+    --awp-body-gradient-2: radial-gradient(circle at 80% 10%, rgba(99, 102, 241, 0.12), transparent 35%);
+    --awp-body-gradient-3: radial-gradient(circle at 20% 90%, rgba(14, 116, 144, 0.2), transparent 40%);
+    --awp-body-gradient-4: linear-gradient(160deg, #05070c 0%, #0a1120 50%, #05070c 100%);
+
+    --awp-link: #7dd3fc;
+    --awp-code-bg: rgba(15, 23, 42, 0.8);
+    --awp-pre-bg: rgba(2, 6, 23, 0.9);
+    --awp-pre-border: rgba(148, 163, 184, 0.2);
+
+    --awp-card-surface: #0c1322;
+    --awp-card-surface-muted: #111827;
+    --awp-card-border: rgba(148, 163, 184, 0.25);
+    --awp-card-text: #e2e8f0;
+    --awp-card-muted: #94a3b8;
+    --awp-card-accent: #38bdf8;
+    --awp-card-accent-soft: rgba(56, 189, 248, 0.18);
+    --awp-card-shadow: 0 24px 50px rgba(15, 23, 42, 0.4);
+    --awp-card-ring: rgba(56, 189, 248, 0.5);
+    --awp-card-button-bg: rgba(15, 23, 42, 0.35);
+    --awp-card-button-border: rgba(148, 163, 184, 0.35);
+    --awp-card-button-text: #e2e8f0;
+    --awp-card-button-hover-bg: rgba(148, 163, 184, 0.2);
+    --awp-card-link: #7dd3fc;
+    --awp-card-accent-info: #38bdf8;
+    --awp-card-accent-info-soft: rgba(56, 189, 248, 0.16);
+    --awp-card-accent-success: #22c55e;
+    --awp-card-accent-success-soft: rgba(34, 197, 94, 0.16);
+    --awp-card-accent-danger: #f87171;
+    --awp-card-accent-danger-soft: rgba(248, 113, 113, 0.2);
+    --awp-card-accent-chart: #a78bfa;
+    --awp-card-accent-chart-soft: rgba(167, 139, 250, 0.16);
+    --awp-card-bar-shadow: rgba(15, 23, 42, 0.2);
+    --awp-card-error-accent: #fb7185;
+    --awp-card-error-surface: #2a0f18;
+    --awp-card-error-border: rgba(248, 113, 113, 0.45);
+    --awp-card-error-text: #fee2e2;
+    --awp-card-error-muted: #fecaca;
+    --awp-card-error-link: #fecaca;
+    --awp-card-error-button-bg: rgba(248, 113, 113, 0.25);
+    --awp-card-error-button-border: rgba(248, 113, 113, 0.65);
+    --awp-card-error-button-text: #ffffff;
+    --awp-card-error-button-hover-bg: rgba(248, 113, 113, 0.35);
+
+    --awp-danger-strong: #ef4444;
+    --awp-danger-strong-border: #f87171;
+    --awp-danger-strong-hover: #dc2626;
+    --awp-danger-strong-hover-border: #fca5a5;
+    --awp-danger-strong-text: #ffffff;
+
+    --awp-chart-primary: #38bdf8;
+    --awp-chart-secondary: #a78bfa;
+    --awp-chart-bar-primary: #38bdf8;
+    --awp-chart-bar-secondary: #64748b;
+    --awp-chart-doughnut-1: #38bdf8;
+    --awp-chart-doughnut-2: #22c55e;
+    --awp-chart-doughnut-3: #f59e0b;
+    --awp-chart-doughnut-4: #f97316;
+    --awp-chart-text: #e2e8f0;
+    --awp-chart-muted: #94a3b8;
+    --awp-chart-grid: rgba(148, 163, 184, 0.2);
+    --awp-chart-tooltip-bg: #0f172a;
+    --awp-chart-tooltip-border: rgba(148, 163, 184, 0.4);
+    --awp-chart-tooltip-text: #e2e8f0;
+    --awp-chart-canvas: #111827;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --awp-text-primary: #0b1120;
+    --awp-text-secondary: #1e293b;
+    --awp-border: rgba(51, 65, 85, 0.75);
+    --awp-card-border: rgba(51, 65, 85, 0.7);
+    --awp-card-muted: #1e293b;
+    --awp-card-button-border: rgba(51, 65, 85, 0.8);
+    --awp-card-ring: rgba(14, 165, 233, 0.75);
+    --awp-chart-grid: rgba(51, 65, 85, 0.6);
+  }
+
+  :root[data-theme='dark'],
+  [data-theme='dark'] {
+    --awp-text-primary: #f8fafc;
+    --awp-text-secondary: #e2e8f0;
+    --awp-border: rgba(226, 232, 240, 0.6);
+    --awp-card-border: rgba(226, 232, 240, 0.45);
+    --awp-card-muted: #e2e8f0;
+    --awp-card-button-border: rgba(226, 232, 240, 0.5);
+    --awp-card-ring: rgba(125, 211, 252, 0.8);
+    --awp-chart-grid: rgba(226, 232, 240, 0.35);
+  }
+}
+
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --awp-text-primary: #f8fafc;
+    --awp-text-secondary: #e2e8f0;
+    --awp-border: rgba(226, 232, 240, 0.6);
+    --awp-card-border: rgba(226, 232, 240, 0.45);
+    --awp-card-muted: #e2e8f0;
+    --awp-card-button-border: rgba(226, 232, 240, 0.5);
+    --awp-card-ring: rgba(125, 211, 252, 0.8);
+    --awp-chart-grid: rgba(226, 232, 240, 0.35);
+  }
+}
+
+:root.awp-theme-transition,
+:root.awp-theme-transition * {
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease,
+    box-shadow 150ms ease, fill 150ms ease, stroke 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root.awp-theme-transition,
+  :root.awp-theme-transition * {
+    transition: none;
+  }
 }
 
 body {
   margin: 0;
   min-height: 100vh;
   font-family: "Space Grotesk", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
-  background-color: #05070c;
-  background-image:
-    radial-gradient(circle at 12% 18%, rgba(56, 189, 248, 0.12), transparent 45%),
-    radial-gradient(circle at 80% 10%, rgba(99, 102, 241, 0.12), transparent 35%),
-    radial-gradient(circle at 20% 90%, rgba(14, 116, 144, 0.2), transparent 40%),
-    linear-gradient(160deg, #05070c 0%, #0a1120 50%, #05070c 100%);
+  background-color: var(--awp-body-bg);
+  background-image: var(--awp-body-gradient-1), var(--awp-body-gradient-2),
+    var(--awp-body-gradient-3), var(--awp-body-gradient-4);
   background-attachment: fixed;
-  color: #e2e8f0;
+  color: var(--awp-text-primary);
 }
 
 #root {
@@ -27,7 +425,7 @@ body {
 }
 
 .agentwp-markdown {
-  color: #e2e8f0;
+  color: var(--awp-text-primary);
   font-size: 0.95rem;
   line-height: 1.6;
 }
@@ -46,14 +444,14 @@ body {
 }
 
 .agentwp-markdown a {
-  color: #7dd3fc;
+  color: var(--awp-link);
   text-decoration: underline;
 }
 
 .agentwp-markdown code {
   font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 0.85em;
-  background: rgba(15, 23, 42, 0.8);
+  background: var(--awp-code-bg);
   padding: 0.15rem 0.35rem;
   border-radius: 6px;
 }
@@ -61,10 +459,10 @@ body {
 .agentwp-markdown pre {
   margin: 0 0 0.9rem;
   padding: 0.75rem;
-  background: rgba(2, 6, 23, 0.9);
+  background: var(--awp-pre-bg);
   border-radius: 12px;
   overflow-x: auto;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border: 1px solid var(--awp-pre-border);
 }
 
 .agentwp-markdown pre code {

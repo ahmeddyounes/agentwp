@@ -76,6 +76,7 @@ class Plugin {
 		add_action( 'init', array( $this, 'load_textdomain' ) );
 		add_action( 'admin_menu', array( $this, 'register_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
+		add_action( 'admin_head', array( $this, 'output_theme_attribute' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 		add_filter( 'rest_post_dispatch', array( $this, 'format_rest_response' ), 10, 3 );
 
@@ -159,6 +160,7 @@ class Plugin {
 			);
 
 			wp_enqueue_style( 'wp-components' );
+			$theme = $this->get_user_theme_preference();
 
 			wp_add_inline_script(
 				'agentwp-admin',
@@ -166,6 +168,7 @@ class Plugin {
 					array(
 						'root'  => esc_url_raw( rest_url() ),
 						'nonce' => wp_create_nonce( 'wp_rest' ),
+						'theme' => $theme,
 					)
 				),
 				'before'
@@ -180,6 +183,54 @@ class Plugin {
 				filemtime( $style_path )
 			);
 		}
+	}
+
+	/**
+	 * Inject initial theme attribute to prevent flashes.
+	 *
+	 * @return void
+	 */
+	public function output_theme_attribute() {
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+		$is_agentwp_screen = ( $screen && $this->menu_hook && $screen->id === $this->menu_hook );
+		$is_wc_screen      = $screen ? $this->is_woocommerce_screen( $screen ) : false;
+
+		if ( ! $is_agentwp_screen && ! $is_wc_screen ) {
+			return;
+		}
+
+		$theme = $this->get_user_theme_preference();
+
+		$script = '(function(){';
+		$script .= 'var theme=' . wp_json_encode( $theme ) . ';';
+		$script .= "if(!theme){try{theme=window.localStorage.getItem('agentwp-theme-preference');}catch(e){theme='';}}";
+		$script .= "if(theme!=='light'&&theme!=='dark'){return;}";
+		$script .= 'var root=document.documentElement;';
+		$script .= 'root.dataset.theme=theme;';
+		$script .= 'root.style.colorScheme=theme;';
+		$script .= '})();';
+
+		echo '<script>' . $script . '</script>';
+	}
+
+	/**
+	 * Retrieve the current user's theme preference.
+	 *
+	 * @return string
+	 */
+	private function get_user_theme_preference() {
+		$user_id = get_current_user_id();
+		if ( $user_id <= 0 ) {
+			return '';
+		}
+
+		$meta_key = class_exists( 'AgentWP\\API\\ThemeController' )
+			? API\ThemeController::THEME_META_KEY
+			: 'agentwp_theme_preference';
+		$theme    = get_user_meta( $user_id, $meta_key, true );
+
+		return in_array( $theme, array( 'light', 'dark' ), true ) ? $theme : '';
 	}
 
 	/**
@@ -210,6 +261,11 @@ class Plugin {
 
 		if ( class_exists( 'AgentWP\\API\\HistoryController' ) ) {
 			$controller = new API\HistoryController();
+			$controller->register_routes();
+		}
+
+		if ( class_exists( 'AgentWP\\API\\ThemeController' ) ) {
+			$controller = new API\ThemeController();
 			$controller->register_routes();
 		}
 	}

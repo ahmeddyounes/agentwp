@@ -9,10 +9,11 @@ export default function BaseCard({
   children,
   variant = 'info',
   accent = false,
-  theme = 'dark',
+  theme = 'auto',
   className = '',
 }) {
   const titleId = useId();
+  const resolvedTheme = theme === 'light' || theme === 'dark' ? theme : undefined;
   const cardClasses = [
     'agentwp-card',
     `agentwp-card--${variant}`,
@@ -25,7 +26,7 @@ export default function BaseCard({
   return (
     <section
       className={cardClasses}
-      data-theme={theme}
+      data-theme={resolvedTheme}
       role="region"
       aria-labelledby={title ? titleId : undefined}
     >

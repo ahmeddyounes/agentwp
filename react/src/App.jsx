@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import ReactMarkdown from 'react-markdown';
 import HistoryPanel from '../components/HistoryPanel.jsx';
 import { ChartCard } from '../components/cards';
+import {
+  applyTheme,
+  getInitialThemePreference,
+  getServerTheme,
+  resolveTheme,
+  THEME_STORAGE_KEY,
+} from './theme.js';
 
 const OPEN_STATE_KEY = 'agentwp-command-deck-open';
 const DRAFT_HISTORY_KEY = 'agentwp-draft-history';
@@ -21,6 +28,7 @@ const ADMIN_TRIGGER_SELECTORS = [
 ];
 const REST_PATH = '/agentwp/v1/intent';
 const SEARCH_PATH = '/agentwp/v1/search';
+const THEME_PATH = '/agentwp/v1/theme';
 const FOCUSABLE_SELECTORS = [
   'a[href]',
   'button:not([disabled])',
@@ -35,6 +43,7 @@ const PERIOD_OPTIONS = [
   { value: '90d', label: 'Last 90 days' },
 ];
 const SEARCH_TYPES = ['products', 'orders', 'customers'];
+const THEME_TRANSITION_MS = 150;
 const TYPEAHEAD_CONFIG = {
   products: {
     label: 'Products',
@@ -94,6 +103,30 @@ const TYPEAHEAD_CONFIG = {
     ),
   },
 };
+const SunIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+    <path
+      d="M12 4.2v1.9m0 11.8v1.9M4.2 12h1.9m11.8 0h1.9M6.4 6.4l1.4 1.4m8.4 8.4 1.4 1.4M6.4 17.6l1.4-1.4m8.4-8.4 1.4-1.4"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    />
+    <circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
+const MoonIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+    <path
+      d="M15.5 4.5c-4 0-7.2 3.2-7.2 7.2 0 3.7 2.8 6.8 6.5 7.2 3.4.3 6.6-1.6 7.9-4.7-1.1.4-2.4.5-3.6.3-3.6-.5-6.4-3.7-6.4-7.3 0-1 .2-2 .6-2.9"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 const getEmptySearchResults = () =>
   SEARCH_TYPES.reduce((accumulator, type) => {
     accumulator[type] = [];
@@ -180,7 +213,7 @@ const ANALYTICS_DATA = {
   },
 };
 
-const usePrefersDark = (fallback = true) => {
+const usePrefersDark = (fallback = false) => {
   const [prefersDark, setPrefersDark] = useState(() => {
     if (typeof window === 'undefined' || !window.matchMedia) {
       return fallback;
@@ -258,6 +291,17 @@ const getSearchEndpoint = () => {
     return SEARCH_PATH;
   }
   return `${root.replace(/\/$/, '')}${SEARCH_PATH}`;
+};
+
+const getThemeEndpoint = () => {
+  if (typeof window === 'undefined') {
+    return THEME_PATH;
+  }
+  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
+  if (!root) {
+    return THEME_PATH;
+  }
+  return `${root.replace(/\/$/, '')}${THEME_PATH}`;
 };
 
 const getRestNonce = () => {
@@ -572,6 +616,7 @@ export default function App() {
   const [lastCommandEntry, setLastCommandEntry] = useState(null);
   const [exportStatus, setExportStatus] = useState('idle');
   const [selectedPeriod, setSelectedPeriod] = useState('7d');
+  const [themePreference, setThemePreference] = useState(getInitialThemePreference);
   const inputRef = useRef(null);
   const modalRef = useRef(null);
   const responseHtmlRef = useRef(null);
@@ -583,7 +628,14 @@ export default function App() {
   const suppressSearchRef = useRef(false);
   const chartRef = useRef(null);
   const exportTimerRef = useRef(null);
+  const themeTransitionRef = useRef(null);
+  const hasAppliedThemeRef = useRef(false);
+  const serverThemeRef = useRef(getServerTheme());
   const prefersDark = usePrefersDark();
+  const resolvedTheme = useMemo(
+    () => resolveTheme(themePreference, prefersDark),
+    [prefersDark, themePreference]
+  );
   const flatSuggestions = useMemo(() => {
     const items = [];
     SEARCH_TYPES.forEach((type) => {
@@ -604,6 +656,83 @@ export default function App() {
   }, [searchResults]);
   const hasSuggestions = flatSuggestions.length > 0;
 
+  useLayoutEffect(() => {
+    if (typeof document === 'undefined') {
+      return undefined;
+    }
+    const root = document.documentElement;
+    if (hasAppliedThemeRef.current) {
+      root.classList.add('awp-theme-transition');
+      if (themeTransitionRef.current) {
+        window.clearTimeout(themeTransitionRef.current);
+      }
+      themeTransitionRef.current = window.setTimeout(() => {
+        root.classList.remove('awp-theme-transition');
+      }, THEME_TRANSITION_MS);
+    }
+    applyTheme(resolvedTheme);
+    hasAppliedThemeRef.current = true;
+    return () => {
+      if (themeTransitionRef.current) {
+        window.clearTimeout(themeTransitionRef.current);
+      }
+    };
+  }, [resolvedTheme]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      if (themePreference === 'system') {
+        window.localStorage.removeItem(THEME_STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(THEME_STORAGE_KEY, themePreference);
+      }
+    } catch (error) {
+      // Ignore localStorage failures.
+    }
+  }, [themePreference]);
+
+  const persistThemePreference = useCallback(async (theme) => {
+    const restNonce = getRestNonce();
+    if (!restNonce) {
+      return false;
+    }
+    try {
+      const response = await fetch(getThemeEndpoint(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-WP-Nonce': restNonce,
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ theme }),
+      });
+      if (!response.ok) {
+        return false;
+      }
+      const payload = await response.json();
+      return Boolean(payload?.success);
+    } catch (error) {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (themePreference === 'system') {
+      return;
+    }
+    if (themePreference === serverThemeRef.current) {
+      return;
+    }
+    persistThemePreference(themePreference).then((success) => {
+      if (success) {
+        serverThemeRef.current = themePreference;
+      }
+    });
+  }, [persistThemePreference, themePreference]);
+
   const abortActiveRequest = useCallback(() => {
     if (requestControllerRef.current) {
       requestControllerRef.current.abort();
@@ -623,6 +752,13 @@ export default function App() {
     setIsTypeaheadLoading(false);
     setActiveSuggestionIndex(-1);
   }, []);
+
+  const toggleTheme = useCallback(() => {
+    setThemePreference((prev) => {
+      const currentTheme = resolveTheme(prev, prefersDark);
+      return currentTheme === 'dark' ? 'light' : 'dark';
+    });
+  }, [prefersDark]);
 
   const handleSuggestionSelect = useCallback(
     (suggestion) => {
@@ -1357,13 +1493,15 @@ export default function App() {
     activeSuggestionIndex >= 0 ? `agentwp-suggestion-${activeSuggestionIndex}` : undefined;
   const exportLabel =
     exportStatus === 'exporting' ? 'Exporting...' : exportStatus === 'exported' ? 'Exported' : 'Export PNG';
+  const isDarkTheme = resolvedTheme === 'dark';
+  const themeToggleLabel = isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode';
   const periodData = useMemo(
     () => ANALYTICS_DATA[selectedPeriod] || ANALYTICS_DATA['7d'],
     [selectedPeriod]
   );
   const chartPalette = useMemo(
     () =>
-      prefersDark
+      resolvedTheme === 'dark'
         ? {
             primary: '#38bdf8',
             secondary: '#a78bfa',
@@ -1380,7 +1518,7 @@ export default function App() {
             doughnut: ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444'],
             canvas: '#f1f5f9',
           },
-    [prefersDark]
+    [resolvedTheme]
   );
   const trendChartData = useMemo(
     () => ({
@@ -1698,14 +1836,26 @@ export default function App() {
                   Command Deck
                 </h2>
               </div>
-              <button
-                type="button"
-                onClick={closeModal}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/70 text-slate-200 transition hover:border-slate-500/80 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-                aria-label="Close Command Deck"
-              >
-                <span aria-hidden="true">&times;</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/70 text-slate-200 transition hover:border-slate-500/80 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                  aria-label={themeToggleLabel}
+                  aria-pressed={isDarkTheme}
+                  title={themeToggleLabel}
+                >
+                  {isDarkTheme ? <SunIcon /> : <MoonIcon />}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/70 text-slate-200 transition hover:border-slate-500/80 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                  aria-label="Close Command Deck"
+                >
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4 px-6 py-5">
@@ -1985,7 +2135,7 @@ export default function App() {
                     subtitle="Daily revenue with previous period overlay"
                     metric={formatCurrencyValue(totalRevenue)}
                     trend={trendLabel}
-                    theme="auto"
+                    theme={resolvedTheme}
                     type="line"
                     data={trendChartData}
                     options={trendChartOptions}
@@ -2003,7 +2153,7 @@ export default function App() {
                   <ChartCard
                     title="Period comparison"
                     subtitle="This period vs last period metrics"
-                    theme="auto"
+                    theme={resolvedTheme}
                     type="bar"
                     data={comparisonChartData}
                     options={comparisonChartOptions}
@@ -2021,7 +2171,7 @@ export default function App() {
                   <ChartCard
                     title="Category breakdown"
                     subtitle="Revenue by product category"
-                    theme="auto"
+                    theme={resolvedTheme}
                     type="doughnut"
                     data={categoryChartData}
                     options={categoryChartOptions}

@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+const withAlpha = (variable) => `rgb(var(${variable}) / <alpha-value>)`;
+
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
@@ -8,11 +10,48 @@ export default {
         display: ['"Space Grotesk"', '"Manrope"', 'system-ui', 'sans-serif'],
       },
       colors: {
-        'deck-surface': '#0c111c',
-        'deck-border': 'rgba(148, 163, 184, 0.2)',
+        white: withAlpha('--awp-white'),
+        black: withAlpha('--awp-black'),
+        slate: {
+          100: withAlpha('--awp-slate-100'),
+          200: withAlpha('--awp-slate-200'),
+          300: withAlpha('--awp-slate-300'),
+          400: withAlpha('--awp-slate-400'),
+          500: withAlpha('--awp-slate-500'),
+          600: withAlpha('--awp-slate-600'),
+          700: withAlpha('--awp-slate-700'),
+          800: withAlpha('--awp-slate-800'),
+          900: withAlpha('--awp-slate-900'),
+          950: withAlpha('--awp-slate-950'),
+        },
+        sky: {
+          100: withAlpha('--awp-sky-100'),
+          300: withAlpha('--awp-sky-300'),
+          400: withAlpha('--awp-sky-400'),
+          500: withAlpha('--awp-sky-500'),
+          700: withAlpha('--awp-sky-700'),
+        },
+        emerald: {
+          100: withAlpha('--awp-emerald-100'),
+          300: withAlpha('--awp-emerald-300'),
+          400: withAlpha('--awp-emerald-400'),
+          500: withAlpha('--awp-emerald-500'),
+        },
+        amber: {
+          200: withAlpha('--awp-amber-200'),
+          300: withAlpha('--awp-amber-300'),
+          400: withAlpha('--awp-amber-400'),
+          500: withAlpha('--awp-amber-500'),
+        },
+        rose: {
+          300: withAlpha('--awp-rose-300'),
+          400: withAlpha('--awp-rose-400'),
+        },
+        'deck-surface': withAlpha('--awp-deck-surface'),
+        'deck-border': withAlpha('--awp-deck-border'),
       },
       boxShadow: {
-        deck: '0 30px 80px rgba(15, 23, 42, 0.55)',
+        deck: 'var(--awp-shadow-deck)',
       },
       keyframes: {
         'deck-in': {
