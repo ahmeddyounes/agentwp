@@ -129,6 +129,12 @@ const buildChartPalette = (theme) => {
   };
 };
 
+/**
+ * Chart card for analytics visualizations with export support.
+ *
+ * @param {object} props Component props.
+ * @returns {JSX.Element}
+ */
 export default function ChartCard({
   title = 'Performance snapshot',
   subtitle,

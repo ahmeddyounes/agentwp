@@ -15,6 +15,12 @@ const ErrorIcon = () => (
   </svg>
 );
 
+/**
+ * Error feedback card with retry and report actions.
+ *
+ * @param {object} props Component props.
+ * @returns {JSX.Element}
+ */
 export default function ErrorCard({
   title = 'Something went wrong',
   message,

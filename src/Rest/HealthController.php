@@ -31,6 +31,8 @@ class HealthController extends RestController {
 	/**
 	 * Return health status.
 	 *
+	 * @openapi GET /agentwp/v1/health
+	 *
 	 * @param WP_REST_Request $request Request instance.
 	 * @return \WP_REST_Response
 	 */

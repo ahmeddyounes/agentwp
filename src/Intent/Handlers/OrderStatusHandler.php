@@ -11,6 +11,11 @@ use AgentWP\AI\Response;
 use AgentWP\Intent\Intent;
 
 class OrderStatusHandler extends BaseHandler {
+	/**
+	 * Initialize order status intent handler.
+	 *
+	 * @return void
+	 */
 	public function __construct() {
 		parent::__construct( Intent::ORDER_STATUS );
 	}

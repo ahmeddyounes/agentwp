@@ -32,6 +32,8 @@ class IntentController extends RestController {
 	/**
 	 * Handle intent requests.
 	 *
+	 * @openapi POST /agentwp/v1/intent
+	 *
 	 * @param WP_REST_Request $request Request instance.
 	 * @return \WP_REST_Response
 	 */

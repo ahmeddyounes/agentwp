@@ -12,6 +12,11 @@ use AgentWP\Handlers\StockHandler;
 use AgentWP\Intent\Intent;
 
 class ProductStockHandler extends BaseHandler {
+	/**
+	 * Initialize product stock intent handler.
+	 *
+	 * @return void
+	 */
 	public function __construct() {
 		parent::__construct( Intent::PRODUCT_STOCK );
 	}

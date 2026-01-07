@@ -26,6 +26,12 @@ const compareValues = (aValue, bValue) => {
   return aString.localeCompare(bString);
 };
 
+/**
+ * Data table card with sorting and pagination.
+ *
+ * @param {object} props Component props.
+ * @returns {JSX.Element}
+ */
 export default function DataTableCard({
   title = 'Data table',
   subtitle,

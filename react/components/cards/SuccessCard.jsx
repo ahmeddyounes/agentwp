@@ -15,6 +15,12 @@ const CheckIcon = () => (
   </svg>
 );
 
+/**
+ * Success feedback card for completed actions.
+ *
+ * @param {object} props Component props.
+ * @returns {JSX.Element}
+ */
 export default function SuccessCard({
   title = 'Action completed',
   summary,

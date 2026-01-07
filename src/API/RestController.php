@@ -19,6 +19,11 @@ abstract class RestController extends WP_REST_Controller {
 	const RATE_WINDOW    = 60;
 	const LOG_LIMIT      = 50;
 
+	/**
+	 * Initialize the REST namespace.
+	 *
+	 * @return void
+	 */
 	public function __construct() {
 		$this->namespace = self::REST_NAMESPACE;
 	}

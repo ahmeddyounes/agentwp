@@ -63,6 +63,8 @@ class SettingsController extends RestController {
 	/**
 	 * Get settings payload.
 	 *
+	 * @openapi GET /agentwp/v1/settings
+	 *
 	 * @param WP_REST_Request $request Request instance.
 	 * @return WP_REST_Response
 	 */
@@ -85,6 +87,8 @@ class SettingsController extends RestController {
 
 	/**
 	 * Update settings payload.
+	 *
+	 * @openapi POST /agentwp/v1/settings
 	 *
 	 * @param WP_REST_Request $request Request instance.
 	 * @return WP_REST_Response
@@ -112,6 +116,8 @@ class SettingsController extends RestController {
 
 	/**
 	 * Validate and store API key.
+	 *
+	 * @openapi POST /agentwp/v1/settings/api-key
 	 *
 	 * @param WP_REST_Request $request Request instance.
 	 * @return WP_REST_Response
@@ -167,6 +173,8 @@ class SettingsController extends RestController {
 
 	/**
 	 * Get usage statistics.
+	 *
+	 * @openapi GET /agentwp/v1/usage
 	 *
 	 * @param WP_REST_Request $request Request instance.
 	 * @return WP_REST_Response

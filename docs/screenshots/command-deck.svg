@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+  <rect width="1200" height="700" fill="#f7f5ef" />
+  <rect x="60" y="60" width="1080" height="580" rx="28" fill="#ffffff" stroke="#d9d4c7" stroke-width="2" />
+  <rect x="90" y="120" width="540" height="48" rx="10" fill="#f0ebe1" />
+  <rect x="90" y="190" width="1020" height="380" rx="16" fill="#faf8f3" stroke="#e6dfd1" />
+  <rect x="90" y="600" width="680" height="50" rx="12" fill="#e7f1ff" />
+  <rect x="790" y="600" width="320" height="50" rx="12" fill="#1f6feb" />
+  <text x="90" y="95" font-family="Arial, sans-serif" font-size="28" fill="#2e2b26">Command Deck</text>
+  <text x="110" y="152" font-family="Arial, sans-serif" font-size="18" fill="#6b6456">Prompt: "Show me today's sales"</text>
+  <text x="110" y="232" font-family="Arial, sans-serif" font-size="18" fill="#6b6456">Response cards</text>
+  <text x="110" y="632" font-family="Arial, sans-serif" font-size="18" fill="#2e2b26">Ask AgentWP...</text>
+  <text x="865" y="632" font-family="Arial, sans-serif" font-size="18" fill="#ffffff">Run</text>
+</svg>

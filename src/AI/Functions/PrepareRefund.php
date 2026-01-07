@@ -8,14 +8,29 @@
 namespace AgentWP\AI\Functions;
 
 class PrepareRefund extends AbstractFunction {
+	/**
+	 * Get the function name.
+	 *
+	 * @return string
+	 */
 	public function get_name() {
 		return 'prepare_refund';
 	}
 
+	/**
+	 * Get the function description.
+	 *
+	 * @return string
+	 */
 	public function get_description() {
 		return 'Prepare a draft refund for an order without executing it.';
 	}
 
+	/**
+	 * Get the JSON schema for function parameters.
+	 *
+	 * @return array
+	 */
 	public function get_parameters() {
 		return array(
 			'type'                 => 'object',

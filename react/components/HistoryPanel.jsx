@@ -74,6 +74,21 @@ const groupHistory = (entries, now) => {
   return groups;
 };
 
+/**
+ * Command history and favorites panel.
+ *
+ * @param {object} props Component props.
+ * @param {Array} props.history History entries.
+ * @param {number} [props.historyCount] Optional total count.
+ * @param {Array} props.favorites Favorite entries.
+ * @param {Array} props.mostUsed Most-used entries.
+ * @param {Function} props.onRun Callback when a command is rerun.
+ * @param {Function} props.onDelete Callback when a command is deleted.
+ * @param {Function} props.onToggleFavorite Callback when a favorite is toggled.
+ * @param {Function} props.onClearHistory Callback when history is cleared.
+ * @param {Function} props.isFavorited Optional predicate for favorites.
+ * @returns {JSX.Element}
+ */
 export default function HistoryPanel({
   history = [],
   historyCount,

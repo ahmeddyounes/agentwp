@@ -8,14 +8,29 @@
 namespace AgentWP\AI\Functions;
 
 class GetSalesReport extends AbstractFunction {
+	/**
+	 * Get the function name.
+	 *
+	 * @return string
+	 */
 	public function get_name() {
 		return 'get_sales_report';
 	}
 
+	/**
+	 * Get the function description.
+	 *
+	 * @return string
+	 */
 	public function get_description() {
 		return 'Fetch a sales report for a specified period.';
 	}
 
+	/**
+	 * Get the JSON schema for function parameters.
+	 *
+	 * @return array
+	 */
 	public function get_parameters() {
 		return array(
 			'type'                 => 'object',

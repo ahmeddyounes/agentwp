@@ -11,6 +11,11 @@ use AgentWP\AI\Response;
 use AgentWP\Intent\Intent;
 
 class OrderRefundHandler extends BaseHandler {
+	/**
+	 * Initialize order refund intent handler.
+	 *
+	 * @return void
+	 */
 	public function __construct() {
 		parent::__construct( Intent::ORDER_REFUND );
 	}

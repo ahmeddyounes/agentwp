@@ -8,14 +8,29 @@
 namespace AgentWP\AI\Functions;
 
 class PrepareStockUpdate extends AbstractFunction {
+	/**
+	 * Get the function name.
+	 *
+	 * @return string
+	 */
 	public function get_name() {
 		return 'prepare_stock_update';
 	}
 
+	/**
+	 * Get the function description.
+	 *
+	 * @return string
+	 */
 	public function get_description() {
 		return 'Prepare a draft stock update for a product.';
 	}
 
+	/**
+	 * Get the JSON schema for function parameters.
+	 *
+	 * @return array
+	 */
 	public function get_parameters() {
 		return array(
 			'type'                 => 'object',

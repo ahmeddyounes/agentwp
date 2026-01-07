@@ -1,0 +1,17 @@
+[main fa21915] M05-05: implement
+ 19 files changed, 14823 insertions(+), 4 deletions(-)
+ create mode 100644 .github/workflows/compatibility.yml
+ create mode 100644 .logs/M05-04.gitcommit.txt
+ create mode 100644 .logs/M05-05.codex.impl.last.md
+ create mode 100644 .logs/M05-05.codex.impl.raw.txt
+ create mode 100644 .plans/M05-05.md
+ create mode 100644 .t2/handoff/M05-05.md
+ create mode 100644 docs/compatibility.md
+ create mode 100644 scripts/compatibility/check-health.php
+ create mode 100644 scripts/compatibility/check-multisite.php
+ create mode 100644 scripts/compatibility/check-rest-cache.php
+ create mode 100644 scripts/compatibility/run-extended.sh
+ create mode 100644 scripts/compatibility/run-matrix.sh
+ create mode 100644 src/Compatibility/Environment.php
+ create mode 100644 tests/e2e/jquery-compat.spec.js
+

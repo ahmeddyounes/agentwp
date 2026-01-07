@@ -11,6 +11,11 @@ use AgentWP\AI\Response;
 use AgentWP\Intent\Intent;
 
 class EmailDraftHandler extends BaseHandler {
+	/**
+	 * Initialize email draft intent handler.
+	 *
+	 * @return void
+	 */
 	public function __construct() {
 		parent::__construct( Intent::EMAIL_DRAFT );
 	}

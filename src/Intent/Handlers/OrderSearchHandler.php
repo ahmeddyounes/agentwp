@@ -12,6 +12,11 @@ use AgentWP\Handlers\OrderSearchHandler as OrderSearchService;
 use AgentWP\Intent\Intent;
 
 class OrderSearchHandler extends BaseHandler {
+	/**
+	 * Initialize order search intent handler.
+	 *
+	 * @return void
+	 */
 	public function __construct() {
 		parent::__construct( Intent::ORDER_SEARCH );
 	}

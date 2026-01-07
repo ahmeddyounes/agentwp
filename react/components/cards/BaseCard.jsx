@@ -1,6 +1,12 @@
 import { useId } from 'react';
 import './cards.css';
 
+/**
+ * Base card layout for AgentWP response cards.
+ *
+ * @param {object} props Component props.
+ * @returns {JSX.Element}
+ */
 export default function BaseCard({
   title,
   subtitle,

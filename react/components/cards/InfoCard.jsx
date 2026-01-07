@@ -15,6 +15,12 @@ const InfoIcon = () => (
   </svg>
 );
 
+/**
+ * Informational card with optional subtitle and custom content.
+ *
+ * @param {object} props Component props.
+ * @returns {JSX.Element}
+ */
 export default function InfoCard({
   title,
   subtitle,

@@ -12,6 +12,11 @@ use AgentWP\Handlers\CustomerHandler;
 use AgentWP\Intent\Intent;
 
 class CustomerLookupHandler extends BaseHandler {
+	/**
+	 * Initialize customer lookup intent handler.
+	 *
+	 * @return void
+	 */
 	public function __construct() {
 		parent::__construct( Intent::CUSTOMER_LOOKUP );
 	}

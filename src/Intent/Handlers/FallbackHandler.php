@@ -11,6 +11,11 @@ use AgentWP\AI\Response;
 use AgentWP\Intent\Intent;
 
 class FallbackHandler extends BaseHandler {
+	/**
+	 * Initialize fallback intent handler.
+	 *
+	 * @return void
+	 */
 	public function __construct() {
 		parent::__construct( Intent::UNKNOWN );
 	}

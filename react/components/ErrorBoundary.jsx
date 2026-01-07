@@ -3,6 +3,9 @@ import { ErrorCard } from './cards';
 
 const IS_DEV = import.meta.env?.DEV ?? false;
 
+/**
+ * Error boundary for the AgentWP admin UI.
+ */
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);

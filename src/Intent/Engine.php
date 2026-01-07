@@ -68,8 +68,15 @@ class Engine {
 		$this->function_registry = $function_registry ? $function_registry : new FunctionRegistry();
 		$this->fallback_handler  = new FallbackHandler();
 
-		$this->handlers = ! empty( $handlers ) ? $handlers : $this->default_handlers();
+		$resolved_handlers = ! empty( $handlers ) ? $handlers : $this->default_handlers();
+		if ( function_exists( 'apply_filters' ) ) {
+			$resolved_handlers = apply_filters( 'agentwp_intent_handlers', $resolved_handlers, $this );
+		}
+		$this->handlers = is_array( $resolved_handlers ) ? $resolved_handlers : array();
 		$this->register_default_functions();
+		if ( function_exists( 'do_action' ) ) {
+			do_action( 'agentwp_register_intent_functions', $this->function_registry, $this );
+		}
 	}
 
 	/**
@@ -181,6 +188,9 @@ class Engine {
 			Intent::ANALYTICS_QUERY => array( 'get_sales_report' ),
 			Intent::CUSTOMER_LOOKUP => array( 'get_customer_profile' ),
 		);
+		if ( function_exists( 'apply_filters' ) ) {
+			$mapping = apply_filters( 'agentwp_default_function_mapping', $mapping, $this );
+		}
 
 		foreach ( $mapping as $intent => $functions ) {
 			$handler = $this->resolve_handler( $intent );

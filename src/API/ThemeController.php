@@ -39,6 +39,8 @@ class ThemeController extends RestController {
 	/**
 	 * Return stored theme preference.
 	 *
+	 * @openapi GET /agentwp/v1/theme
+	 *
 	 * @param \WP_REST_Request $request Request instance.
 	 * @return \WP_REST_Response
 	 */
@@ -59,6 +61,8 @@ class ThemeController extends RestController {
 
 	/**
 	 * Update stored theme preference.
+	 *
+	 * @openapi POST /agentwp/v1/theme
 	 *
 	 * @param \WP_REST_Request $request Request instance.
 	 * @return \WP_REST_Response

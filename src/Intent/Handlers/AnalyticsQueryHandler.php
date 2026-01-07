@@ -11,6 +11,11 @@ use AgentWP\AI\Response;
 use AgentWP\Intent\Intent;
 
 class AnalyticsQueryHandler extends BaseHandler {
+	/**
+	 * Initialize analytics intent handler.
+	 *
+	 * @return void
+	 */
 	public function __construct() {
 		parent::__construct( Intent::ANALYTICS_QUERY );
 	}

@@ -913,6 +913,15 @@ const ClipboardButton = ({ label, getPayload, disabled }) => {
   );
 };
 
+/**
+ * Main AgentWP admin application.
+ *
+ * @param {object} props Component props.
+ * @param {HTMLElement|null} props.shadowRoot Optional shadow root for portal rendering.
+ * @param {HTMLElement|null} props.portalRoot Optional portal root for overlays.
+ * @param {HTMLElement|null} props.themeTarget Optional element to receive theme data attributes.
+ * @returns {JSX.Element}
+ */
 export default function App({ shadowRoot = null, portalRoot = null, themeTarget = null }) {
   const [isOpen, setIsOpen] = useState(getInitialOpenState);
   const [prompt, setPrompt] = useState('');

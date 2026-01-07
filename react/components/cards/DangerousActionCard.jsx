@@ -15,6 +15,12 @@ const WarningIcon = () => (
   </svg>
 );
 
+/**
+ * Card that highlights destructive or confirmation actions.
+ *
+ * @param {object} props Component props.
+ * @returns {JSX.Element}
+ */
 export default function DangerousActionCard({
   title = 'Confirm action',
   details,

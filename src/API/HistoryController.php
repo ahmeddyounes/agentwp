@@ -42,6 +42,8 @@ class HistoryController extends RestController {
 	/**
 	 * Return stored history and favorites.
 	 *
+	 * @openapi GET /agentwp/v1/history
+	 *
 	 * @param \WP_REST_Request $request Request instance.
 	 * @return \WP_REST_Response
 	 */
@@ -63,6 +65,8 @@ class HistoryController extends RestController {
 
 	/**
 	 * Store updated history payload.
+	 *
+	 * @openapi POST /agentwp/v1/history
 	 *
 	 * @param \WP_REST_Request $request Request instance.
 	 * @return \WP_REST_Response
