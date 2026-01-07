@@ -1,0 +1,17 @@
+[main 3d54d86] M06-02: implement
+ 22 files changed, 90616 insertions(+), 10 deletions(-)
+ create mode 100644 .logs/M06-01.gitcommit.txt
+ create mode 100644 .logs/M06-02.codex.impl.last.md
+ create mode 100644 .logs/M06-02.codex.impl.raw.txt
+ create mode 100644 .plans/M06-02.md
+ create mode 100644 .t2/handoff/M06-02.md
+ create mode 100644 docker-compose.demo.yml
+ create mode 100644 docs/DEMO.md
+ create mode 100755 scripts/demo-reset.sh
+ create mode 100755 scripts/demo-setup.sh
+ create mode 100644 src/Demo/CLI.php
+ create mode 100644 src/Demo/Manager.php
+ create mode 100644 src/Demo/Mode.php
+ create mode 100644 src/Demo/Resetter.php
+ create mode 100644 src/Demo/Seeder.php
+

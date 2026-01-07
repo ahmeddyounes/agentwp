@@ -99,6 +99,10 @@ class Plugin {
 			Search\Index::init();
 		}
 
+		if ( class_exists( 'AgentWP\\Handlers\\BulkHandler' ) ) {
+			Handlers\BulkHandler::register_hooks();
+		}
+
 		if ( class_exists( 'AgentWP\\Demo\\Manager' ) ) {
 			Demo\Manager::init();
 		}
