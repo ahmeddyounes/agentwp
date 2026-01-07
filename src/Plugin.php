@@ -11,6 +11,8 @@ class Plugin {
 	const OPTION_SETTINGS     = 'agentwp_settings';
 	const OPTION_API_KEY      = 'agentwp_api_key';
 	const OPTION_API_KEY_LAST4 = 'agentwp_api_key_last4';
+	const OPTION_DEMO_API_KEY = 'agentwp_demo_api_key';
+	const OPTION_DEMO_API_KEY_LAST4 = 'agentwp_demo_api_key_last4';
 	const OPTION_BUDGET_LIMIT = 'agentwp_budget_limit';
 	const OPTION_DRAFT_TTL    = 'agentwp_draft_ttl_minutes';
 	const OPTION_USAGE_STATS  = 'agentwp_usage_stats';
@@ -54,6 +56,8 @@ class Plugin {
 		add_option( self::OPTION_DRAFT_TTL, 10, '', false );
 		add_option( self::OPTION_API_KEY, '', '', false );
 		add_option( self::OPTION_API_KEY_LAST4, '', '', false );
+		add_option( self::OPTION_DEMO_API_KEY, '', '', false );
+		add_option( self::OPTION_DEMO_API_KEY_LAST4, '', '', false );
 
 		if ( class_exists( 'AgentWP\\Billing\\UsageTracker' ) ) {
 			Billing\UsageTracker::activate();
@@ -71,6 +75,9 @@ class Plugin {
 	 */
 	public static function deactivate() {
 		self::delete_transients();
+		if ( class_exists( 'AgentWP\\Demo\\Manager' ) ) {
+			Demo\Manager::deactivate();
+		}
 	}
 
 	/**
@@ -90,6 +97,10 @@ class Plugin {
 
 		if ( class_exists( 'AgentWP\\Search\\Index' ) ) {
 			Search\Index::init();
+		}
+
+		if ( class_exists( 'AgentWP\\Demo\\Manager' ) ) {
+			Demo\Manager::init();
 		}
 	}
 
@@ -159,6 +170,11 @@ class Plugin {
 		$style_path  = AGENTWP_PLUGIN_DIR . 'assets/agentwp-admin.css';
 
 		if ( file_exists( $script_path ) ) {
+			$settings = get_option( self::OPTION_SETTINGS, array() );
+			$settings = is_array( $settings ) ? $settings : array();
+			$settings = wp_parse_args( $settings, self::get_default_settings() );
+			$demo_mode = ! empty( $settings['demo_mode'] );
+
 			wp_enqueue_script(
 				'agentwp-admin',
 				AGENTWP_PLUGIN_URL . 'assets/agentwp-admin.js',
@@ -179,6 +195,7 @@ class Plugin {
 						'theme' => $theme,
 						'supportEmail' => sanitize_email( get_option( 'admin_email' ) ),
 						'version' => defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '',
+						'demoMode' => $demo_mode,
 					)
 				),
 				'before'
@@ -433,6 +450,7 @@ class Plugin {
 			'draft_ttl_minutes' => 10,
 			'hotkey'            => 'Cmd+K / Ctrl+K',
 			'theme'             => 'light',
+			'demo_mode'         => false,
 		);
 	}
 

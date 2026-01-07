@@ -269,6 +269,10 @@ class SettingsController extends RestController {
 			$settings['theme'] = $dark_mode ? 'dark' : 'light';
 		}
 
+		if ( array_key_exists( 'demo_mode', $payload ) ) {
+			$settings['demo_mode'] = rest_sanitize_boolean( $payload['demo_mode'] );
+		}
+
 		return $settings;
 	}
 
@@ -370,6 +374,9 @@ class SettingsController extends RestController {
 					'enum' => array( 'light', 'dark' ),
 				),
 				'dark_mode'         => array(
+					'type' => 'boolean',
+				),
+				'demo_mode'         => array(
 					'type' => 'boolean',
 				),
 			),

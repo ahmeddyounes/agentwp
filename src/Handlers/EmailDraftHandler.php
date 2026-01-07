@@ -11,6 +11,7 @@ use AgentWP\AI\Model;
 use AgentWP\AI\OpenAIClient;
 use AgentWP\AI\Response;
 use AgentWP\Context\EmailContextBuilder;
+use AgentWP\Demo\Mode;
 use AgentWP\Intent\Intent;
 use AgentWP\Plugin;
 use AgentWP\Security\Encryption;
@@ -1338,6 +1339,13 @@ class EmailDraftHandler {
 	private function get_api_key() {
 		if ( ! function_exists( 'get_option' ) ) {
 			return '';
+		}
+
+		if ( Mode::is_enabled() ) {
+			$demo_key = Mode::get_demo_api_key();
+			if ( '' !== $demo_key ) {
+				return $demo_key;
+			}
 		}
 
 		$stored = get_option( Plugin::OPTION_API_KEY, '' );

@@ -10,6 +10,8 @@ import {
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import ReactMarkdown from 'react-markdown';
+import Shepherd from 'shepherd.js';
+import 'shepherd.js/dist/css/shepherd.css';
 import HistoryPanel from '../components/HistoryPanel.jsx';
 import { ChartCard, ErrorCard } from '../components/cards';
 import {
@@ -26,6 +28,8 @@ const MAX_DRAFT_HISTORY = 10;
 const COMMAND_HISTORY_KEY = 'agentwp-command-history';
 const COMMAND_FAVORITES_KEY = 'agentwp-command-favorites';
 const COMMAND_USAGE_KEY = 'agentwp-command-usage';
+const DEMO_TOUR_SEEN_KEY = 'agentwp-demo-tour-seen';
+const DEMO_TOUR_START_DELAY_MS = 600;
 const MAX_COMMAND_HISTORY = 50;
 const MAX_COMMAND_FAVORITES = 50;
 const COPY_FEEDBACK_MS = 2000;
@@ -204,6 +208,22 @@ const AGENTWP_ERROR_MESSAGES = {
   agentwp_invalid_request: 'Please check your request and try again.',
   agentwp_missing_prompt: 'Please enter a prompt to continue.',
   agentwp_forbidden: 'You do not have permission to use AgentWP.',
+};
+const getInitialDemoMode = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return Boolean(window?.agentwpSettings?.demoMode);
+};
+const getInitialTourSeen = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  try {
+    return window.localStorage.getItem(DEMO_TOUR_SEEN_KEY) === '1';
+  } catch (error) {
+    return false;
+  }
 };
 const getEmptySearchResults = () =>
   SEARCH_TYPES.reduce((accumulator, type) => {
@@ -942,6 +962,8 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
   const [usageBaseline, setUsageBaseline] = useState(null);
   const [usageLoading, setUsageLoading] = useState(false);
   const [budgetLimit, setBudgetLimit] = useState(0);
+  const [demoMode, setDemoMode] = useState(getInitialDemoMode);
+  const [tourSeen, setTourSeen] = useState(getInitialTourSeen);
   const [draftSubject, setDraftSubject] = useState('');
   const [draftBody, setDraftBody] = useState('');
   const [draftHistory, setDraftHistory] = useState([]);
@@ -966,6 +988,7 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
   const chartRef = useRef(null);
   const exportTimerRef = useRef(null);
   const themeTransitionRef = useRef(null);
+  const tourRef = useRef(null);
   const hasAppliedThemeRef = useRef(false);
   const serverThemeRef = useRef(getServerTheme());
   const prefersDark = usePrefersDark();
@@ -1159,10 +1182,115 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
       }
       const nextLimit = Number.parseFloat(payload?.data?.settings?.budget_limit ?? 0);
       setBudgetLimit(Number.isFinite(nextLimit) && nextLimit >= 0 ? nextLimit : 0);
+      const nextDemoMode = Boolean(payload?.data?.settings?.demo_mode);
+      setDemoMode(nextDemoMode);
     } catch (error) {
       // Ignore settings fetch failures.
     }
   }, []);
+
+  const startDemoTour = useCallback(() => {
+    if (typeof window === 'undefined' || !demoMode) {
+      return;
+    }
+
+    if (tourRef.current) {
+      tourRef.current.cancel();
+      tourRef.current = null;
+    }
+
+    const tourClasses =
+      resolvedTheme === 'dark' ? 'agentwp-tour agentwp-tour--dark' : 'agentwp-tour';
+    const tour = new Shepherd.Tour({
+      useModalOverlay: true,
+      defaultStepOptions: {
+        classes: tourClasses,
+        cancelIcon: {
+          enabled: true,
+        },
+        scrollTo: {
+          behavior: 'smooth',
+          block: 'center',
+        },
+      },
+    });
+
+    const steps = [
+      {
+        id: 'hero',
+        title: 'Welcome to AgentWP',
+        text: 'Your command deck turns plain-language prompts into store actions.',
+        attachTo: { element: '[data-tour="hero"]', on: 'bottom' },
+      },
+      {
+        id: 'sample',
+        title: 'Sample prompts',
+        text: 'Use starter prompts to see how AgentWP drafts responses.',
+        attachTo: { element: '[data-tour="sample-prompt"]', on: 'right' },
+      },
+      {
+        id: 'launch',
+        title: 'Launch the command deck',
+        text: 'Open the deck anytime from this quick action button.',
+        attachTo: { element: '[data-tour="open-command-deck"]', on: 'bottom' },
+      },
+      {
+        id: 'status',
+        title: 'Live status checks',
+        text: 'AgentWP surfaces connectivity and status indicators for confidence.',
+        attachTo: { element: '[data-tour="status-card"]', on: 'left' },
+      },
+      {
+        id: 'analytics',
+        title: 'Analytics snapshot',
+        text: 'Keep an eye on revenue, order volume, and response momentum.',
+        attachTo: { element: '[data-tour="analytics"]', on: 'top' },
+      },
+    ];
+
+    const addButtons = (isLast) => [
+      {
+        text: 'Skip tour',
+        action: tour.cancel,
+        classes: 'shepherd-button-secondary',
+      },
+      {
+        text: isLast ? 'Finish' : 'Next',
+        action: isLast ? tour.complete : tour.next,
+      },
+    ];
+
+    const root = shadowRoot || document;
+
+    steps.forEach((step, index) => {
+      const target = root.querySelector(step.attachTo.element);
+      if (!target) {
+        return;
+      }
+      tour.addStep({
+        ...step,
+        buttons: addButtons(index === steps.length - 1),
+      });
+    });
+
+    if (!tour.steps || tour.steps.length === 0) {
+      return;
+    }
+
+    const markSeen = () => {
+      try {
+        window.localStorage.setItem(DEMO_TOUR_SEEN_KEY, '1');
+      } catch (error) {
+        // Ignore storage failures.
+      }
+      setTourSeen(true);
+    };
+
+    tour.on('complete', markSeen);
+    tour.on('cancel', markSeen);
+    tour.start();
+    tourRef.current = tour;
+  }, [demoMode, resolvedTheme, shadowRoot]);
 
   const checkHealth = useCallback(async () => {
     if (typeof window === 'undefined') {
@@ -1224,6 +1352,28 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
     refreshUsage();
     fetchBudgetLimit();
   }, [fetchBudgetLimit, refreshUsage]);
+
+  useEffect(() => {
+    if (!demoMode || tourSeen || typeof window === 'undefined') {
+      return undefined;
+    }
+    const timeoutId = window.setTimeout(() => {
+      startDemoTour();
+    }, DEMO_TOUR_START_DELAY_MS);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [demoMode, startDemoTour, tourSeen]);
+
+  useEffect(
+    () => () => {
+      if (tourRef.current) {
+        tourRef.current.cancel();
+        tourRef.current = null;
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (!isOpen || typeof window === 'undefined') {
@@ -2355,10 +2505,17 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
         className="relative mx-auto flex min-h-screen max-w-5xl flex-col px-6 py-16 animate-fade-in motion-reduce:animate-none"
         aria-hidden={isOpen}
       >
-        <header className="max-w-2xl space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">
-            AgentWP
-          </p>
+        <header className="max-w-2xl space-y-4" data-tour="hero">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">
+              AgentWP
+            </p>
+            {demoMode ? (
+              <span className="inline-flex items-center rounded-full border border-amber-400/60 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-amber-200">
+                Demo
+              </span>
+            ) : null}
+          </div>
           <h1 className="text-4xl font-semibold text-white sm:text-5xl">
             Command Deck: instant actions for your store.
           </h1>
@@ -2366,10 +2523,22 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
             Invoke the Command Deck with Cmd+K / Ctrl+K or the admin bar button. Responses render
             as markdown, with latency and token cost tracking for quick feedback.
           </p>
+          {demoMode ? (
+            <button
+              type="button"
+              onClick={startDemoTour}
+              className="inline-flex items-center justify-center rounded-full border border-slate-600/70 bg-slate-900/80 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:border-slate-400/80 hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+            >
+              Take the tour
+            </button>
+          ) : null}
         </header>
 
         <section className="mt-10 grid gap-6 sm:grid-cols-2">
-          <div className="rounded-2xl border border-deck-border bg-deck-surface/80 p-6 shadow-deck">
+          <div
+            className="rounded-2xl border border-deck-border bg-deck-surface/80 p-6 shadow-deck"
+            data-tour="sample-prompt"
+          >
             <h2 className="text-lg font-semibold text-white">Try a sample prompt</h2>
             <p className="mt-2 text-sm text-slate-300">
               &ldquo;Summarize today&apos;s pending orders and draft a response for the two longest
@@ -2378,6 +2547,7 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
             <button
               type="button"
               onClick={openModal}
+              data-tour="open-command-deck"
               className="mt-6 inline-flex items-center justify-center gap-2 rounded-full border border-slate-600/60 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-white transition hover:border-slate-400/80 hover:bg-slate-900/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
             >
               Open Command Deck
@@ -2390,7 +2560,10 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
             </button>
           </div>
 
-          <div className="rounded-2xl border border-deck-border bg-deck-surface/60 p-6 text-sm text-slate-300 shadow-deck">
+          <div
+            className="rounded-2xl border border-deck-border bg-deck-surface/60 p-6 text-sm text-slate-300 shadow-deck"
+            data-tour="status-card"
+          >
             <h2 className="text-lg font-semibold text-white">Command Deck status</h2>
             <ul className="mt-3 space-y-2 text-sm">
               <li>Modal state is persisted in session storage.</li>
@@ -2401,7 +2574,10 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
         </section>
 
         <section className="mt-10">
-          <div className="rounded-2xl border border-deck-border bg-deck-surface/70 p-6 shadow-deck">
+          <div
+            className="rounded-2xl border border-deck-border bg-deck-surface/70 p-6 shadow-deck"
+            data-tour="analytics"
+          >
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">

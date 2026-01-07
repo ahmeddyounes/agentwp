@@ -1,0 +1,18 @@
+[main 0976cae] M06-01: implement
+ 56 files changed, 61447 insertions(+), 99 deletions(-)
+ create mode 100644 .logs/M05-05.gitcommit.txt
+ create mode 100644 .logs/M06-01.codex.impl.last.md
+ create mode 100644 .logs/M06-01.codex.impl.raw.txt
+ create mode 100644 .plans/M06-01.md
+ create mode 100644 .t2/handoff/M06-01.md
+ create mode 100644 docs/API.md
+ create mode 100644 docs/CHANGELOG.md
+ create mode 100644 docs/DEVELOPER.md
+ create mode 100644 docs/FAQ.md
+ create mode 100644 docs/USER-GUIDE.md
+ create mode 100644 docs/screenshots/analytics-dashboard.svg
+ create mode 100644 docs/screenshots/command-deck.svg
+ create mode 100644 docs/screenshots/history-panel.svg
+ create mode 100644 docs/screenshots/refund-flow.svg
+ create mode 100644 docs/screenshots/settings-panel.svg
+

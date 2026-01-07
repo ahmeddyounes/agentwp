@@ -38,6 +38,7 @@ For development builds, see `docs/DEVELOPER.md` for build steps and local setup.
 - User Guide: `docs/USER-GUIDE.md`
 - API Reference: `docs/API.md`
 - Developer Guide: `docs/DEVELOPER.md`
+- Demo Guide: `docs/DEMO.md`
 - FAQ: `docs/FAQ.md`
 - Changelog: `docs/CHANGELOG.md`
 - OpenAPI spec: `docs/openapi.json`

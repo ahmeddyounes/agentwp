@@ -484,3 +484,44 @@
     animation: none;
   }
 }
+
+.agentwp-tour.shepherd-element {
+  border-radius: 20px;
+}
+
+.agentwp-tour .shepherd-content {
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
+}
+
+.agentwp-tour .shepherd-title {
+  font-weight: 600;
+}
+
+.agentwp-tour .shepherd-button {
+  border-radius: 999px;
+}
+
+.agentwp-tour--dark .shepherd-content {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.agentwp-tour--dark .shepherd-text {
+  color: #cbd5f5;
+}
+
+.agentwp-tour--dark .shepherd-title {
+  color: #f8fafc;
+}
+
+.agentwp-tour--dark .shepherd-button {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.agentwp-tour--dark .shepherd-button.shepherd-button-secondary {
+  background: transparent;
+  color: #e2e8f0;
+}
