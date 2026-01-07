@@ -207,6 +207,11 @@ class Plugin {
 			$controller = new Rest\SearchController();
 			$controller->register_routes();
 		}
+
+		if ( class_exists( 'AgentWP\\API\\HistoryController' ) ) {
+			$controller = new API\HistoryController();
+			$controller->register_routes();
+		}
 	}
 
 	/**

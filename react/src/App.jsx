@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import ReactMarkdown from 'react-markdown';
+import HistoryPanel from '../components/HistoryPanel.jsx';
 import { ChartCard } from '../components/cards';
 
 const OPEN_STATE_KEY = 'agentwp-command-deck-open';
 const DRAFT_HISTORY_KEY = 'agentwp-draft-history';
 const MAX_DRAFT_HISTORY = 10;
+const COMMAND_HISTORY_KEY = 'agentwp-command-history';
+const COMMAND_FAVORITES_KEY = 'agentwp-command-favorites';
+const COMMAND_USAGE_KEY = 'agentwp-command-usage';
+const MAX_COMMAND_HISTORY = 50;
+const MAX_COMMAND_FAVORITES = 50;
 const COPY_FEEDBACK_MS = 2000;
 const EXPORT_FEEDBACK_MS = 2000;
 const ADMIN_TRIGGER_SELECTORS = [
@@ -326,6 +332,53 @@ const buildMailtoLink = (subject, body) => {
   return `mailto:${parts.length ? `?${parts.join('&')}` : ''}`;
 };
 
+const createCommandId = () => `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const buildCommandKey = (entry) =>
+  `${entry?.raw_input || ''}::${entry?.parsed_intent || ''}`;
+
+const normalizeCommandEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const rawInput = typeof entry.raw_input === 'string' ? entry.raw_input.trim() : '';
+  if (!rawInput) {
+    return null;
+  }
+  const parsedIntent = typeof entry.parsed_intent === 'string' ? entry.parsed_intent : '';
+  const timestamp =
+    typeof entry.timestamp === 'string' && entry.timestamp ? entry.timestamp : new Date().toISOString();
+  const wasSuccessful = Boolean(entry.was_successful);
+  const id = typeof entry.id === 'string' && entry.id ? entry.id : createCommandId();
+  return {
+    id,
+    raw_input: rawInput,
+    parsed_intent: parsedIntent,
+    timestamp,
+    was_successful: wasSuccessful,
+  };
+};
+
+const parseStoredCommandEntries = (stored, limit) => {
+  if (!Array.isArray(stored)) {
+    return [];
+  }
+  const normalized = stored.map(normalizeCommandEntry).filter(Boolean);
+  if (limit && normalized.length > limit) {
+    return normalized.slice(0, limit);
+  }
+  return normalized;
+};
+
+const serializeCommandEntry = (entry) => {
+  const normalized = normalizeCommandEntry(entry);
+  if (!normalized) {
+    return null;
+  }
+  const { raw_input, parsed_intent, timestamp, was_successful } = normalized;
+  return { raw_input, parsed_intent, timestamp, was_successful };
+};
+
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const getHighlightTokens = (query) => {
@@ -513,6 +566,10 @@ export default function App() {
   const [draftSubject, setDraftSubject] = useState('');
   const [draftBody, setDraftBody] = useState('');
   const [draftHistory, setDraftHistory] = useState([]);
+  const [commandHistory, setCommandHistory] = useState([]);
+  const [favoriteCommands, setFavoriteCommands] = useState([]);
+  const [commandUsage, setCommandUsage] = useState({});
+  const [lastCommandEntry, setLastCommandEntry] = useState(null);
   const [exportStatus, setExportStatus] = useState('idle');
   const [selectedPeriod, setSelectedPeriod] = useState('7d');
   const inputRef = useRef(null);
@@ -689,6 +746,57 @@ export default function App() {
     });
   }, []);
 
+  const recordCommand = useCallback((entry) => {
+    const normalized = normalizeCommandEntry(entry);
+    if (!normalized) {
+      return null;
+    }
+    setCommandHistory((prev) => {
+      const key = buildCommandKey(normalized);
+      const filtered = prev.filter((item) => buildCommandKey(item) !== key);
+      return [normalized, ...filtered].slice(0, MAX_COMMAND_HISTORY);
+    });
+    setLastCommandEntry(normalized);
+    return normalized;
+  }, []);
+
+  const recordCommandUsage = useCallback((rawInput) => {
+    if (!rawInput) {
+      return;
+    }
+    setCommandUsage((prev) => ({
+      ...prev,
+      [rawInput]: (prev[rawInput] || 0) + 1,
+    }));
+  }, []);
+
+  const toggleFavoriteCommand = useCallback((entry) => {
+    const normalized = normalizeCommandEntry(entry);
+    if (!normalized) {
+      return;
+    }
+    setFavoriteCommands((prev) => {
+      const key = buildCommandKey(normalized);
+      const exists = prev.some((item) => buildCommandKey(item) === key);
+      if (exists) {
+        return prev.filter((item) => buildCommandKey(item) !== key);
+      }
+      return [normalized, ...prev].slice(0, MAX_COMMAND_FAVORITES);
+    });
+  }, []);
+
+  const removeHistoryEntry = useCallback((entry) => {
+    if (!entry) {
+      return;
+    }
+    setCommandHistory((prev) => prev.filter((item) => item.id !== entry.id));
+  }, []);
+
+  const clearCommandHistory = useCallback(() => {
+    setCommandHistory([]);
+    setCommandUsage({});
+  }, []);
+
   const openModal = useCallback(() => {
     if (typeof document !== 'undefined') {
       lastActiveRef.current = document.activeElement;
@@ -836,6 +944,74 @@ export default function App() {
       // Ignore storage failures (private mode, strict policies).
     }
   }, [draftHistory]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const storedHistory = window.localStorage.getItem(COMMAND_HISTORY_KEY);
+      if (storedHistory) {
+        const parsedHistory = JSON.parse(storedHistory);
+        const normalized = parseStoredCommandEntries(parsedHistory, MAX_COMMAND_HISTORY);
+        if (normalized.length) {
+          setCommandHistory(normalized);
+        }
+      }
+      const storedFavorites = window.localStorage.getItem(COMMAND_FAVORITES_KEY);
+      if (storedFavorites) {
+        const parsedFavorites = JSON.parse(storedFavorites);
+        const normalized = parseStoredCommandEntries(parsedFavorites, MAX_COMMAND_FAVORITES);
+        if (normalized.length) {
+          setFavoriteCommands(normalized);
+        }
+      }
+      const storedUsage = window.localStorage.getItem(COMMAND_USAGE_KEY);
+      if (storedUsage) {
+        const parsedUsage = JSON.parse(storedUsage);
+        if (parsedUsage && typeof parsedUsage === 'object' && !Array.isArray(parsedUsage)) {
+          setCommandUsage(parsedUsage);
+        }
+      }
+    } catch (error) {
+      // Ignore storage failures (private mode, strict policies).
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const payload = commandHistory.map(serializeCommandEntry).filter(Boolean);
+      window.localStorage.setItem(COMMAND_HISTORY_KEY, JSON.stringify(payload));
+    } catch (error) {
+      // Ignore storage failures (private mode, strict policies).
+    }
+  }, [commandHistory]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const payload = favoriteCommands.map(serializeCommandEntry).filter(Boolean);
+      window.localStorage.setItem(COMMAND_FAVORITES_KEY, JSON.stringify(payload));
+    } catch (error) {
+      // Ignore storage failures (private mode, strict policies).
+    }
+  }, [favoriteCommands]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      window.localStorage.setItem(COMMAND_USAGE_KEY, JSON.stringify(commandUsage));
+    } catch (error) {
+      // Ignore storage failures (private mode, strict policies).
+    }
+  }, [commandUsage]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -986,83 +1162,130 @@ export default function App() {
     };
   }, []);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    const trimmedPrompt = prompt.trim();
-    if (!trimmedPrompt || loading) {
-      return;
-    }
-
-    setIsTypeaheadOpen(false);
-    setActiveSuggestionIndex(-1);
-    abortActiveRequest();
-    const controller = new AbortController();
-    requestControllerRef.current = controller;
-    setLoading(true);
-    setErrorMessage('');
-    setResponse('');
-    setMetrics({ latencyMs: null, tokenCost: null });
-
-    const startTime = getNow();
-
-    try {
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-      const restEndpoint = getRestEndpoint();
-      const restNonce = getRestNonce();
-      if (restNonce) {
-        headers['X-WP-Nonce'] = restNonce;
-      }
-
-      const response = await fetch(restEndpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ prompt: trimmedPrompt }),
-        credentials: 'same-origin',
-        signal: controller.signal,
-      });
-
-      const data = await response.json().catch(() => null);
-      const latencyMs = Math.round(getNow() - startTime);
-
-      if (!response.ok || data?.success === false) {
-        const errorMessage = data?.error?.message || data?.message || 'Unable to reach AgentWP.';
-        throw new Error(errorMessage);
-      }
-
-      const message =
-        data?.data?.message ||
-        data?.message ||
-        'Intent received. AgentWP is preparing the next step.';
-      const tokenCost = data?.data?.token_cost ?? null;
-      const subjectLine = trimmedPrompt || 'AgentWP Draft';
-      const plainTextDraft = stripMarkdownToPlainText(message);
-
-      setResponse(message);
-      setDraftSubject(subjectLine);
-      setDraftBody(plainTextDraft);
-      setMetrics({ latencyMs, tokenCost });
-      addDraftToHistory({
-        prompt: trimmedPrompt,
-        subject: subjectLine,
-        markdown: message,
-        plainText: plainTextDraft,
-      });
-    } catch (error) {
-      if (error?.name === 'AbortError') {
+  const submitCommand = useCallback(
+    async (rawInput) => {
+      const trimmedPrompt = typeof rawInput === 'string' ? rawInput.trim() : '';
+      if (!trimmedPrompt || loading) {
         return;
       }
-      const latencyMs = Math.round(getNow() - startTime);
-      setErrorMessage(error?.message || 'Unable to reach AgentWP.');
-      setMetrics((prev) => ({ ...prev, latencyMs }));
-    } finally {
-      if (requestControllerRef.current === controller) {
-        requestControllerRef.current = null;
+
+      setIsTypeaheadOpen(false);
+      setActiveSuggestionIndex(-1);
+      abortActiveRequest();
+      const controller = new AbortController();
+      requestControllerRef.current = controller;
+      setLoading(true);
+      setErrorMessage('');
+      setResponse('');
+      setMetrics({ latencyMs: null, tokenCost: null });
+
+      const startTime = getNow();
+      const commandTimestamp = new Date().toISOString();
+
+      try {
+        const headers = {
+          'Content-Type': 'application/json',
+        };
+        const restEndpoint = getRestEndpoint();
+        const restNonce = getRestNonce();
+        if (restNonce) {
+          headers['X-WP-Nonce'] = restNonce;
+        }
+
+        const response = await fetch(restEndpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ prompt: trimmedPrompt }),
+          credentials: 'same-origin',
+          signal: controller.signal,
+        });
+
+        const data = await response.json().catch(() => null);
+        const latencyMs = Math.round(getNow() - startTime);
+
+        if (!response.ok || data?.success === false) {
+          const errorMessage = data?.error?.message || data?.message || 'Unable to reach AgentWP.';
+          throw new Error(errorMessage);
+        }
+
+        const message =
+          data?.data?.message ||
+          data?.message ||
+          'Intent received. AgentWP is preparing the next step.';
+        const tokenCost = data?.data?.token_cost ?? null;
+        const subjectLine = trimmedPrompt || 'AgentWP Draft';
+        const plainTextDraft = stripMarkdownToPlainText(message);
+        const parsedIntent =
+          typeof data?.data?.intent === 'string'
+            ? data.data.intent
+            : typeof data?.data?.parsed_intent === 'string'
+              ? data.data.parsed_intent
+              : '';
+
+        setResponse(message);
+        setDraftSubject(subjectLine);
+        setDraftBody(plainTextDraft);
+        setMetrics({ latencyMs, tokenCost });
+        addDraftToHistory({
+          prompt: trimmedPrompt,
+          subject: subjectLine,
+          markdown: message,
+          plainText: plainTextDraft,
+        });
+        recordCommand({
+          raw_input: trimmedPrompt,
+          parsed_intent: parsedIntent,
+          timestamp: commandTimestamp,
+          was_successful: true,
+        });
+        recordCommandUsage(trimmedPrompt);
+      } catch (error) {
+        if (error?.name === 'AbortError') {
+          return;
+        }
+        const latencyMs = Math.round(getNow() - startTime);
+        setErrorMessage(error?.message || 'Unable to reach AgentWP.');
+        setMetrics((prev) => ({ ...prev, latencyMs }));
+        recordCommand({
+          raw_input: trimmedPrompt,
+          parsed_intent: '',
+          timestamp: commandTimestamp,
+          was_successful: false,
+        });
+        recordCommandUsage(trimmedPrompt);
+      } finally {
+        if (requestControllerRef.current === controller) {
+          requestControllerRef.current = null;
+        }
+        setLoading(false);
       }
-      setLoading(false);
-    }
-  };
+    },
+    [abortActiveRequest, addDraftToHistory, loading, recordCommand, recordCommandUsage]
+  );
+
+  const handleSubmit = useCallback(
+    (event) => {
+      event.preventDefault();
+      submitCommand(prompt);
+    },
+    [prompt, submitCommand]
+  );
+
+  const executeCommand = useCallback(
+    (rawInput) => {
+      const nextInput = typeof rawInput === 'string' ? rawInput : '';
+      if (!nextInput.trim()) {
+        return;
+      }
+      suppressSearchRef.current = true;
+      setPrompt(nextInput);
+      setIsTypeaheadOpen(false);
+      setActiveSuggestionIndex(-1);
+      inputRef.current?.focus();
+      submitCommand(nextInput);
+    },
+    [submitCommand]
+  );
 
   const handleExportChart = useCallback(async () => {
     if (!chartRef.current || exportStatus === 'exporting') {
@@ -1093,9 +1316,38 @@ export default function App() {
     }
   }, [exportStatus]);
 
+  const favoriteCommandKeys = useMemo(
+    () => new Set(favoriteCommands.map((entry) => buildCommandKey(entry))),
+    [favoriteCommands]
+  );
+  const visibleHistory = useMemo(
+    () => commandHistory.filter((entry) => !favoriteCommandKeys.has(buildCommandKey(entry))),
+    [commandHistory, favoriteCommandKeys]
+  );
+  const mostUsedCommands = useMemo(() => {
+    const entries = Object.entries(commandUsage || {});
+    if (!entries.length) {
+      return [];
+    }
+    return entries
+      .filter(([rawInput]) => rawInput)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([raw_input, count]) => ({ raw_input, count }));
+  }, [commandUsage]);
+  const isCommandFavorited = useCallback(
+    (entry) => favoriteCommandKeys.has(buildCommandKey(entry)),
+    [favoriteCommandKeys]
+  );
+  const lastSuccessfulCommand =
+    lastCommandEntry && lastCommandEntry.was_successful ? lastCommandEntry : null;
+  const isLastCommandFavorited = lastSuccessfulCommand
+    ? favoriteCommandKeys.has(buildCommandKey(lastSuccessfulCommand))
+    : false;
   const hasDraft = Boolean(response && !errorMessage);
   const resolvedBody = draftBody || stripMarkdownToPlainText(response);
   const mailtoHref = hasDraft ? buildMailtoLink(draftSubject, resolvedBody) : '#';
+  const showHistoryPanel = isPromptFocused && !prompt.trim();
   const showTypeahead =
     isTypeaheadOpen &&
     isPromptFocused &&
@@ -1551,12 +1803,54 @@ export default function App() {
               </form>
 
               <div className="rounded-2xl border border-slate-800/80 bg-slate-950/40 px-4 py-4">
+                {!showHistoryPanel && (
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                      Latest response
+                    </p>
+                    {hasDraft && lastSuccessfulCommand ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleFavoriteCommand(lastSuccessfulCommand)}
+                        aria-pressed={isLastCommandFavorited}
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-widest transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${
+                          isLastCommandFavorited
+                            ? 'border-amber-400/70 bg-amber-500/10 text-amber-200'
+                            : 'border-slate-700/70 text-slate-200 hover:border-slate-500/80 hover:text-white'
+                        }`}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+                          <path
+                            d="M12 3.4l2.4 4.9 5.4.8-3.9 3.8.9 5.3-4.8-2.5-4.8 2.5.9-5.3-3.9-3.8 5.4-.8L12 3.4z"
+                            fill={isLastCommandFavorited ? 'currentColor' : 'none'}
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        {isLastCommandFavorited ? 'Starred' : 'Star'}
+                      </button>
+                    ) : null}
+                  </div>
+                )}
                 <div
                   className="min-h-[140px] max-h-64 overflow-y-auto pr-1"
                   aria-live="polite"
                   aria-busy={loading ? 'true' : 'false'}
                 >
-                  {loading ? (
+                  {showHistoryPanel ? (
+                    <HistoryPanel
+                      history={visibleHistory}
+                      historyCount={commandHistory.length}
+                      favorites={favoriteCommands}
+                      mostUsed={mostUsedCommands}
+                      onRun={executeCommand}
+                      onDelete={removeHistoryEntry}
+                      onToggleFavorite={toggleFavoriteCommand}
+                      onClearHistory={clearCommandHistory}
+                      isFavorited={isCommandFavorited}
+                    />
+                  ) : loading ? (
                     <div className="space-y-3 animate-pulse">
                       <div className="h-3 w-3/4 rounded-full bg-slate-700/60" />
                       <div className="h-3 w-5/6 rounded-full bg-slate-700/50" />

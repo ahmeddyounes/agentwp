@@ -22,6 +22,9 @@ export default function SuccessCard({
   onUndo,
   undoHref,
   theme = 'dark',
+  onStar,
+  isStarred = false,
+  starLabel = 'Star',
 }) {
   const undoAction = onUndo ? (
     <button type="button" className="agentwp-card__link" onClick={onUndo}>
@@ -33,6 +36,19 @@ export default function SuccessCard({
     </a>
   ) : null;
 
+  const starAction = onStar ? (
+    <button
+      type="button"
+      className="agentwp-card__link"
+      onClick={onStar}
+      aria-pressed={isStarred}
+    >
+      {isStarred ? 'Starred' : starLabel}
+    </button>
+  ) : null;
+
+  const actions = [undoAction, starAction].filter(Boolean);
+
   return (
     <BaseCard
       title={title}
@@ -40,7 +56,7 @@ export default function SuccessCard({
       variant="success"
       accent
       theme={theme}
-      actions={undoAction}
+      actions={actions.length ? actions : null}
     >
       {summary && <p className="agentwp-card__text">{summary}</p>}
     </BaseCard>
