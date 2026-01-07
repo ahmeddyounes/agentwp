@@ -1,0 +1,16 @@
+{
+  "name": "agentwp-integration",
+  "private": true,
+  "scripts": {
+    "wp-env:start": "wp-env start",
+    "wp-env:stop": "wp-env stop",
+    "wp-env:reset": "wp-env run cli wp db reset --yes && wp-env run cli wp core install --url=localhost:8888 --title=AgentWP --admin_user=admin --admin_password=password --admin_email=admin@example.com --skip-email",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "@wordpress/env": "^9.0.0"
+  }
+}

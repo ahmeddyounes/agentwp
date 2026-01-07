@@ -1,0 +1,7 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": "{\"id\":\"chatcmpl-test\",\"object\":\"chat.completion\",\"created\":1710000000,\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"{\\\"subject_line\\\":\\\"Order update\\\",\\\"email_body\\\":\\\"<p>Your order is on the way.</p>\\\",\\\"plain_text_version\\\":\\\"Your order is on the way.\\\"}\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":120,\"completion_tokens\":40,\"total_tokens\":160}}"
+}

@@ -1,0 +1,41 @@
+[main 6ab614a] M05-01: implement
+ 42 files changed, 166659 insertions(+), 3 deletions(-)
+ create mode 100644 .logs/M04-06.gitcommit.txt
+ create mode 100644 .logs/M05-01.codex.impl.last.md
+ create mode 100644 .logs/M05-01.codex.impl.raw.txt
+ create mode 100644 .plans/M05-01.md
+ create mode 100644 .t2/handoff/M05-01.md
+ create mode 100644 phpunit.xml.dist
+ create mode 100644 react/babel.config.cjs
+ create mode 100644 react/jest.config.cjs
+ create mode 100644 react/tests/App.test.jsx
+ create mode 100644 react/tests/components/ErrorBoundary.test.jsx
+ create mode 100644 react/tests/components/HistoryPanel.test.jsx
+ create mode 100644 react/tests/components/cards/BaseCard.test.jsx
+ create mode 100644 react/tests/components/cards/ChartCard.test.jsx
+ create mode 100644 react/tests/components/cards/DangerousActionCard.test.jsx
+ create mode 100644 react/tests/components/cards/DataTableCard.test.jsx
+ create mode 100644 react/tests/components/cards/ErrorCard.test.jsx
+ create mode 100644 react/tests/components/cards/InfoCard.test.jsx
+ create mode 100644 react/tests/components/cards/SuccessCard.test.jsx
+ create mode 100644 react/tests/setupTests.js
+ create mode 100644 react/tests/styleMock.js
+ create mode 100644 tests/Integration/Intent/EngineTest.php
+ create mode 100644 tests/Support/EncryptionFunctionOverrides.php
+ create mode 100644 tests/Support/ai-functions.php
+ create mode 100644 tests/Support/encryption-functions.php
+ create mode 100644 tests/TestCase.php
+ create mode 100644 tests/Unit/AI/OpenAIClientTest.php
+ create mode 100644 tests/Unit/Intent/Handlers/CustomerLookupHandlerTest.php
+ create mode 100644 tests/Unit/Intent/Handlers/OrderSearchHandlerTest.php
+ create mode 100644 tests/Unit/Intent/Handlers/ProductStockHandlerTest.php
+ create mode 100644 tests/Unit/Intent/Handlers/SimpleHandlersTest.php
+ create mode 100644 tests/Unit/Security/EncryptionTest.php
+ create mode 100644 tests/bootstrap.php
+ create mode 100644 tests/fixtures/openai/chat-error.json
+ create mode 100644 tests/fixtures/openai/chat-legacy.json
+ create mode 100644 tests/fixtures/openai/chat-stream.txt
+ create mode 100644 tests/fixtures/openai/chat-success-no-usage-tools.json
+ create mode 100644 tests/fixtures/openai/chat-success-no-usage.json
+ create mode 100644 tests/fixtures/openai/chat-success.json
+
