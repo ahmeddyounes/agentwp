@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import html2canvas from 'html2canvas';
 import ReactMarkdown from 'react-markdown';
 import HistoryPanel from '../components/HistoryPanel.jsx';
-import { ChartCard } from '../components/cards';
+import { ChartCard, ErrorCard } from '../components/cards';
 import {
   applyTheme,
   getInitialThemePreference,
@@ -31,6 +31,9 @@ const SEARCH_PATH = '/agentwp/v1/search';
 const USAGE_PATH = '/agentwp/v1/usage';
 const SETTINGS_PATH = '/agentwp/v1/settings';
 const THEME_PATH = '/agentwp/v1/theme';
+const HEALTH_PATH = '/agentwp/v1/health';
+const HEALTH_CHECK_INTERVAL_MS = 5000;
+const HEALTH_TIMEOUT_MS = 4000;
 const FOCUSABLE_SELECTORS = [
   'a[href]',
   'button:not([disabled])',
@@ -46,6 +49,7 @@ const PERIOD_OPTIONS = [
 ];
 const SEARCH_TYPES = ['products', 'orders', 'customers'];
 const THEME_TRANSITION_MS = 150;
+const OFFLINE_CACHE_LIMIT = 3;
 const TYPEAHEAD_CONFIG = {
   products: {
     label: 'Products',
@@ -129,6 +133,38 @@ const MoonIcon = () => (
     />
   </svg>
 );
+
+const IS_DEV = import.meta.env?.DEV ?? false;
+const DEFAULT_ERROR_MESSAGE = 'AgentWP ran into a problem. Please try again.';
+const NETWORK_ERROR_MESSAGE = 'Network connection lost. Check your connection and try again.';
+const RATE_LIMIT_MESSAGE = 'Too many requests right now. Please wait and retry.';
+const AUTH_ERROR_MESSAGE = 'Authorization failed. Check your API key and permissions.';
+const VALIDATION_ERROR_MESSAGE = 'Please check your request and try again.';
+const OFFLINE_BANNER_TEXT = 'Agent Offline';
+
+const OPENAI_ERROR_CODE_MESSAGES = {
+  invalid_api_key: 'The OpenAI API key is invalid. Update it in settings.',
+  insufficient_quota: 'OpenAI billing quota has been exhausted. Check your plan or usage.',
+  rate_limit_exceeded: 'OpenAI rate limit reached. Please wait and retry.',
+  context_length_exceeded: 'This request is too long for the model. Try shortening it.',
+  model_not_found: 'The selected model is unavailable. Try again later.',
+};
+
+const OPENAI_ERROR_TYPE_MESSAGES = {
+  authentication_error: 'OpenAI authentication failed. Check your API key.',
+  rate_limit_error: 'OpenAI rate limit reached. Please wait and retry.',
+  invalid_request_error: 'This request was rejected by OpenAI. Please try again.',
+  server_error: 'OpenAI is having trouble right now. Please retry.',
+  overloaded_error: 'OpenAI is overloaded right now. Please retry.',
+};
+
+const AGENTWP_ERROR_MESSAGES = {
+  agentwp_rate_limited: 'Too many requests. Please wait and retry.',
+  agentwp_invalid_key: 'The OpenAI API key is invalid. Update it in settings.',
+  agentwp_invalid_request: 'Please check your request and try again.',
+  agentwp_missing_prompt: 'Please enter a prompt to continue.',
+  agentwp_forbidden: 'You do not have permission to use AgentWP.',
+};
 const getEmptySearchResults = () =>
   SEARCH_TYPES.reduce((accumulator, type) => {
     accumulator[type] = [];
@@ -368,6 +404,17 @@ const getThemeEndpoint = () => {
   return `${root.replace(/\/$/, '')}${THEME_PATH}`;
 };
 
+const getHealthEndpoint = () => {
+  if (typeof window === 'undefined') {
+    return HEALTH_PATH;
+  }
+  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
+  if (!root) {
+    return HEALTH_PATH;
+  }
+  return `${root.replace(/\/$/, '')}${HEALTH_PATH}`;
+};
+
 const getRestNonce = () => {
   if (typeof window === 'undefined') {
     return null;
@@ -428,7 +475,18 @@ const formatPlainTextAsHtml = (text) => {
     .join('');
 };
 
-const buildMailtoLink = (subject, body) => {
+const truncateText = (value, limit = 140) => {
+  if (!value) {
+    return '';
+  }
+  const trimmed = value.trim();
+  if (trimmed.length <= limit) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, Math.max(1, limit - 3))}...`;
+};
+
+const buildMailtoLink = (subject, body, recipient = '') => {
   const parts = [];
   if (subject) {
     parts.push(`subject=${encodeURIComponent(subject)}`);
@@ -437,7 +495,140 @@ const buildMailtoLink = (subject, body) => {
     const normalizedBody = body.replace(/\r?\n/g, '\r\n');
     parts.push(`body=${encodeURIComponent(normalizedBody)}`);
   }
-  return `mailto:${parts.length ? `?${parts.join('&')}` : ''}`;
+  return `mailto:${recipient}${parts.length ? `?${parts.join('&')}` : ''}`;
+};
+
+const getSupportEmail = () => {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+  return window.agentwpSettings?.supportEmail || '';
+};
+
+const isStackTraceMessage = (value) => {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  return /stack|stacktrace|traceback|at\s+\w+/i.test(value);
+};
+
+const sanitizeErrorMessage = (value) => {
+  const message = typeof value === 'string' ? value.trim() : '';
+  if (!message || isStackTraceMessage(message)) {
+    return '';
+  }
+  return message;
+};
+
+const resolveErrorType = ({ code, type, status, message, meta }) => {
+  const normalizedStatus = Number.isFinite(status) ? status : Number.parseInt(status ?? 0, 10);
+  if (type) {
+    return type;
+  }
+  const codeValue = `${code ?? ''}`.toLowerCase();
+  const metaCode = `${meta?.error_code ?? ''}`.toLowerCase();
+  const metaType = `${meta?.error_type ?? ''}`.toLowerCase();
+  const combined = [codeValue, metaCode, metaType].filter(Boolean).join(' ');
+  const messageValue = `${message ?? ''}`.toLowerCase();
+
+  if (
+    normalizedStatus === 0 ||
+    messageValue.includes('failed to fetch') ||
+    messageValue.includes('network') ||
+    messageValue.includes('timeout')
+  ) {
+    return 'network_error';
+  }
+  if (normalizedStatus === 429 || combined.includes('rate')) {
+    return 'rate_limit';
+  }
+  if (
+    normalizedStatus === 401 ||
+    normalizedStatus === 403 ||
+    combined.includes('auth') ||
+    combined.includes('invalid_api_key') ||
+    combined.includes('authentication')
+  ) {
+    return 'auth_error';
+  }
+  if (
+    normalizedStatus === 400 ||
+    normalizedStatus === 422 ||
+    combined.includes('invalid') ||
+    combined.includes('missing') ||
+    combined.includes('validation')
+  ) {
+    return 'validation_error';
+  }
+  if (normalizedStatus >= 500) {
+    return 'api_error';
+  }
+  return 'unknown';
+};
+
+const resolveFriendlyMessage = ({ message, code, type, status, meta }) => {
+  const openAiCode =
+    typeof meta?.error_code === 'string' ? meta.error_code.toLowerCase() : '';
+  const openAiType =
+    typeof meta?.error_type === 'string' ? meta.error_type.toLowerCase() : '';
+
+  if (openAiCode && OPENAI_ERROR_CODE_MESSAGES[openAiCode]) {
+    return OPENAI_ERROR_CODE_MESSAGES[openAiCode];
+  }
+  if (openAiType && OPENAI_ERROR_TYPE_MESSAGES[openAiType]) {
+    return OPENAI_ERROR_TYPE_MESSAGES[openAiType];
+  }
+  const normalizedCode = typeof code === 'string' ? code.toLowerCase() : '';
+  if (normalizedCode && AGENTWP_ERROR_MESSAGES[normalizedCode]) {
+    return AGENTWP_ERROR_MESSAGES[normalizedCode];
+  }
+  if (status === 429) {
+    return RATE_LIMIT_MESSAGE;
+  }
+  if (status === 401 || status === 403) {
+    return AUTH_ERROR_MESSAGE;
+  }
+  if (type === 'network_error') {
+    return NETWORK_ERROR_MESSAGE;
+  }
+  if (type === 'rate_limit') {
+    return RATE_LIMIT_MESSAGE;
+  }
+  if (type === 'auth_error') {
+    return AUTH_ERROR_MESSAGE;
+  }
+  if (type === 'validation_error') {
+    return sanitizeErrorMessage(message) || VALIDATION_ERROR_MESSAGE;
+  }
+  return sanitizeErrorMessage(message) || DEFAULT_ERROR_MESSAGE;
+};
+
+const buildErrorState = ({ message, code, type, status, meta, retryAfter }) => {
+  const resolvedType = resolveErrorType({ code, type, status, message, meta });
+  const resolvedMessage = resolveFriendlyMessage({
+    message,
+    code,
+    type: resolvedType,
+    status,
+    meta,
+  });
+
+  return {
+    message: resolvedMessage,
+    code: code || '',
+    type: resolvedType,
+    status: Number.isFinite(status) ? status : Number.parseInt(status ?? 0, 10) || 0,
+    meta: meta && typeof meta === 'object' ? meta : {},
+    retryAfter: Number.isFinite(retryAfter) ? retryAfter : Number.parseInt(retryAfter ?? 0, 10) || 0,
+    retryable: ['network_error', 'rate_limit', 'api_error'].includes(resolvedType),
+  };
+};
+
+const logDev = (...args) => {
+  if (!IS_DEV || typeof console === 'undefined') {
+    return;
+  }
+  console.error('[AgentWP]', ...args);
 };
 
 const createCommandId = () => `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -669,7 +860,11 @@ export default function App() {
   const [isPromptFocused, setIsPromptFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorState, setErrorState] = useState(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [isOffline, setIsOffline] = useState(
+    () => typeof navigator !== 'undefined' && navigator.onLine === false
+  );
   const [metrics, setMetrics] = useState({ latencyMs: null, tokenCost: null });
   const [usageSummary, setUsageSummary] = useState(DEFAULT_USAGE_SUMMARY);
   const [usageBaseline, setUsageBaseline] = useState(null);
@@ -691,9 +886,11 @@ export default function App() {
   const lastActiveRef = useRef(null);
   const requestControllerRef = useRef(null);
   const searchControllerRef = useRef(null);
+  const healthControllerRef = useRef(null);
   const searchTimeoutRef = useRef(null);
   const promptBlurTimeoutRef = useRef(null);
   const suppressSearchRef = useRef(false);
+  const lastPromptRef = useRef('');
   const chartRef = useRef(null);
   const exportTimerRef = useRef(null);
   const themeTransitionRef = useRef(null);
@@ -723,6 +920,14 @@ export default function App() {
     });
   }, [searchResults]);
   const hasSuggestions = flatSuggestions.length > 0;
+  const errorMessage = errorState?.message || '';
+  const retryLabel = errorState?.retryable
+    ? `Retry (attempt ${retryAttempt + 1})`
+    : 'Retry';
+  const offlineDrafts = useMemo(
+    () => (Array.isArray(draftHistory) ? draftHistory.slice(0, OFFLINE_CACHE_LIMIT) : []),
+    [draftHistory]
+  );
 
   useLayoutEffect(() => {
     if (typeof document === 'undefined') {
@@ -761,6 +966,22 @@ export default function App() {
       // Ignore localStorage failures.
     }
   }, [themePreference]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    const updateStatus = () => {
+      setIsOffline(navigator.onLine === false);
+    };
+    window.addEventListener('online', updateStatus);
+    window.addEventListener('offline', updateStatus);
+    updateStatus();
+    return () => {
+      window.removeEventListener('online', updateStatus);
+      window.removeEventListener('offline', updateStatus);
+    };
+  }, []);
 
   const persistThemePreference = useCallback(async (theme) => {
     const restNonce = getRestNonce();
@@ -868,10 +1089,83 @@ export default function App() {
     }
   }, []);
 
+  const checkHealth = useCallback(async () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const endpoint = getHealthEndpoint();
+    if (!endpoint) {
+      return;
+    }
+    if (navigator.onLine === false) {
+      setIsOffline(true);
+      return;
+    }
+    if (healthControllerRef.current) {
+      healthControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    healthControllerRef.current = controller;
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, HEALTH_TIMEOUT_MS);
+
+    try {
+      const headers = {};
+      const restNonce = getRestNonce();
+      if (restNonce) {
+        headers['X-WP-Nonce'] = restNonce;
+      }
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers,
+        credentials: 'same-origin',
+        signal: controller.signal,
+      });
+      if (response.status === 401 || response.status === 403) {
+        setIsOffline(false);
+        return;
+      }
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || payload?.success === false) {
+        setIsOffline(true);
+        return;
+      }
+      setIsOffline(false);
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
+      setIsOffline(true);
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (healthControllerRef.current === controller) {
+        healthControllerRef.current = null;
+      }
+    }
+  }, []);
+
   useEffect(() => {
     refreshUsage();
     fetchBudgetLimit();
   }, [fetchBudgetLimit, refreshUsage]);
+
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') {
+      return undefined;
+    }
+    checkHealth();
+    const intervalId = window.setInterval(() => {
+      checkHealth();
+    }, HEALTH_CHECK_INTERVAL_MS);
+    return () => {
+      window.clearInterval(intervalId);
+      if (healthControllerRef.current) {
+        healthControllerRef.current.abort();
+        healthControllerRef.current = null;
+      }
+    };
+  }, [checkHealth, isOpen]);
 
   const sessionUsage = useMemo(() => {
     if (!usageBaseline) {
@@ -1119,7 +1413,8 @@ export default function App() {
       setResponse(draft.markdown || '');
       setDraftSubject(draft.subject || draft.prompt || 'AgentWP Draft');
       setDraftBody(draft.plainText || stripMarkdownToPlainText(draft.markdown || ''));
-      setErrorMessage('');
+      setErrorState(null);
+      setRetryAttempt(0);
       setMetrics({ latencyMs: null, tokenCost: null });
       setLoading(false);
     },
@@ -1128,6 +1423,13 @@ export default function App() {
 
   useEffect(() => {
     const trimmedPrompt = prompt.trim();
+
+    if (isOffline) {
+      abortSearchRequest();
+      resetTypeahead();
+      setIsTypeaheadOpen(false);
+      return;
+    }
 
     if (suppressSearchRef.current) {
       suppressSearchRef.current = false;
@@ -1199,7 +1501,17 @@ export default function App() {
         window.clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [abortSearchRequest, isPromptFocused, prompt, resetTypeahead]);
+  }, [abortSearchRequest, isOffline, isPromptFocused, prompt, resetTypeahead]);
+
+  useEffect(() => {
+    if (!isOffline) {
+      return;
+    }
+    abortActiveRequest();
+    abortSearchRequest();
+    setLoading(false);
+    setIsTypeaheadOpen(false);
+  }, [abortActiveRequest, abortSearchRequest, isOffline]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1463,11 +1775,12 @@ export default function App() {
   }, []);
 
   const submitCommand = useCallback(
-    async (rawInput) => {
+    async (rawInput, options = {}) => {
       const trimmedPrompt = typeof rawInput === 'string' ? rawInput.trim() : '';
-      if (!trimmedPrompt || loading) {
+      if (!trimmedPrompt || loading || isOffline) {
         return;
       }
+      const isRetry = options?.isRetry === true;
 
       setIsTypeaheadOpen(false);
       setActiveSuggestionIndex(-1);
@@ -1475,13 +1788,17 @@ export default function App() {
       const controller = new AbortController();
       requestControllerRef.current = controller;
       setLoading(true);
-      setErrorMessage('');
+      setErrorState(null);
+      if (!isRetry) {
+        setRetryAttempt(0);
+      }
       setResponse('');
       setMetrics({ latencyMs: null, tokenCost: null });
 
       const startTime = getNow();
       const commandTimestamp = new Date().toISOString();
       let shouldRefreshUsage = true;
+      lastPromptRef.current = trimmedPrompt;
 
       try {
         const headers = {
@@ -1505,8 +1822,23 @@ export default function App() {
         const latencyMs = Math.round(getNow() - startTime);
 
         if (!response.ok || data?.success === false) {
-          const errorMessage = data?.error?.message || data?.message || 'Unable to reach AgentWP.';
-          throw new Error(errorMessage);
+          const errorPayload = data?.error || {};
+          const retryAfterHeader = Number.parseInt(
+            response.headers.get('Retry-After') || 0,
+            10
+          );
+          const errorInfo = {
+            message: errorPayload?.message || data?.message || DEFAULT_ERROR_MESSAGE,
+            code: errorPayload?.code || '',
+            type: errorPayload?.type || '',
+            status: response.status || 0,
+            meta: errorPayload?.meta || {},
+            retryAfter:
+              Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
+                ? retryAfterHeader
+                : errorPayload?.meta?.retry_after || 0,
+          };
+          throw errorInfo;
         }
 
         const message =
@@ -1523,6 +1855,7 @@ export default function App() {
               ? data.data.parsed_intent
               : '';
 
+        setRetryAttempt(0);
         setResponse(message);
         setDraftSubject(subjectLine);
         setDraftBody(plainTextDraft);
@@ -1546,7 +1879,19 @@ export default function App() {
           return;
         }
         const latencyMs = Math.round(getNow() - startTime);
-        setErrorMessage(error?.message || 'Unable to reach AgentWP.');
+        const normalizedError =
+          error && typeof error === 'object' && ('status' in error || 'code' in error || 'type' in error)
+            ? error
+            : { message: error?.message || DEFAULT_ERROR_MESSAGE, status: 0 };
+        const nextErrorState = buildErrorState({
+          message: normalizedError?.message,
+          code: normalizedError?.code,
+          type: normalizedError?.type,
+          status: normalizedError?.status,
+          meta: normalizedError?.meta,
+          retryAfter: normalizedError?.retryAfter,
+        });
+        setErrorState(nextErrorState);
         setMetrics((prev) => ({ ...prev, latencyMs }));
         recordCommand({
           raw_input: trimmedPrompt,
@@ -1555,6 +1900,7 @@ export default function App() {
           was_successful: false,
         });
         recordCommandUsage(trimmedPrompt);
+        logDev('Command failed', normalizedError);
       } finally {
         if (requestControllerRef.current === controller) {
           requestControllerRef.current = null;
@@ -1565,8 +1911,55 @@ export default function App() {
         }
       }
     },
-    [abortActiveRequest, addDraftToHistory, loading, recordCommand, recordCommandUsage, refreshUsage]
+    [
+      abortActiveRequest,
+      addDraftToHistory,
+      isOffline,
+      loading,
+      recordCommand,
+      recordCommandUsage,
+      refreshUsage,
+    ]
   );
+
+  const handleRetry = useCallback(() => {
+    if (!errorState?.retryable || loading || isOffline) {
+      return;
+    }
+    const lastPrompt = lastPromptRef.current;
+    if (!lastPrompt) {
+      return;
+    }
+    setRetryAttempt((prev) => prev + 1);
+    submitCommand(lastPrompt, { isRetry: true });
+  }, [errorState?.retryable, isOffline, loading, submitCommand]);
+
+  const handleReportIssue = useCallback(() => {
+    if (typeof window === 'undefined' || !errorState) {
+      return;
+    }
+    const context = {
+      timestamp: new Date().toISOString(),
+      plugin_version: window.agentwpSettings?.version || '',
+      error_code: errorState.code || '',
+      error_type: errorState.type || '',
+      status: errorState.status || 0,
+      retry_after: errorState.retryAfter || 0,
+      retries: errorState.meta?.retries || 0,
+      retry_attempts: retryAttempt,
+      offline: isOffline,
+      url_path: window.location?.pathname || '',
+    };
+    const subject = 'AgentWP Issue Report';
+    const body = `Please describe what you were doing:\n\n---\nSanitized context:\n${JSON.stringify(
+      context,
+      null,
+      2
+    )}`;
+    const supportEmail = getSupportEmail();
+    const href = buildMailtoLink(subject, body, supportEmail);
+    window.open(href, '_blank', 'noopener');
+  }, [errorState, isOffline, retryAttempt]);
 
   const handleSubmit = useCallback(
     (event) => {
@@ -1649,11 +2042,12 @@ export default function App() {
   const isLastCommandFavorited = lastSuccessfulCommand
     ? favoriteCommandKeys.has(buildCommandKey(lastSuccessfulCommand))
     : false;
-  const hasDraft = Boolean(response && !errorMessage);
+  const hasDraft = Boolean(response && !errorState);
   const resolvedBody = draftBody || stripMarkdownToPlainText(response);
   const mailtoHref = hasDraft ? buildMailtoLink(draftSubject, resolvedBody) : '#';
   const showHistoryPanel = isPromptFocused && !prompt.trim();
   const showTypeahead =
+    !isOffline &&
     isTypeaheadOpen &&
     isPromptFocused &&
     prompt.trim().length > 0 &&
@@ -2048,6 +2442,17 @@ export default function App() {
             </div>
 
             <div className="space-y-4 px-6 py-5">
+              {isOffline && (
+                <div className="rounded-2xl border border-amber-400/60 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-amber-200">
+                    <span className="inline-flex h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />
+                    {OFFLINE_BANNER_TEXT}
+                  </div>
+                  <p className="mt-1 text-xs text-amber-200/80">
+                    AgentWP will reconnect automatically. Cached results are available below.
+                  </p>
+                </div>
+              )}
               <form onSubmit={handleSubmit}>
                 <label htmlFor="agentwp-prompt" className="sr-only">
                   Ask AgentWP anything
@@ -2066,15 +2471,16 @@ export default function App() {
                       aria-expanded={showTypeahead}
                       aria-controls="agentwp-typeahead"
                       aria-activedescendant={activeSuggestionId}
-                      placeholder="Ask AgentWP anything..."
-                      className="flex-1 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
+                      placeholder={isOffline ? 'Agent Offline' : 'Ask AgentWP anything...'}
+                      disabled={isOffline}
+                      className="flex-1 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
                     <button
                       type="submit"
-                      disabled={loading || !prompt.trim()}
+                      disabled={loading || isOffline || !prompt.trim()}
                       className="inline-flex items-center justify-center rounded-full border border-slate-600/70 bg-slate-900/80 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:border-slate-400/80 hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {loading ? 'Sending' : 'Send'}
+                      {loading ? 'Sending' : isOffline ? 'Offline' : 'Send'}
                     </button>
                   </div>
 
@@ -2195,8 +2601,50 @@ export default function App() {
                       <div className="h-3 w-5/6 rounded-full bg-slate-700/50" />
                       <div className="h-3 w-2/3 rounded-full bg-slate-700/40" />
                     </div>
-                  ) : errorMessage ? (
-                    <p className="text-sm text-rose-300">{errorMessage}</p>
+                  ) : isOffline ? (
+                    <div className="space-y-3 text-sm text-amber-100">
+                      <p className="text-amber-200">
+                        {OFFLINE_BANNER_TEXT}. Cached results are available below.
+                      </p>
+                      {offlineDrafts.length ? (
+                        <div className="space-y-2">
+                          {offlineDrafts.map((draft) => {
+                            const title = draft.subject || draft.prompt || 'Cached response';
+                            const snippet = truncateText(
+                              draft.plainText || stripMarkdownToPlainText(draft.markdown || ''),
+                              160
+                            );
+                            return (
+                              <button
+                                key={draft.id}
+                                type="button"
+                                onClick={() => handleRestoreDraft(draft)}
+                                className="flex w-full flex-col rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-left text-xs text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                              >
+                                <span className="text-sm font-semibold text-amber-50">{title}</span>
+                                {snippet ? (
+                                  <span className="mt-1 text-xs text-amber-200/80">
+                                    {snippet}
+                                  </span>
+                                ) : null}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-amber-200/80">
+                          No cached responses yet. Try again when you are back online.
+                        </p>
+                      )}
+                    </div>
+                  ) : errorState ? (
+                    <ErrorCard
+                      title="We hit a snag"
+                      message={errorMessage}
+                      retryLabel={retryLabel}
+                      onRetry={errorState.retryable ? handleRetry : undefined}
+                      onReport={handleReportIssue}
+                    />
                   ) : response ? (
                     <div ref={responseHtmlRef} className="agentwp-markdown">
                       <ReactMarkdown

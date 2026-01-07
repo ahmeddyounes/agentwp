@@ -128,7 +128,10 @@ class OpenAIClient {
 				$result['error'],
 				$result['status'],
 				array(
-					'retries' => $result['retries'],
+					'retries'     => $result['retries'],
+					'error_code'  => $result['error_code'],
+					'error_type'  => $result['error_type'],
+					'retry_after' => $result['retry_after'],
 				)
 			);
 		}
@@ -144,7 +147,10 @@ class OpenAIClient {
 				$parsed['error'],
 				$result['status'],
 				array(
-					'retries' => $result['retries'],
+					'retries'     => $result['retries'],
+					'error_code'  => $result['error_code'],
+					'error_type'  => $result['error_type'],
+					'retry_after' => $result['retry_after'],
 				)
 			);
 		}
@@ -223,9 +229,12 @@ class OpenAIClient {
 	 * @return array
 	 */
 	private function request_with_retry( array $payload ) {
-		$attempt = 0;
-		$delay   = $this->initial_delay;
-		$errors  = '';
+		$attempt     = 0;
+		$delay       = $this->initial_delay;
+		$errors      = '';
+		$error_code  = '';
+		$error_type  = '';
+		$retry_after = 0;
 
 		do {
 			$result = $this->send_request( $payload );
@@ -233,6 +242,9 @@ class OpenAIClient {
 
 			if ( $result['success'] || ! $retry || $attempt >= $this->max_retries ) {
 				$errors = $result['error'];
+				$error_code = isset( $result['error_code'] ) ? $result['error_code'] : '';
+				$error_type = isset( $result['error_type'] ) ? $result['error_type'] : '';
+				$retry_after = isset( $result['retry_after'] ) ? (int) $result['retry_after'] : 0;
 				break;
 			}
 
@@ -242,8 +254,11 @@ class OpenAIClient {
 			$attempt++;
 		} while ( true );
 
-		$result['retries'] = $attempt;
-		$result['error']   = $errors;
+		$result['retries']     = $attempt;
+		$result['error']       = $errors;
+		$result['error_code']  = $error_code;
+		$result['error_type']  = $error_type;
+		$result['retry_after'] = $retry_after;
 
 		return $result;
 	}
@@ -271,6 +286,8 @@ class OpenAIClient {
 				'body'        => '',
 				'headers'     => array(),
 				'error'       => $response->get_error_message(),
+				'error_code'  => $response->get_error_code(),
+				'error_type'  => '',
 				'retryable'   => $this->is_retryable_error( $response ),
 				'retry_after' => 0,
 			);
@@ -279,7 +296,9 @@ class OpenAIClient {
 		$status  = (int) wp_remote_retrieve_response_code( $response );
 		$body    = wp_remote_retrieve_body( $response );
 		$headers = wp_remote_retrieve_headers( $response );
-		$error   = '';
+		$error       = '';
+		$error_code  = '';
+		$error_type  = '';
 		$header_retry = 0;
 
 		if ( $headers && isset( $headers['retry-after'] ) ) {
@@ -287,10 +306,14 @@ class OpenAIClient {
 		}
 
 		if ( $status < 200 || $status >= 300 ) {
-			$error = 'OpenAI API request failed.';
+			$error   = 'OpenAI API request failed.';
 			$decoded = json_decode( $body, true );
-			if ( is_array( $decoded ) && isset( $decoded['error']['message'] ) ) {
-				$error = $decoded['error']['message'];
+			if ( is_array( $decoded ) && isset( $decoded['error'] ) && is_array( $decoded['error'] ) ) {
+				if ( isset( $decoded['error']['message'] ) ) {
+					$error = $decoded['error']['message'];
+				}
+				$error_code = isset( $decoded['error']['code'] ) ? (string) $decoded['error']['code'] : '';
+				$error_type = isset( $decoded['error']['type'] ) ? (string) $decoded['error']['type'] : '';
 			}
 		}
 
@@ -300,6 +323,8 @@ class OpenAIClient {
 			'body'        => is_string( $body ) ? $body : '',
 			'headers'     => is_array( $headers ) ? $headers : array(),
 			'error'       => $error,
+			'error_code'  => $error_code,
+			'error_type'  => $error_type,
 			'retryable'   => $this->is_retryable_status( $status ),
 			'retry_after' => $header_retry,
 		);

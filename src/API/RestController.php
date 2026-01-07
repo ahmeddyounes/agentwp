@@ -7,6 +7,7 @@
 
 namespace AgentWP\API;
 
+use AgentWP\Error\Handler as ErrorHandler;
 use AgentWP\Plugin;
 use WP_Error;
 use WP_REST_Controller;
@@ -95,17 +96,28 @@ abstract class RestController extends WP_REST_Controller {
 	 * @param string $code Error code.
 	 * @param string $message Error message.
 	 * @param int    $status HTTP status.
+	 * @param array  $meta Optional error metadata.
 	 * @return WP_REST_Response
 	 */
-	protected function response_error( $code, $message, $status = 400 ) {
+	protected function response_error( $code, $message, $status = 400, array $meta = array() ) {
+		$type = class_exists( 'AgentWP\\Error\\Handler' )
+			? ErrorHandler::categorize( $code, $status, $message, $meta )
+			: 'unknown';
+		$error = array(
+			'code'    => $code,
+			'message' => $message,
+			'type'    => $type,
+		);
+
+		if ( ! empty( $meta ) ) {
+			$error['meta'] = $meta;
+		}
+
 		$response = rest_ensure_response(
 			array(
 				'success' => false,
 				'data'    => array(),
-				'error'   => array(
-					'code'    => $code,
-					'message' => $message,
-				),
+				'error'   => $error,
 			)
 		);
 

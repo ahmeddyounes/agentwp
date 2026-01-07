@@ -177,6 +177,8 @@ class Plugin {
 						'root'  => esc_url_raw( rest_url() ),
 						'nonce' => wp_create_nonce( 'wp_rest' ),
 						'theme' => $theme,
+						'supportEmail' => sanitize_email( get_option( 'admin_email' ) ),
+						'version' => defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '',
 					)
 				),
 				'before'
@@ -299,6 +301,13 @@ class Plugin {
 			$message    = $result->get_error_message();
 			$data       = $result->get_error_data();
 			$status     = ( is_array( $data ) && isset( $data['status'] ) ) ? intval( $data['status'] ) : 500;
+			$type       = class_exists( 'AgentWP\\Error\\Handler' )
+				? Error\Handler::categorize( $error_code, $status, $message, is_array( $data ) ? $data : array() )
+				: 'unknown';
+			$error_meta = array();
+			if ( is_array( $data ) && isset( $data['retry_after'] ) ) {
+				$error_meta['retry_after'] = intval( $data['retry_after'] );
+			}
 
 			$response = rest_ensure_response(
 				array(
@@ -307,6 +316,8 @@ class Plugin {
 					'error'   => array(
 						'code'    => $error_code,
 						'message' => $message,
+						'type'    => $type,
+						'meta'    => $error_meta,
 					),
 				)
 			);
@@ -328,6 +339,13 @@ class Plugin {
 				$message    = (string) $body['message'];
 				$data       = isset( $body['data'] ) && is_array( $body['data'] ) ? $body['data'] : array();
 				$status     = isset( $data['status'] ) ? intval( $data['status'] ) : $status;
+				$type       = class_exists( 'AgentWP\\Error\\Handler' )
+					? Error\Handler::categorize( $error_code, $status, $message, $data )
+					: 'unknown';
+				$error_meta = array();
+				if ( isset( $data['retry_after'] ) ) {
+					$error_meta['retry_after'] = intval( $data['retry_after'] );
+				}
 
 				$response = rest_ensure_response(
 					array(
@@ -336,6 +354,8 @@ class Plugin {
 						'error'   => array(
 							'code'    => $error_code,
 							'message' => $message,
+							'type'    => $type,
+							'meta'    => $error_meta,
 						),
 					)
 				);

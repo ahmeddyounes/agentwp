@@ -66,7 +66,12 @@ class IntentController extends RestController {
 		$response = $engine->handle( $prompt, $context, $metadata );
 
 		if ( ! $response->is_success() ) {
-			return $this->response_error( 'agentwp_intent_failed', $response->get_message(), $response->get_status() );
+			return $this->response_error(
+				'agentwp_intent_failed',
+				$response->get_message(),
+				$response->get_status(),
+				$response->get_meta()
+			);
 		}
 
 		$data               = $response->get_data();

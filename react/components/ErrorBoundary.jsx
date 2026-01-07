@@ -1,0 +1,49 @@
+import React from 'react';
+import { ErrorCard } from './cards';
+
+const IS_DEV = import.meta.env?.DEV ?? false;
+
+export default class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+    this.handleReload = this.handleReload.bind(this);
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    if (IS_DEV && typeof console !== 'undefined') {
+      console.error('[AgentWP] Render error', error, info);
+    }
+    if (typeof this.props.onError === 'function') {
+      this.props.onError(error, info);
+    }
+  }
+
+  handleReload() {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.location.reload();
+  }
+
+  render() {
+    const { hasError } = this.state;
+    if (hasError) {
+      return (
+        <div className="p-6">
+          <ErrorCard
+            title="AgentWP ran into a problem"
+            message="Please refresh the page to try again."
+            retryLabel="Reload"
+            onRetry={this.handleReload}
+          />
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}

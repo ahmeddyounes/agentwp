@@ -25,6 +25,11 @@ export default function ErrorCard({
   reportHref,
   theme = 'auto',
 }) {
+  const retryAction = onRetry ? (
+    <button type="button" className="agentwp-card__button" onClick={onRetry}>
+      {retryLabel}
+    </button>
+  ) : null;
   const reportAction = onReport ? (
     <button type="button" className="agentwp-card__link" onClick={onReport}>
       {reportLabel}
@@ -35,20 +40,20 @@ export default function ErrorCard({
     </a>
   ) : null;
 
+  const actions = retryAction || reportAction ? (
+    <>
+      {retryAction}
+      {reportAction}
+    </>
+  ) : null;
+
   return (
     <BaseCard
       title={title}
       icon={<ErrorIcon />}
       variant="error"
       theme={theme}
-      actions={
-        <>
-          <button type="button" className="agentwp-card__button" onClick={onRetry}>
-            {retryLabel}
-          </button>
-          {reportAction}
-        </>
-      }
+      actions={actions}
     >
       {message && <p className="agentwp-card__text">{message}</p>}
     </BaseCard>
