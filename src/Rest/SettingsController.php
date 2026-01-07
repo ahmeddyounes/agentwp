@@ -8,6 +8,7 @@
 namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
+use AgentWP\Billing\UsageTracker;
 use AgentWP\Plugin;
 use AgentWP\Security\Encryption;
 use WP_Error;
@@ -183,18 +184,19 @@ class SettingsController extends RestController {
 			return $this->response_error( 'agentwp_invalid_period', __( 'Invalid usage period.', 'agentwp' ), 400 );
 		}
 
-		$defaults = Plugin::get_default_usage_stats();
-		$usage    = get_option( Plugin::OPTION_USAGE_STATS, array() );
-		$usage    = is_array( $usage ) ? $usage : array();
-		$usage    = wp_parse_args( $usage, $defaults );
-
-		$usage['last_sync'] = gmdate( 'c' );
-		update_option( Plugin::OPTION_USAGE_STATS, $usage, false );
+		$usage = class_exists( 'AgentWP\\Billing\\UsageTracker' )
+			? UsageTracker::get_usage_summary( $period )
+			: Plugin::get_default_usage_stats();
 
 		return $this->response_success(
 			array(
-				'period' => $period,
-				'usage'  => $usage,
+				'period'              => $period,
+				'total_tokens'        => isset( $usage['total_tokens'] ) ? $usage['total_tokens'] : 0,
+				'total_cost_usd'      => isset( $usage['total_cost_usd'] ) ? $usage['total_cost_usd'] : 0,
+				'breakdown_by_intent' => isset( $usage['breakdown_by_intent'] ) ? $usage['breakdown_by_intent'] : array(),
+				'daily_trend'         => isset( $usage['daily_trend'] ) ? $usage['daily_trend'] : array(),
+				'period_start'        => isset( $usage['period_start'] ) ? $usage['period_start'] : '',
+				'period_end'          => isset( $usage['period_end'] ) ? $usage['period_end'] : '',
 			)
 		);
 	}

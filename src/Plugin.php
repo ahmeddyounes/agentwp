@@ -55,6 +55,10 @@ class Plugin {
 		add_option( self::OPTION_API_KEY, '', '', false );
 		add_option( self::OPTION_API_KEY_LAST4, '', '', false );
 
+		if ( class_exists( 'AgentWP\\Billing\\UsageTracker' ) ) {
+			Billing\UsageTracker::activate();
+		}
+
 		if ( class_exists( 'AgentWP\\Search\\Index' ) ) {
 			Search\Index::activate();
 		}
@@ -79,6 +83,10 @@ class Plugin {
 		add_action( 'admin_head', array( $this, 'output_theme_attribute' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 		add_filter( 'rest_post_dispatch', array( $this, 'format_rest_response' ), 10, 3 );
+
+		if ( class_exists( 'AgentWP\\Billing\\UsageTracker' ) ) {
+			Billing\UsageTracker::init();
+		}
 
 		if ( class_exists( 'AgentWP\\Search\\Index' ) ) {
 			Search\Index::init();
@@ -398,9 +406,12 @@ class Plugin {
 	 */
 	public static function get_default_usage_stats() {
 		return array(
-			'total_commands_month' => 0,
-			'estimated_cost'       => 0,
-			'last_sync'            => '',
+			'total_tokens'        => 0,
+			'total_cost_usd'      => 0,
+			'breakdown_by_intent' => array(),
+			'daily_trend'         => array(),
+			'period_start'        => '',
+			'period_end'          => '',
 		);
 	}
 

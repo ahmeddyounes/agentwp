@@ -28,6 +28,8 @@ const ADMIN_TRIGGER_SELECTORS = [
 ];
 const REST_PATH = '/agentwp/v1/intent';
 const SEARCH_PATH = '/agentwp/v1/search';
+const USAGE_PATH = '/agentwp/v1/usage';
+const SETTINGS_PATH = '/agentwp/v1/settings';
 const THEME_PATH = '/agentwp/v1/theme';
 const FOCUSABLE_SELECTORS = [
   'a[href]',
@@ -138,6 +140,13 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
   maximumFractionDigits: 0,
 });
+const usageCurrencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const numberFormatter = new Intl.NumberFormat('en-US');
 
 const formatCurrencyValue = (value) => {
   if (typeof value !== 'number' || Number.isNaN(value)) {
@@ -145,6 +154,39 @@ const formatCurrencyValue = (value) => {
   }
   return currencyFormatter.format(value);
 };
+
+const formatUsageCost = (value) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return usageCurrencyFormatter.format(0);
+  }
+  return usageCurrencyFormatter.format(value);
+};
+
+const formatTokenCount = (value) => {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(value ?? 0, 10);
+  if (Number.isNaN(parsed)) {
+    return numberFormatter.format(0);
+  }
+  return numberFormatter.format(parsed);
+};
+
+const DEFAULT_USAGE_SUMMARY = {
+  totalTokens: 0,
+  totalCostUsd: 0,
+  breakdownByIntent: [],
+  dailyTrend: [],
+  periodStart: '',
+  periodEnd: '',
+};
+
+const normalizeUsageSummary = (payload) => ({
+  totalTokens: Number.parseInt(payload?.total_tokens ?? 0, 10) || 0,
+  totalCostUsd: Number.parseFloat(payload?.total_cost_usd ?? 0) || 0,
+  breakdownByIntent: Array.isArray(payload?.breakdown_by_intent) ? payload.breakdown_by_intent : [],
+  dailyTrend: Array.isArray(payload?.daily_trend) ? payload.daily_trend : [],
+  periodStart: payload?.period_start ?? '',
+  periodEnd: payload?.period_end ?? '',
+});
 
 const buildDayLabels = (days, prefix = 'Day') =>
   Array.from({ length: days }, (_, index) => `${prefix} ${index + 1}`);
@@ -291,6 +333,28 @@ const getSearchEndpoint = () => {
     return SEARCH_PATH;
   }
   return `${root.replace(/\/$/, '')}${SEARCH_PATH}`;
+};
+
+const getUsageEndpoint = () => {
+  if (typeof window === 'undefined') {
+    return USAGE_PATH;
+  }
+  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
+  if (!root) {
+    return USAGE_PATH;
+  }
+  return `${root.replace(/\/$/, '')}${USAGE_PATH}`;
+};
+
+const getSettingsEndpoint = () => {
+  if (typeof window === 'undefined') {
+    return SETTINGS_PATH;
+  }
+  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
+  if (!root) {
+    return SETTINGS_PATH;
+  }
+  return `${root.replace(/\/$/, '')}${SETTINGS_PATH}`;
 };
 
 const getThemeEndpoint = () => {
@@ -607,6 +671,10 @@ export default function App() {
   const [response, setResponse] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [metrics, setMetrics] = useState({ latencyMs: null, tokenCost: null });
+  const [usageSummary, setUsageSummary] = useState(DEFAULT_USAGE_SUMMARY);
+  const [usageBaseline, setUsageBaseline] = useState(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+  const [budgetLimit, setBudgetLimit] = useState(0);
   const [draftSubject, setDraftSubject] = useState('');
   const [draftBody, setDraftBody] = useState('');
   const [draftHistory, setDraftHistory] = useState([]);
@@ -732,6 +800,102 @@ export default function App() {
       }
     });
   }, [persistThemePreference, themePreference]);
+
+  const refreshUsage = useCallback(async () => {
+    const endpoint = getUsageEndpoint();
+    if (!endpoint) {
+      return;
+    }
+    const restNonce = getRestNonce();
+    setUsageLoading(true);
+    try {
+      const headers = {};
+      if (restNonce) {
+        headers['X-WP-Nonce'] = restNonce;
+      }
+      const response = await fetch(`${endpoint}?period=month`, {
+        method: 'GET',
+        headers,
+        credentials: 'same-origin',
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || payload?.success === false) {
+        return;
+      }
+      const nextUsage = normalizeUsageSummary(payload?.data ?? {});
+      setUsageSummary(nextUsage);
+      setUsageBaseline((previous) => {
+        if (!previous || previous.periodStart !== nextUsage.periodStart) {
+          return {
+            totalTokens: nextUsage.totalTokens,
+            totalCostUsd: nextUsage.totalCostUsd,
+            periodStart: nextUsage.periodStart,
+          };
+        }
+        return previous;
+      });
+    } catch (error) {
+      // Usage fetch failures should not block the command deck.
+    } finally {
+      setUsageLoading(false);
+    }
+  }, []);
+
+  const fetchBudgetLimit = useCallback(async () => {
+    const endpoint = getSettingsEndpoint();
+    if (!endpoint) {
+      return;
+    }
+    const restNonce = getRestNonce();
+    try {
+      const headers = {};
+      if (restNonce) {
+        headers['X-WP-Nonce'] = restNonce;
+      }
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers,
+        credentials: 'same-origin',
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || payload?.success === false) {
+        return;
+      }
+      const nextLimit = Number.parseFloat(payload?.data?.settings?.budget_limit ?? 0);
+      setBudgetLimit(Number.isFinite(nextLimit) && nextLimit >= 0 ? nextLimit : 0);
+    } catch (error) {
+      // Ignore settings fetch failures.
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshUsage();
+    fetchBudgetLimit();
+  }, [fetchBudgetLimit, refreshUsage]);
+
+  const sessionUsage = useMemo(() => {
+    if (!usageBaseline) {
+      return { tokens: 0, cost: 0 };
+    }
+    return {
+      tokens: Math.max(0, usageSummary.totalTokens - usageBaseline.totalTokens),
+      cost: Math.max(0, usageSummary.totalCostUsd - usageBaseline.totalCostUsd),
+    };
+  }, [usageBaseline, usageSummary.totalCostUsd, usageSummary.totalTokens]);
+
+  const budgetStatus = useMemo(() => {
+    if (!budgetLimit) {
+      return { ratio: 0, percent: 0, level: 'ok' };
+    }
+    const ratio = usageSummary.totalCostUsd / budgetLimit;
+    if (ratio >= 1) {
+      return { ratio, percent: Math.min(100, Math.round(ratio * 100)), level: 'limit' };
+    }
+    if (ratio >= 0.8) {
+      return { ratio, percent: Math.round(ratio * 100), level: 'warning' };
+    }
+    return { ratio, percent: Math.round(ratio * 100), level: 'ok' };
+  }, [budgetLimit, usageSummary.totalCostUsd]);
 
   const abortActiveRequest = useCallback(() => {
     if (requestControllerRef.current) {
@@ -1317,6 +1481,7 @@ export default function App() {
 
       const startTime = getNow();
       const commandTimestamp = new Date().toISOString();
+      let shouldRefreshUsage = true;
 
       try {
         const headers = {
@@ -1377,6 +1542,7 @@ export default function App() {
         recordCommandUsage(trimmedPrompt);
       } catch (error) {
         if (error?.name === 'AbortError') {
+          shouldRefreshUsage = false;
           return;
         }
         const latencyMs = Math.round(getNow() - startTime);
@@ -1394,9 +1560,12 @@ export default function App() {
           requestControllerRef.current = null;
         }
         setLoading(false);
+        if (shouldRefreshUsage) {
+          refreshUsage();
+        }
       }
     },
-    [abortActiveRequest, addDraftToHistory, loading, recordCommand, recordCommandUsage]
+    [abortActiveRequest, addDraftToHistory, loading, recordCommand, recordCommandUsage, refreshUsage]
   );
 
   const handleSubmit = useCallback(
@@ -1688,6 +1857,26 @@ export default function App() {
   const trendLabel = `${revenueDelta >= 0 ? '+' : ''}${(revenueDelta * 100).toFixed(1)}% vs last period`;
   const chartBars = [72, 98, 84, 124, 96, 112, 78];
   const chartLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const usageTone =
+    budgetStatus.level === 'limit'
+      ? 'border-rose-500/70 bg-rose-500/10'
+      : budgetStatus.level === 'warning'
+        ? 'border-amber-400/70 bg-amber-400/10'
+        : 'border-slate-800/80 bg-slate-950/40';
+  const budgetFillTone =
+    budgetStatus.level === 'limit'
+      ? 'bg-rose-400'
+      : budgetStatus.level === 'warning'
+        ? 'bg-amber-400'
+        : 'bg-emerald-400';
+  const budgetMessage =
+    budgetLimit && budgetStatus.level === 'limit'
+      ? 'Monthly budget limit reached. Consider pausing drafts or raising the limit.'
+      : budgetLimit && budgetStatus.level === 'warning'
+        ? 'Approaching monthly budget limit. Usage is above 80%.'
+        : '';
+  const budgetMessageTone = budgetStatus.level === 'limit' ? 'text-rose-200' : 'text-amber-200';
+  const monthlyUsageLabel = usageLoading ? 'Updating...' : formatUsageCost(usageSummary.totalCostUsd);
 
   return (
     <div className="min-h-screen text-slate-100">
@@ -2217,6 +2406,55 @@ export default function App() {
                   )}
                 </div>
               </details>
+
+              <div className={`rounded-2xl border px-4 py-4 ${usageTone}`}>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                      Session tokens
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-white">
+                      {formatTokenCount(sessionUsage.tokens)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                      Session cost
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-white">
+                      {formatUsageCost(sessionUsage.cost)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                      Monthly total
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-white">{monthlyUsageLabel}</p>
+                    <p className="text-xs text-slate-500">
+                      {formatTokenCount(usageSummary.totalTokens)} tokens
+                    </p>
+                  </div>
+                </div>
+                {budgetLimit > 0 ? (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span>Budget usage</span>
+                      <span>
+                        {budgetStatus.percent}% of {formatUsageCost(budgetLimit)}
+                      </span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-900/60">
+                      <div
+                        className={`h-full ${budgetFillTone}`}
+                        style={{ width: `${Math.min(100, budgetStatus.percent)}%` }}
+                      />
+                    </div>
+                    {budgetMessage ? (
+                      <p className={`mt-3 text-xs ${budgetMessageTone}`}>{budgetMessage}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
 
               <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>

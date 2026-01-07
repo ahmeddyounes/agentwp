@@ -11,6 +11,7 @@ use AgentWP\AI\Model;
 use AgentWP\AI\OpenAIClient;
 use AgentWP\AI\Response;
 use AgentWP\Context\EmailContextBuilder;
+use AgentWP\Intent\Intent;
 use AgentWP\Plugin;
 use AgentWP\Security\Encryption;
 
@@ -336,7 +337,13 @@ class EmailDraftHandler {
 		}
 
 		$model    = $this->get_model();
-		$client   = new OpenAIClient( $api_key, $model );
+		$client   = new OpenAIClient(
+			$api_key,
+			$model,
+			array(
+				'intent_type' => Intent::EMAIL_DRAFT,
+			)
+		);
 		$messages = $this->build_prompt_messages( $context, $intent, $tone, $custom_instructions, $template_variables );
 
 		$result = $client->chat( $messages, array() );

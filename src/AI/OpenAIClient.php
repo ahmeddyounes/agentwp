@@ -8,6 +8,7 @@
 namespace AgentWP\AI;
 
 use AgentWP\AI\Functions\FunctionSchema;
+use AgentWP\Billing\UsageTracker;
 
 class OpenAIClient {
 	const API_BASE = 'https://api.openai.com/v1';
@@ -63,6 +64,11 @@ class OpenAIClient {
 	private $base_url;
 
 	/**
+	 * @var string
+	 */
+	private $intent_type;
+
+	/**
 	 * @param string $api_key OpenAI API key.
 	 * @param string $model Model name.
 	 * @param array  $options Optional overrides.
@@ -82,6 +88,7 @@ class OpenAIClient {
 		$this->base_url      = isset( $options['base_url'] ) && is_string( $options['base_url'] )
 			? rtrim( $options['base_url'], '/' )
 			: self::API_BASE;
+		$this->intent_type   = isset( $options['intent_type'] ) ? sanitize_text_field( $options['intent_type'] ) : '';
 	}
 
 	/**
@@ -160,6 +167,15 @@ class OpenAIClient {
 			'retries'       => $result['retries'],
 			'stream'        => $this->stream,
 		);
+
+		if ( class_exists( 'AgentWP\\Billing\\UsageTracker' ) ) {
+			UsageTracker::log_usage(
+				$meta['model'],
+				$meta['input_tokens'],
+				$meta['output_tokens'],
+				$this->intent_type
+			);
+		}
 
 		return Response::success(
 			array(

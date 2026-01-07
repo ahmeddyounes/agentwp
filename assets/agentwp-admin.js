@@ -37,14 +37,19 @@
 
 	var DEFAULT_SETTINGS = {
 		model: 'gpt-4o-mini',
+		budget_limit: 0,
 		hotkey: 'Cmd+K / Ctrl+K',
 		theme: 'light',
 	};
 
 	var DEFAULT_USAGE = {
-		total_commands_month: 0,
-		estimated_cost: 0,
-		last_sync: '',
+		period: 'month',
+		total_tokens: 0,
+		total_cost_usd: 0,
+		breakdown_by_intent: [],
+		daily_trend: [],
+		period_start: '',
+		period_end: '',
 	};
 
 	function normalizeSettings(settings) {
@@ -58,13 +63,23 @@
 		if (merged.model !== 'gpt-4o' && merged.model !== 'gpt-4o-mini') {
 			merged.model = DEFAULT_SETTINGS.model;
 		}
+		merged.budget_limit = parseFloat(merged.budget_limit);
+		if (!Number.isFinite(merged.budget_limit) || merged.budget_limit < 0) {
+			merged.budget_limit = DEFAULT_SETTINGS.budget_limit;
+		}
 		return merged;
 	}
 
 	function normalizeUsage(usage) {
 		var parsed = Object.assign({}, DEFAULT_USAGE, usage || {});
-		parsed.total_commands_month = parseInt(parsed.total_commands_month, 10) || 0;
-		parsed.estimated_cost = parseFloat(parsed.estimated_cost) || 0;
+		parsed.total_tokens = parseInt(parsed.total_tokens, 10) || 0;
+		parsed.total_cost_usd = parseFloat(parsed.total_cost_usd) || 0;
+		parsed.breakdown_by_intent = Array.isArray(parsed.breakdown_by_intent)
+			? parsed.breakdown_by_intent
+			: [];
+		parsed.daily_trend = Array.isArray(parsed.daily_trend) ? parsed.daily_trend : [];
+		parsed.period_start = parsed.period_start || '';
+		parsed.period_end = parsed.period_end || '';
 		return parsed;
 	}
 
@@ -78,6 +93,17 @@
 		}
 
 		return '$' + (value || 0).toFixed(2);
+	}
+
+	function formatNumber(value) {
+		var parsed = typeof value === 'number' ? value : parseFloat(value);
+		if (!Number.isFinite(parsed)) {
+			return '0';
+		}
+		if (window.Intl && Intl.NumberFormat) {
+			return new Intl.NumberFormat().format(parsed);
+		}
+		return String(parsed);
 	}
 
 	function formatDate(value) {
@@ -158,6 +184,10 @@
 		var usageLoading = _useState12[0];
 		var setUsageLoading = _useState12[1];
 
+		var _useState13 = useState(null);
+		var usageBaseline = _useState13[0];
+		var setUsageBaseline = _useState13[1];
+
 		useEffect(function () {
 			var isMounted = true;
 
@@ -196,7 +226,18 @@
 				try {
 					var response = await apiFetch({ path: '/agentwp/v1/usage?period=month' });
 					if (isMounted && response && response.success) {
-						setUsage(normalizeUsage(response.data.usage));
+						var nextUsage = normalizeUsage(response.data);
+						setUsage(nextUsage);
+						setUsageBaseline(function (previous) {
+							if (!previous || previous.period_start !== nextUsage.period_start) {
+								return {
+									total_tokens: nextUsage.total_tokens,
+									total_cost_usd: nextUsage.total_cost_usd,
+									period_start: nextUsage.period_start,
+								};
+							}
+							return previous;
+						});
 					}
 				} catch (error) {
 					if (isMounted) {
@@ -234,6 +275,7 @@
 		function saveSettings(nextSettings, successMessage) {
 			var payload = {
 				model: nextSettings.model,
+				budget_limit: nextSettings.budget_limit,
 				hotkey: nextSettings.hotkey,
 				theme: nextSettings.theme,
 			};
@@ -355,6 +397,7 @@
 		function handleExport() {
 			var exportData = {
 				model: settings.model,
+				budget_limit: settings.budget_limit,
 				hotkey: settings.hotkey,
 				theme: settings.theme,
 				dark_mode: settings.theme === 'dark',
@@ -385,6 +428,9 @@
 					var parsed = JSON.parse(loadEvent.target.result);
 					var nextSettings = normalizeSettings({
 						model: parsed.model || settings.model,
+						budget_limit: Number.isFinite(parseFloat(parsed.budget_limit))
+							? parseFloat(parsed.budget_limit)
+							: settings.budget_limit,
 						hotkey: parsed.hotkey || settings.hotkey,
 						theme: parsed.theme || (parsed.dark_mode ? 'dark' : settings.theme),
 					});
@@ -406,7 +452,18 @@
 			apiFetch({ path: '/agentwp/v1/usage?period=month' })
 				.then(function (response) {
 					if (response && response.success) {
-						setUsage(normalizeUsage(response.data.usage));
+						var nextUsage = normalizeUsage(response.data);
+						setUsage(nextUsage);
+						setUsageBaseline(function (previous) {
+							if (!previous || previous.period_start !== nextUsage.period_start) {
+								return {
+									total_tokens: nextUsage.total_tokens,
+									total_cost_usd: nextUsage.total_cost_usd,
+									period_start: nextUsage.period_start,
+								};
+							}
+							return previous;
+						});
 					}
 				})
 				.catch(function (error) {
@@ -433,6 +490,43 @@
 			? __('Stored key ending in ****', 'agentwp') + apiKeyLast4
 			: __('No API key stored.', 'agentwp');
 
+		var sessionTokens = usageBaseline
+			? Math.max(0, usage.total_tokens - usageBaseline.total_tokens)
+			: 0;
+		var sessionCost = usageBaseline
+			? Math.max(0, usage.total_cost_usd - usageBaseline.total_cost_usd)
+			: 0;
+
+		var budgetLimit = settings.budget_limit || 0;
+		var budgetRatio = budgetLimit > 0 ? usage.total_cost_usd / budgetLimit : 0;
+		var budgetPercent = Math.min(100, Math.round(budgetRatio * 100));
+		var statusClassName = 'agentwp-settings__status-bar';
+		if (budgetLimit > 0 && budgetRatio >= 1) {
+			statusClassName += ' agentwp-settings__status-bar--limit';
+		} else if (budgetLimit > 0 && budgetRatio >= 0.8) {
+			statusClassName += ' agentwp-settings__status-bar--warning';
+		}
+
+		var budgetFillClass = 'agentwp-settings__budget-fill';
+		if (budgetLimit > 0 && budgetRatio >= 1) {
+			budgetFillClass += ' agentwp-settings__budget-fill--limit';
+		} else if (budgetLimit > 0 && budgetRatio >= 0.8) {
+			budgetFillClass += ' agentwp-settings__budget-fill--warning';
+		}
+
+		var budgetNotice = null;
+		if (budgetLimit > 0 && budgetRatio >= 1) {
+			budgetNotice = {
+				status: 'error',
+				message: __('Monthly budget limit reached. Consider lowering usage or raising the limit.', 'agentwp'),
+			};
+		} else if (budgetLimit > 0 && budgetRatio >= 0.8) {
+			budgetNotice = {
+				status: 'warning',
+				message: __('Approaching monthly budget limit. Usage is above 80%.', 'agentwp'),
+			};
+		}
+
 		return el(
 			'div',
 			{ className: 'agentwp-settings' },
@@ -458,6 +552,17 @@
 							className: 'agentwp-settings__notice',
 						},
 						notice.message
+				  )
+				: null,
+			budgetNotice
+				? el(
+						Notice,
+						{
+							status: budgetNotice.status,
+							isDismissible: false,
+							className: 'agentwp-settings__notice',
+						},
+						budgetNotice.message
 				  )
 				: null,
 			el(
@@ -566,25 +671,93 @@
 						null,
 						el(
 							'div',
+							{ className: statusClassName },
+							el(
+								'div',
+								{ className: 'agentwp-settings__status-item' },
+								el('p', { className: 'agentwp-settings__status-label' }, __('Session tokens used', 'agentwp')),
+								el('p', { className: 'agentwp-settings__status-value' }, formatNumber(sessionTokens))
+							),
+							el(
+								'div',
+								{ className: 'agentwp-settings__status-item' },
+								el('p', { className: 'agentwp-settings__status-label' }, __('Session cost', 'agentwp')),
+								el('p', { className: 'agentwp-settings__status-value' }, formatCurrency(sessionCost))
+							),
+							el(
+								'div',
+								{ className: 'agentwp-settings__status-item' },
+								el('p', { className: 'agentwp-settings__status-label' }, __('Account-wide monthly total', 'agentwp')),
+								el('p', { className: 'agentwp-settings__status-value' }, formatCurrency(usage.total_cost_usd)),
+								el('p', { className: 'agentwp-settings__status-sub' }, formatNumber(usage.total_tokens) + ' ' + __('tokens', 'agentwp'))
+							)
+						),
+						el(
+							'div',
 							{ className: 'agentwp-settings__stats' },
 							el(
 								'div',
 								{ className: 'agentwp-settings__stat' },
-								el('p', { className: 'agentwp-settings__stat-label' }, __('Total commands this month', 'agentwp')),
-								el('p', { className: 'agentwp-settings__stat-value' }, usage.total_commands_month)
+								el('p', { className: 'agentwp-settings__stat-label' }, __('Monthly tokens', 'agentwp')),
+								el('p', { className: 'agentwp-settings__stat-value' }, formatNumber(usage.total_tokens))
 							),
 							el(
 								'div',
 								{ className: 'agentwp-settings__stat' },
-								el('p', { className: 'agentwp-settings__stat-label' }, __('Estimated cost', 'agentwp')),
-								el('p', { className: 'agentwp-settings__stat-value' }, formatCurrency(usage.estimated_cost))
+								el('p', { className: 'agentwp-settings__stat-label' }, __('Monthly cost', 'agentwp')),
+								el('p', { className: 'agentwp-settings__stat-value' }, formatCurrency(usage.total_cost_usd))
 							),
 							el(
 								'div',
 								{ className: 'agentwp-settings__stat' },
-								el('p', { className: 'agentwp-settings__stat-label' }, __('Last sync time', 'agentwp')),
-								el('p', { className: 'agentwp-settings__stat-value' }, formatDate(usage.last_sync))
+								el('p', { className: 'agentwp-settings__stat-label' }, __('Last updated', 'agentwp')),
+								el('p', { className: 'agentwp-settings__stat-value' }, formatDate(usage.period_end))
 							)
+						),
+						el(
+							'div',
+							{ className: 'agentwp-settings__budget' },
+							el(TextControl, {
+								label: __('Monthly budget limit (USD)', 'agentwp'),
+								type: 'number',
+								min: 0,
+								step: '0.01',
+								value: settings.budget_limit,
+								onChange: function (value) {
+									var nextValue = parseFloat(value);
+									if (!Number.isFinite(nextValue) || nextValue < 0) {
+										nextValue = 0;
+									}
+									updateSetting('budget_limit', nextValue);
+								},
+								help: __('Set a monthly budget to trigger usage warnings at 80% and 100%.', 'agentwp'),
+							}),
+							budgetLimit > 0
+								? el(
+										'div',
+										null,
+										el(
+											'div',
+											{ className: 'agentwp-settings__budget-bar' },
+											el('div', {
+												className: budgetFillClass,
+												style: { width: budgetPercent + '%' },
+											})
+										),
+										el(
+											'p',
+											{ className: 'agentwp-settings__budget-meta' },
+											formatCurrency(usage.total_cost_usd) +
+												' ' +
+												__('of', 'agentwp') +
+												' ' +
+												formatCurrency(budgetLimit) +
+												' (' +
+												budgetPercent +
+												'%)'
+										)
+								  )
+								: null
 						),
 						el(
 							'div',
