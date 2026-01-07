@@ -50,11 +50,12 @@ export const resolveTheme = (preference, prefersDark) => {
   return systemTheme;
 };
 
-export const applyTheme = (theme) => {
-  if (typeof document === 'undefined') {
+export const applyTheme = (theme, target = null) => {
+  const root =
+    target || (typeof document !== 'undefined' ? document.documentElement : null);
+  if (!root) {
     return;
   }
-  const root = document.documentElement;
   root.dataset.theme = theme;
   root.style.colorScheme = theme;
 };

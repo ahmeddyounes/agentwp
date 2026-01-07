@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import ReactMarkdown from 'react-markdown';
 import HistoryPanel from '../components/HistoryPanel.jsx';
@@ -347,6 +348,29 @@ const isEditableTarget = (target) => {
     return true;
   }
   return Boolean(target.closest('[contenteditable="true"]'));
+};
+
+const getComposedTarget = (event) => {
+  if (!event) {
+    return null;
+  }
+  if (typeof event.composedPath === 'function') {
+    const path = event.composedPath();
+    if (path && path.length > 0) {
+      return path[0];
+    }
+  }
+  return event.target;
+};
+
+const getActiveElement = (shadowRoot) => {
+  if (shadowRoot && shadowRoot.activeElement) {
+    return shadowRoot.activeElement;
+  }
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  return document.activeElement;
 };
 
 const getRestEndpoint = () => {
@@ -850,7 +874,7 @@ const ClipboardButton = ({ label, getPayload, disabled }) => {
   );
 };
 
-export default function App() {
+export default function App({ shadowRoot = null, portalRoot = null, themeTarget = null }) {
   const [isOpen, setIsOpen] = useState(getInitialOpenState);
   const [prompt, setPrompt] = useState('');
   const [searchResults, setSearchResults] = useState(getEmptySearchResults);
@@ -901,6 +925,10 @@ export default function App() {
     () => resolveTheme(themePreference, prefersDark),
     [prefersDark, themePreference]
   );
+  const themeRoot =
+    themeTarget ||
+    (shadowRoot ? shadowRoot.host : null) ||
+    (typeof document !== 'undefined' ? document.documentElement : null);
   const flatSuggestions = useMemo(() => {
     const items = [];
     SEARCH_TYPES.forEach((type) => {
@@ -930,27 +958,26 @@ export default function App() {
   );
 
   useLayoutEffect(() => {
-    if (typeof document === 'undefined') {
+    if (!themeRoot) {
       return undefined;
     }
-    const root = document.documentElement;
     if (hasAppliedThemeRef.current) {
-      root.classList.add('awp-theme-transition');
+      themeRoot.classList.add('awp-theme-transition');
       if (themeTransitionRef.current) {
         window.clearTimeout(themeTransitionRef.current);
       }
       themeTransitionRef.current = window.setTimeout(() => {
-        root.classList.remove('awp-theme-transition');
+        themeRoot.classList.remove('awp-theme-transition');
       }, THEME_TRANSITION_MS);
     }
-    applyTheme(resolvedTheme);
+    applyTheme(resolvedTheme, themeRoot);
     hasAppliedThemeRef.current = true;
     return () => {
       if (themeTransitionRef.current) {
         window.clearTimeout(themeTransitionRef.current);
       }
     };
-  }, [resolvedTheme]);
+  }, [resolvedTheme, themeRoot]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1392,11 +1419,12 @@ export default function App() {
   }, []);
 
   const openModal = useCallback(() => {
-    if (typeof document !== 'undefined') {
-      lastActiveRef.current = document.activeElement;
+    const activeElement = getActiveElement(shadowRoot);
+    if (activeElement) {
+      lastActiveRef.current = activeElement;
     }
     setIsOpen(true);
-  }, []);
+  }, [shadowRoot]);
 
   const closeModal = useCallback(() => {
     abortActiveRequest();
@@ -1671,7 +1699,8 @@ export default function App() {
       if (event.key.toLowerCase() !== 'k') {
         return;
       }
-      if (event.defaultPrevented || isEditableTarget(event.target)) {
+      const target = getComposedTarget(event);
+      if (event.defaultPrevented || isEditableTarget(target)) {
         return;
       }
       event.preventDefault();
@@ -1723,8 +1752,8 @@ export default function App() {
       }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      const activeElement = document.activeElement;
-      if (!modalRef.current?.contains(activeElement)) {
+      const activeElement = getActiveElement(shadowRoot);
+      if (!activeElement || !modalRef.current?.contains(activeElement)) {
         event.preventDefault();
         if (event.shiftKey) {
           last.focus();
@@ -1746,7 +1775,7 @@ export default function App() {
 
     document.addEventListener('keydown', handleKeydown);
     return () => document.removeEventListener('keydown', handleKeydown);
-  }, [closeModal, isOpen]);
+  }, [closeModal, isOpen, shadowRoot]);
 
   useEffect(() => {
     return () => {
@@ -2273,7 +2302,7 @@ export default function App() {
   const monthlyUsageLabel = usageLoading ? 'Updating...' : formatUsageCost(usageSummary.totalCostUsd);
 
   return (
-    <div className="min-h-screen text-slate-100">
+    <div className="agentwp-app min-h-screen text-slate-100">
       <main
         className="relative mx-auto flex min-h-screen max-w-5xl flex-col px-6 py-16 animate-fade-in motion-reduce:animate-none"
         aria-hidden={isOpen}
@@ -2393,7 +2422,8 @@ export default function App() {
         </section>
       </main>
 
-      {isOpen && (
+      {isOpen && portalRoot
+        ? createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-10 backdrop-blur-sm animate-fade-in motion-reduce:animate-none"
           role="presentation"
@@ -2912,8 +2942,10 @@ export default function App() {
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+            portalRoot
+          )
+        : null}
     </div>
   );
 }

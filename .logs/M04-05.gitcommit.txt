@@ -1,0 +1,10 @@
+[main 0c6c51d] M04-05: implement
+ 15 files changed, 83218 insertions(+), 48 deletions(-)
+ create mode 100644 .logs/M04-04.gitcommit.txt
+ create mode 100644 .logs/M04-05.codex.impl.last.md
+ create mode 100644 .logs/M04-05.codex.impl.raw.txt
+ create mode 100644 .plans/M04-05.md
+ create mode 100644 .t2/handoff/M04-05.md
+ create mode 100644 react/components/ErrorBoundary.jsx
+ create mode 100644 src/Error/Handler.php
+

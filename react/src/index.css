@@ -1,11 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
+:host {
   color-scheme: light;
+  display: block;
+  font-family: system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
   --awp-bg-primary: #f8fafc;
   --awp-bg-secondary: #f1f5f9;
   --awp-text-primary: #0f172a;
@@ -121,8 +122,7 @@
   --awp-chart-canvas: #f1f5f9;
 }
 
-:root[data-theme='dark'],
-[data-theme='dark'] {
+:host([data-theme='dark']) {
   color-scheme: dark;
   --awp-bg-primary: #05070c;
   --awp-bg-secondary: #0a1120;
@@ -240,7 +240,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
+  :host(:not([data-theme])) {
     color-scheme: dark;
     --awp-bg-primary: #05070c;
     --awp-bg-secondary: #0a1120;
@@ -359,7 +359,7 @@
 }
 
 @media (prefers-contrast: more) {
-  :root {
+  :host {
     --awp-text-primary: #0b1120;
     --awp-text-secondary: #1e293b;
     --awp-border: rgba(51, 65, 85, 0.75);
@@ -370,8 +370,7 @@
     --awp-chart-grid: rgba(51, 65, 85, 0.6);
   }
 
-  :root[data-theme='dark'],
-  [data-theme='dark'] {
+  :host([data-theme='dark']) {
     --awp-text-primary: #f8fafc;
     --awp-text-secondary: #e2e8f0;
     --awp-border: rgba(226, 232, 240, 0.6);
@@ -384,7 +383,7 @@
 }
 
 @media (prefers-contrast: more) and (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
+  :host(:not([data-theme])) {
     --awp-text-primary: #f8fafc;
     --awp-text-secondary: #e2e8f0;
     --awp-border: rgba(226, 232, 240, 0.6);
@@ -396,32 +395,26 @@
   }
 }
 
-:root.awp-theme-transition,
-:root.awp-theme-transition * {
+:host(.awp-theme-transition),
+:host(.awp-theme-transition) * {
   transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease,
     box-shadow 150ms ease, fill 150ms ease, stroke 150ms ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root.awp-theme-transition,
-  :root.awp-theme-transition * {
+  :host(.awp-theme-transition),
+  :host(.awp-theme-transition) * {
     transition: none;
   }
 }
 
-body {
-  margin: 0;
+.agentwp-app {
   min-height: 100vh;
-  font-family: "Space Grotesk", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
   background-color: var(--awp-body-bg);
   background-image: var(--awp-body-gradient-1), var(--awp-body-gradient-2),
     var(--awp-body-gradient-3), var(--awp-body-gradient-4);
   background-attachment: fixed;
   color: var(--awp-text-primary);
-}
-
-#root {
-  min-height: 100vh;
 }
 
 .agentwp-markdown {

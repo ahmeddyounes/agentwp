@@ -6,8 +6,15 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Space Grotesk"', '"Manrope"', 'system-ui', 'sans-serif'],
-        display: ['"Space Grotesk"', '"Manrope"', 'system-ui', 'sans-serif'],
+        sans: ['system-ui', '-apple-system', '"Segoe UI"', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+        display: [
+          'system-ui',
+          '-apple-system',
+          '"Segoe UI"',
+          '"Helvetica Neue"',
+          'Arial',
+          'sans-serif',
+        ],
       },
       colors: {
         white: withAlpha('--awp-white'),
