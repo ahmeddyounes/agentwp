@@ -14,6 +14,7 @@ const ADMIN_TRIGGER_SELECTORS = [
   '#agentwp-command-deck',
 ];
 const REST_PATH = '/agentwp/v1/intent';
+const SEARCH_PATH = '/agentwp/v1/search';
 const FOCUSABLE_SELECTORS = [
   'a[href]',
   'button:not([disabled])',
@@ -27,6 +28,71 @@ const PERIOD_OPTIONS = [
   { value: '30d', label: 'Last 30 days' },
   { value: '90d', label: 'Last 90 days' },
 ];
+const SEARCH_TYPES = ['products', 'orders', 'customers'];
+const TYPEAHEAD_CONFIG = {
+  products: {
+    label: 'Products',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+        <path
+          d="M4 5h9l7 7-8 8-8-8V5z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinejoin="round"
+        />
+        <circle cx="8.5" cy="9.5" r="1.3" fill="currentColor" />
+      </svg>
+    ),
+  },
+  orders: {
+    label: 'Orders',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+        <path
+          d="M7 4h10v16l-3-2-2 2-2-2-3 2z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M9 9h6M9 12h6"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
+  },
+  customers: {
+    label: 'Customers',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+        <circle
+          cx="12"
+          cy="8"
+          r="3.4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+        />
+        <path
+          d="M4 20c1.8-3.6 5-5.4 8-5.4s6.2 1.8 8 5.4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
+  },
+};
+const getEmptySearchResults = () =>
+  SEARCH_TYPES.reduce((accumulator, type) => {
+    accumulator[type] = [];
+    return accumulator;
+  }, {});
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -177,6 +243,17 @@ const getRestEndpoint = () => {
   return `${root.replace(/\/$/, '')}${REST_PATH}`;
 };
 
+const getSearchEndpoint = () => {
+  if (typeof window === 'undefined') {
+    return SEARCH_PATH;
+  }
+  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
+  if (!root) {
+    return SEARCH_PATH;
+  }
+  return `${root.replace(/\/$/, '')}${SEARCH_PATH}`;
+};
+
 const getRestNonce = () => {
   if (typeof window === 'undefined') {
     return null;
@@ -247,6 +324,44 @@ const buildMailtoLink = (subject, body) => {
     parts.push(`body=${encodeURIComponent(normalizedBody)}`);
   }
   return `mailto:${parts.length ? `?${parts.join('&')}` : ''}`;
+};
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const getHighlightTokens = (query) => {
+  if (!query) {
+    return [];
+  }
+  return query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 6);
+};
+
+const renderHighlightedText = (text, query) => {
+  if (!text) {
+    return '';
+  }
+  const tokens = getHighlightTokens(query);
+  if (!tokens.length) {
+    return text;
+  }
+  const pattern = new RegExp(`(${tokens.map(escapeRegExp).join('|')})`, 'ig');
+  return text.split(pattern).map((part, index) => {
+    if (tokens.includes(part.toLowerCase())) {
+      return (
+        <mark
+          key={`${part}-${index}`}
+          className="rounded bg-sky-500/30 px-1 text-sky-100"
+        >
+          {part}
+        </mark>
+      );
+    }
+    return part;
+  });
 };
 
 const fallbackCopyToClipboard = ({ text, html }) => {
@@ -386,6 +501,11 @@ const ClipboardButton = ({ label, getPayload, disabled }) => {
 export default function App() {
   const [isOpen, setIsOpen] = useState(getInitialOpenState);
   const [prompt, setPrompt] = useState('');
+  const [searchResults, setSearchResults] = useState(getEmptySearchResults);
+  const [isTypeaheadOpen, setIsTypeaheadOpen] = useState(false);
+  const [isTypeaheadLoading, setIsTypeaheadLoading] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const [isPromptFocused, setIsPromptFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -400,9 +520,32 @@ export default function App() {
   const responseHtmlRef = useRef(null);
   const lastActiveRef = useRef(null);
   const requestControllerRef = useRef(null);
+  const searchControllerRef = useRef(null);
+  const searchTimeoutRef = useRef(null);
+  const promptBlurTimeoutRef = useRef(null);
+  const suppressSearchRef = useRef(false);
   const chartRef = useRef(null);
   const exportTimerRef = useRef(null);
   const prefersDark = usePrefersDark();
+  const flatSuggestions = useMemo(() => {
+    const items = [];
+    SEARCH_TYPES.forEach((type) => {
+      const list = Array.isArray(searchResults[type]) ? searchResults[type] : [];
+      list.forEach((item) => {
+        items.push({ ...item, type });
+      });
+    });
+    return items;
+  }, [searchResults]);
+  const suggestionGroups = useMemo(() => {
+    let cursor = 0;
+    return SEARCH_TYPES.map((type) => {
+      const list = Array.isArray(searchResults[type]) ? searchResults[type] : [];
+      const items = list.map((item) => ({ ...item, type, _index: cursor++ }));
+      return { type, items };
+    });
+  }, [searchResults]);
+  const hasSuggestions = flatSuggestions.length > 0;
 
   const abortActiveRequest = useCallback(() => {
     if (requestControllerRef.current) {
@@ -410,6 +553,118 @@ export default function App() {
       requestControllerRef.current = null;
     }
   }, []);
+
+  const abortSearchRequest = useCallback(() => {
+    if (searchControllerRef.current) {
+      searchControllerRef.current.abort();
+      searchControllerRef.current = null;
+    }
+  }, []);
+
+  const resetTypeahead = useCallback(() => {
+    setSearchResults(getEmptySearchResults());
+    setIsTypeaheadLoading(false);
+    setActiveSuggestionIndex(-1);
+  }, []);
+
+  const handleSuggestionSelect = useCallback(
+    (suggestion) => {
+      if (!suggestion) {
+        return;
+      }
+      suppressSearchRef.current = true;
+      abortSearchRequest();
+      setIsTypeaheadLoading(false);
+      if (searchTimeoutRef.current) {
+        window.clearTimeout(searchTimeoutRef.current);
+      }
+      const nextValue = suggestion.query || suggestion.primary || '';
+      setPrompt(nextValue);
+      setIsTypeaheadOpen(false);
+      setActiveSuggestionIndex(-1);
+    },
+    [abortSearchRequest]
+  );
+
+  const handlePromptFocus = useCallback(() => {
+    if (promptBlurTimeoutRef.current) {
+      window.clearTimeout(promptBlurTimeoutRef.current);
+    }
+    setIsPromptFocused(true);
+    if (prompt.trim()) {
+      setIsTypeaheadOpen(true);
+    }
+  }, [prompt]);
+
+  const handlePromptBlur = useCallback(() => {
+    if (promptBlurTimeoutRef.current) {
+      window.clearTimeout(promptBlurTimeoutRef.current);
+    }
+    promptBlurTimeoutRef.current = window.setTimeout(() => {
+      setIsPromptFocused(false);
+      setIsTypeaheadOpen(false);
+      setActiveSuggestionIndex(-1);
+    }, 120);
+  }, []);
+
+  const handlePromptChange = useCallback((event) => {
+    const nextValue = event.target.value;
+    setPrompt(nextValue);
+    if (nextValue.trim()) {
+      setIsTypeaheadOpen(true);
+    }
+  }, []);
+
+  const handlePromptKeyDown = useCallback(
+    (event) => {
+      if (!isTypeaheadOpen || !hasSuggestions) {
+        return;
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setActiveSuggestionIndex((prev) => {
+          const next = prev + 1;
+          if (next >= flatSuggestions.length) {
+            return 0;
+          }
+          return next;
+        });
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setActiveSuggestionIndex((prev) => {
+          const next = prev - 1;
+          if (next < 0) {
+            return flatSuggestions.length - 1;
+          }
+          return next;
+        });
+        return;
+      }
+
+      if (event.key === 'Enter' && activeSuggestionIndex >= 0) {
+        event.preventDefault();
+        handleSuggestionSelect(flatSuggestions[activeSuggestionIndex]);
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        setIsTypeaheadOpen(false);
+        setActiveSuggestionIndex(-1);
+      }
+    },
+    [
+      activeSuggestionIndex,
+      flatSuggestions,
+      handleSuggestionSelect,
+      hasSuggestions,
+      isTypeaheadOpen,
+    ]
+  );
 
   const addDraftToHistory = useCallback((draft) => {
     if (!draft?.markdown) {
@@ -462,6 +717,81 @@ export default function App() {
     },
     [abortActiveRequest]
   );
+
+  useEffect(() => {
+    const trimmedPrompt = prompt.trim();
+
+    if (suppressSearchRef.current) {
+      suppressSearchRef.current = false;
+      return;
+    }
+
+    if (!trimmedPrompt || !isPromptFocused) {
+      abortSearchRequest();
+      resetTypeahead();
+      setIsTypeaheadOpen(false);
+      return;
+    }
+
+    if (searchTimeoutRef.current) {
+      window.clearTimeout(searchTimeoutRef.current);
+    }
+
+    setIsTypeaheadLoading(true);
+    searchTimeoutRef.current = window.setTimeout(async () => {
+      abortSearchRequest();
+      const controller = new AbortController();
+      searchControllerRef.current = controller;
+
+      try {
+        const headers = {};
+        const restNonce = getRestNonce();
+        if (restNonce) {
+          headers['X-WP-Nonce'] = restNonce;
+        }
+
+        const endpoint = getSearchEndpoint();
+        const url = new URL(endpoint, window.location.origin);
+        url.searchParams.set('q', trimmedPrompt);
+        url.searchParams.set('types', SEARCH_TYPES.join(','));
+
+        const response = await fetch(url.toString(), {
+          method: 'GET',
+          headers,
+          credentials: 'same-origin',
+          signal: controller.signal,
+        });
+
+        const data = await response.json().catch(() => null);
+        if (!response.ok || data?.success === false) {
+          throw new Error(data?.error?.message || data?.message || 'Search unavailable.');
+        }
+
+        const payload = data?.data?.results || {};
+        const nextResults = getEmptySearchResults();
+        SEARCH_TYPES.forEach((type) => {
+          nextResults[type] = Array.isArray(payload[type]) ? payload[type] : [];
+        });
+
+        setSearchResults(nextResults);
+        setActiveSuggestionIndex(-1);
+        setIsTypeaheadOpen(true);
+      } catch (error) {
+        if (error?.name === 'AbortError') {
+          return;
+        }
+        setSearchResults(getEmptySearchResults());
+      } finally {
+        setIsTypeaheadLoading(false);
+      }
+    }, 150);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        window.clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [abortSearchRequest, isPromptFocused, prompt, resetTypeahead]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -638,6 +968,18 @@ export default function App() {
 
   useEffect(() => {
     return () => {
+      abortSearchRequest();
+      if (searchTimeoutRef.current) {
+        window.clearTimeout(searchTimeoutRef.current);
+      }
+      if (promptBlurTimeoutRef.current) {
+        window.clearTimeout(promptBlurTimeoutRef.current);
+      }
+    };
+  }, [abortSearchRequest]);
+
+  useEffect(() => {
+    return () => {
       if (exportTimerRef.current) {
         window.clearTimeout(exportTimerRef.current);
       }
@@ -651,6 +993,8 @@ export default function App() {
       return;
     }
 
+    setIsTypeaheadOpen(false);
+    setActiveSuggestionIndex(-1);
     abortActiveRequest();
     const controller = new AbortController();
     requestControllerRef.current = controller;
@@ -752,6 +1096,13 @@ export default function App() {
   const hasDraft = Boolean(response && !errorMessage);
   const resolvedBody = draftBody || stripMarkdownToPlainText(response);
   const mailtoHref = hasDraft ? buildMailtoLink(draftSubject, resolvedBody) : '#';
+  const showTypeahead =
+    isTypeaheadOpen &&
+    isPromptFocused &&
+    prompt.trim().length > 0 &&
+    (isTypeaheadLoading || hasSuggestions);
+  const activeSuggestionId =
+    activeSuggestionIndex >= 0 ? `agentwp-suggestion-${activeSuggestionIndex}` : undefined;
   const exportLabel =
     exportStatus === 'exporting' ? 'Exporting...' : exportStatus === 'exported' ? 'Exported' : 'Export PNG';
   const periodData = useMemo(
@@ -1110,23 +1461,92 @@ export default function App() {
                 <label htmlFor="agentwp-prompt" className="sr-only">
                   Ask AgentWP anything
                 </label>
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/40 px-4 py-3 focus-within:border-sky-400/80">
-                  <input
-                    id="agentwp-prompt"
-                    ref={inputRef}
-                    type="text"
-                    value={prompt}
-                    onChange={(event) => setPrompt(event.target.value)}
-                    placeholder="Ask AgentWP anything..."
-                    className="flex-1 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
-                  />
-                  <button
-                    type="submit"
-                    disabled={loading || !prompt.trim()}
-                    className="inline-flex items-center justify-center rounded-full border border-slate-600/70 bg-slate-900/80 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:border-slate-400/80 hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {loading ? 'Sending' : 'Send'}
-                  </button>
+                <div className="relative">
+                  <div className="flex items-center gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/40 px-4 py-3 focus-within:border-sky-400/80">
+                    <input
+                      id="agentwp-prompt"
+                      ref={inputRef}
+                      type="text"
+                      value={prompt}
+                      onChange={handlePromptChange}
+                      onKeyDown={handlePromptKeyDown}
+                      onFocus={handlePromptFocus}
+                      onBlur={handlePromptBlur}
+                      aria-expanded={showTypeahead}
+                      aria-controls="agentwp-typeahead"
+                      aria-activedescendant={activeSuggestionId}
+                      placeholder="Ask AgentWP anything..."
+                      className="flex-1 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={loading || !prompt.trim()}
+                      className="inline-flex items-center justify-center rounded-full border border-slate-600/70 bg-slate-900/80 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:border-slate-400/80 hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {loading ? 'Sending' : 'Send'}
+                    </button>
+                  </div>
+
+                  {showTypeahead && (
+                    <div
+                      id="agentwp-typeahead"
+                      role="listbox"
+                      className="absolute left-0 right-0 z-30 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-slate-700/70 bg-slate-950/95 p-3 shadow-xl backdrop-blur"
+                    >
+                      {isTypeaheadLoading && (
+                        <div className="px-2 pb-2 text-xs uppercase tracking-[0.3em] text-slate-500">
+                          Searching...
+                        </div>
+                      )}
+                      {suggestionGroups.map(({ type, items }) => {
+                        if (!items.length) {
+                          return null;
+                        }
+                        const config = TYPEAHEAD_CONFIG[type];
+                        return (
+                          <div key={type} className="pb-3 last:pb-0">
+                            <div className="flex items-center gap-2 px-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+                              <span className="text-slate-400">{config?.label || type}</span>
+                            </div>
+                            <div className="mt-2 space-y-1">
+                              {items.map((item) => {
+                                const isActive = item._index === activeSuggestionIndex;
+                                return (
+                                  <button
+                                    key={`${item.type}-${item.id}-${item._index}`}
+                                    id={`agentwp-suggestion-${item._index}`}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={isActive}
+                                    onMouseDown={(event) => event.preventDefault()}
+                                    onMouseEnter={() => setActiveSuggestionIndex(item._index)}
+                                    onClick={() => handleSuggestionSelect(item)}
+                                    className={`flex w-full items-start gap-3 rounded-xl border px-3 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+                                      isActive
+                                        ? 'border-sky-400/70 bg-slate-900/80 text-white'
+                                        : 'border-transparent bg-slate-950/30 text-slate-200 hover:border-slate-600/60 hover:bg-slate-900/70'
+                                    }`}
+                                  >
+                                    <span className="mt-1 text-slate-400">{config?.icon}</span>
+                                    <span className="flex-1">
+                                      <span className="block text-sm font-semibold text-slate-100">
+                                        {renderHighlightedText(item.primary || '', prompt)}
+                                      </span>
+                                      {item.secondary ? (
+                                        <span className="block text-xs text-slate-400">
+                                          {renderHighlightedText(item.secondary, prompt)}
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </form>
 

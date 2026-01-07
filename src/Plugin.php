@@ -54,6 +54,10 @@ class Plugin {
 		add_option( self::OPTION_DRAFT_TTL, 10, '', false );
 		add_option( self::OPTION_API_KEY, '', '', false );
 		add_option( self::OPTION_API_KEY_LAST4, '', '', false );
+
+		if ( class_exists( 'AgentWP\\Search\\Index' ) ) {
+			Search\Index::activate();
+		}
 	}
 
 	/**
@@ -74,6 +78,10 @@ class Plugin {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 		add_filter( 'rest_post_dispatch', array( $this, 'format_rest_response' ), 10, 3 );
+
+		if ( class_exists( 'AgentWP\\Search\\Index' ) ) {
+			Search\Index::init();
+		}
 	}
 
 	/**
@@ -192,6 +200,11 @@ class Plugin {
 
 		if ( class_exists( 'AgentWP\\Rest\\HealthController' ) ) {
 			$controller = new Rest\HealthController();
+			$controller->register_routes();
+		}
+
+		if ( class_exists( 'AgentWP\\Rest\\SearchController' ) ) {
+			$controller = new Rest\SearchController();
 			$controller->register_routes();
 		}
 	}

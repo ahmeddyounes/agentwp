@@ -1,0 +1,8 @@
+[main 65939e8] M03-06: implement
+ 10 files changed, 29769 insertions(+), 16 deletions(-)
+ create mode 100644 .logs/M03-05.gitcommit.txt
+ create mode 100644 .logs/M03-06.codex.impl.last.md
+ create mode 100644 .logs/M03-06.codex.impl.raw.txt
+ create mode 100644 .plans/M03-06.md
+ create mode 100644 .t2/handoff/M03-06.md
+
