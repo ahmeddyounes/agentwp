@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import ReactMarkdown from 'react-markdown';
@@ -51,6 +59,37 @@ const PERIOD_OPTIONS = [
 const SEARCH_TYPES = ['products', 'orders', 'customers'];
 const THEME_TRANSITION_MS = 150;
 const OFFLINE_CACHE_LIMIT = 3;
+const CHART_FALLBACK_BARS = [36, 62, 48, 84, 56, 74];
+const ChartPlaceholderCard = ({ title }) => (
+  <div className="rounded-2xl border border-slate-800/80 bg-slate-950/40 px-4 py-4">
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <p className="text-sm font-semibold text-white">{title}</p>
+        <p className="text-xs text-slate-500">Loading chart...</p>
+      </div>
+      <div
+        className="h-8 w-20 rounded-full border border-slate-700/60 bg-slate-900/60"
+        aria-hidden="true"
+      />
+    </div>
+    <div className="mt-4 agentwp-card__chart-placeholder">
+      {CHART_FALLBACK_BARS.map((height, index) => (
+        <div
+          key={`${title}-${index}`}
+          className="agentwp-card__chart-bar"
+          style={{ height: `${height}px` }}
+        />
+      ))}
+    </div>
+  </div>
+);
+const ChartGridFallback = () => (
+  <div className="mt-4 grid gap-4">
+    <ChartPlaceholderCard title="Sales trend" />
+    <ChartPlaceholderCard title="Period comparison" />
+    <ChartPlaceholderCard title="Category breakdown" />
+  </div>
+);
 const TYPEAHEAD_CONFIG = {
   products: {
     label: 'Products',
@@ -2796,64 +2835,66 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
                     </select>
                   </div>
                 </div>
-                <div className="mt-4 grid gap-4">
-                  <ChartCard
-                    title="Sales trend"
-                    subtitle="Daily revenue with previous period overlay"
-                    metric={formatCurrencyValue(totalRevenue)}
-                    trend={trendLabel}
-                    theme={resolvedTheme}
-                    type="line"
-                    data={trendChartData}
-                    options={trendChartOptions}
-                    meta={
-                      <>
-                        <span>Revenue</span>
-                        <span>{periodData.label}</span>
-                      </>
-                    }
-                    table={trendTable}
-                    exportFilename={`agentwp-sales-trend-${selectedPeriod}.png`}
-                    valueFormatter={formatCurrencyValue}
-                    height={240}
-                  />
-                  <ChartCard
-                    title="Period comparison"
-                    subtitle="This period vs last period metrics"
-                    theme={resolvedTheme}
-                    type="bar"
-                    data={comparisonChartData}
-                    options={comparisonChartOptions}
-                    meta={
-                      <>
-                        <span>Totals</span>
-                        <span>{periodData.label}</span>
-                      </>
-                    }
-                    table={comparisonTable}
-                    exportFilename={`agentwp-comparison-${selectedPeriod}.png`}
-                    valueFormatter={formatCurrencyValue}
-                    height={200}
-                  />
-                  <ChartCard
-                    title="Category breakdown"
-                    subtitle="Revenue by product category"
-                    theme={resolvedTheme}
-                    type="doughnut"
-                    data={categoryChartData}
-                    options={categoryChartOptions}
-                    meta={
-                      <>
-                        <span>Revenue mix</span>
-                        <span>{periodData.label}</span>
-                      </>
-                    }
-                    table={categoryTable}
-                    exportFilename={`agentwp-category-${selectedPeriod}.png`}
-                    valueFormatter={formatCurrencyValue}
-                    height={220}
-                  />
-                </div>
+                <Suspense fallback={<ChartGridFallback />}>
+                  <div className="mt-4 grid gap-4">
+                    <ChartCard
+                      title="Sales trend"
+                      subtitle="Daily revenue with previous period overlay"
+                      metric={formatCurrencyValue(totalRevenue)}
+                      trend={trendLabel}
+                      theme={resolvedTheme}
+                      type="line"
+                      data={trendChartData}
+                      options={trendChartOptions}
+                      meta={
+                        <>
+                          <span>Revenue</span>
+                          <span>{periodData.label}</span>
+                        </>
+                      }
+                      table={trendTable}
+                      exportFilename={`agentwp-sales-trend-${selectedPeriod}.png`}
+                      valueFormatter={formatCurrencyValue}
+                      height={240}
+                    />
+                    <ChartCard
+                      title="Period comparison"
+                      subtitle="This period vs last period metrics"
+                      theme={resolvedTheme}
+                      type="bar"
+                      data={comparisonChartData}
+                      options={comparisonChartOptions}
+                      meta={
+                        <>
+                          <span>Totals</span>
+                          <span>{periodData.label}</span>
+                        </>
+                      }
+                      table={comparisonTable}
+                      exportFilename={`agentwp-comparison-${selectedPeriod}.png`}
+                      valueFormatter={formatCurrencyValue}
+                      height={200}
+                    />
+                    <ChartCard
+                      title="Category breakdown"
+                      subtitle="Revenue by product category"
+                      theme={resolvedTheme}
+                      type="doughnut"
+                      data={categoryChartData}
+                      options={categoryChartOptions}
+                      meta={
+                        <>
+                          <span>Revenue mix</span>
+                          <span>{periodData.label}</span>
+                        </>
+                      }
+                      table={categoryTable}
+                      exportFilename={`agentwp-category-${selectedPeriod}.png`}
+                      valueFormatter={formatCurrencyValue}
+                      height={220}
+                    />
+                  </div>
+                </Suspense>
               </div>
 
               <details className="rounded-2xl border border-slate-800/80 bg-slate-950/40 px-4 py-3 text-sm text-slate-300">

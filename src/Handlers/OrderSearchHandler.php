@@ -16,6 +16,9 @@ use Exception;
 class OrderSearchHandler {
 	const DEFAULT_LIMIT = 10;
 	const CACHE_TTL     = 3600;
+	const MAX_LIMIT     = 50;
+	const OBJECT_CACHE_GROUP = 'agentwp_order_search';
+	const OBJECT_CACHE_TTL   = 300;
 
 	/**
 	 * Handle an order search request.
@@ -81,6 +84,12 @@ class OrderSearchHandler {
 		}
 
 		if ( 0 === $normalized['limit'] ) {
+			$normalized['limit'] = self::DEFAULT_LIMIT;
+		}
+		if ( $normalized['limit'] > self::MAX_LIMIT ) {
+			$normalized['limit'] = self::MAX_LIMIT;
+		}
+		if ( $normalized['limit'] <= 0 ) {
 			$normalized['limit'] = self::DEFAULT_LIMIT;
 		}
 
@@ -212,6 +221,11 @@ class OrderSearchHandler {
 		}
 
 		if ( $normalized['order_id'] > 0 ) {
+			$cached = $this->read_order_cache( $normalized['order_id'] );
+			if ( $cached ) {
+				return array( $cached );
+			}
+
 			$order = wc_get_order( $normalized['order_id'] );
 			if ( $order ) {
 				return array( $this->format_order( $order ) );
@@ -224,6 +238,7 @@ class OrderSearchHandler {
 			'limit'   => $normalized['limit'],
 			'orderby' => $normalized['orderby'],
 			'order'   => $normalized['order'],
+			'return'  => 'ids',
 		);
 
 		if ( '' !== $normalized['status'] ) {
@@ -250,14 +265,21 @@ class OrderSearchHandler {
 			);
 		}
 
-		$orders = wc_get_orders( $query_args );
-		if ( ! is_array( $orders ) ) {
+		$order_ids = wc_get_orders( $query_args );
+		if ( ! is_array( $order_ids ) ) {
 			return array();
 		}
 
 		$results = array();
-		foreach ( $orders as $order ) {
-			if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
+		foreach ( $order_ids as $order_id ) {
+			$cached = $this->read_order_cache( $order_id );
+			if ( $cached ) {
+				$results[] = $cached;
+				continue;
+			}
+
+			$order = wc_get_order( $order_id );
+			if ( ! $order || ! method_exists( $order, 'get_id' ) ) {
 				continue;
 			}
 			$results[] = $this->format_order( $order );
@@ -285,11 +307,19 @@ class OrderSearchHandler {
 	 * @return array
 	 */
 	private function format_order( $order ) {
+		$order_id = $order && method_exists( $order, 'get_id' ) ? intval( $order->get_id() ) : 0;
+		if ( $order_id > 0 ) {
+			$cached = $this->read_order_cache( $order_id );
+			if ( $cached ) {
+				return $cached;
+			}
+		}
+
 		$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
 		$email        = $this->get_customer_email( $order );
 		$customer     = $this->get_customer_name( $order );
 
-		return array(
+		$summary = array(
 			'id'               => intval( $order->get_id() ),
 			'status'           => sanitize_text_field( $order->get_status() ),
 			'total'            => $order->get_total(),
@@ -299,6 +329,42 @@ class OrderSearchHandler {
 			'items_summary'    => $this->format_items_summary( $order ),
 			'shipping_address' => $this->format_shipping_address( $order ),
 		);
+
+		if ( $order_id > 0 ) {
+			$this->write_order_cache( $order_id, $summary );
+		}
+
+		return $summary;
+	}
+
+	/**
+	 * @param int $order_id Order ID.
+	 * @return array|null
+	 */
+	private function read_order_cache( $order_id ) {
+		if ( ! function_exists( 'wp_cache_get' ) ) {
+			return null;
+		}
+
+		$cached = wp_cache_get( $order_id, self::OBJECT_CACHE_GROUP );
+		if ( ! is_array( $cached ) ) {
+			return null;
+		}
+
+		return $cached;
+	}
+
+	/**
+	 * @param int   $order_id Order ID.
+	 * @param array $summary Summary payload.
+	 * @return void
+	 */
+	private function write_order_cache( $order_id, array $summary ) {
+		if ( ! function_exists( 'wp_cache_set' ) ) {
+			return;
+		}
+
+		wp_cache_set( $order_id, $summary, self::OBJECT_CACHE_GROUP, self::OBJECT_CACHE_TTL );
 	}
 
 	/**

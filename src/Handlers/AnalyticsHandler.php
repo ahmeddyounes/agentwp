@@ -14,7 +14,7 @@ use DateTimeZone;
 use Exception;
 
 class AnalyticsHandler {
-	const CACHE_TTL_TODAY   = 300;
+	const CACHE_TTL_TODAY   = 3600;
 	const CACHE_TTL_DEFAULT = 3600;
 	const TOP_LIMIT         = 5;
 

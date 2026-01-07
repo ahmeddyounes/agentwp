@@ -13,6 +13,9 @@ class CustomerHandler {
 	const RECENT_LIMIT = 5;
 	const TOP_LIMIT    = 5;
 	const ORDER_BATCH  = 200;
+	const MAX_ORDER_IDS = 2000;
+	const PRODUCT_CATEGORY_CACHE_GROUP = 'agentwp_product_categories';
+	const PRODUCT_CATEGORY_CACHE_TTL   = 3600;
 
 	/**
 	 * Handle a customer profile request.
@@ -31,7 +34,8 @@ class CustomerHandler {
 		}
 
 		$paid_statuses = $this->get_paid_statuses();
-		$order_ids     = $this->collect_order_ids( $normalized, $paid_statuses );
+		$order_data    = $this->collect_order_ids( $normalized, $paid_statuses );
+		$order_ids     = $order_data['ids'];
 		$metrics       = $this->build_metrics( $order_ids );
 		$recent_orders = $this->get_recent_orders( $normalized, $paid_statuses );
 
@@ -42,6 +46,9 @@ class CustomerHandler {
 				'health_thresholds' => $this->get_health_thresholds(),
 				'included_statuses' => $paid_statuses,
 				'recent_orders'     => $recent_orders,
+				'orders_truncated'  => $order_data['truncated'],
+				'orders_sampled'    => count( $order_ids ),
+				'orders_limit'      => self::MAX_ORDER_IDS,
 			)
 		);
 
@@ -76,6 +83,8 @@ class CustomerHandler {
 	 */
 	private function collect_order_ids( array $normalized, array $statuses ) {
 		$order_ids = array();
+		$truncated = false;
+		$remaining = self::MAX_ORDER_IDS;
 
 		if ( $normalized['customer_id'] > 0 ) {
 			$order_ids = array_merge(
@@ -84,19 +93,24 @@ class CustomerHandler {
 					array(
 						'customer' => $normalized['customer_id'],
 						'status'   => $statuses,
-					)
+					),
+					$remaining,
+					$truncated
 				)
 			);
+			$remaining = max( 0, self::MAX_ORDER_IDS - count( $order_ids ) );
 		}
 
-		if ( '' !== $normalized['email'] && 0 === $normalized['customer_id'] ) {
+		if ( '' !== $normalized['email'] && 0 === $normalized['customer_id'] && $remaining > 0 ) {
 			$order_ids = array_merge(
 				$order_ids,
 				$this->query_order_ids(
 					array(
 						'billing_email' => $normalized['email'],
 						'status'        => $statuses,
-					)
+					),
+					$remaining,
+					$truncated
 				)
 			);
 		}
@@ -105,17 +119,29 @@ class CustomerHandler {
 		$order_ids = array_filter( array_unique( $order_ids ) );
 		sort( $order_ids );
 
-		return $order_ids;
+		if ( count( $order_ids ) > self::MAX_ORDER_IDS ) {
+			$order_ids = array_slice( $order_ids, 0, self::MAX_ORDER_IDS );
+			$truncated = true;
+		}
+
+		return array(
+			'ids'       => $order_ids,
+			'truncated' => $truncated,
+		);
 	}
 
 	/**
 	 * @param array $query_args Query arguments.
 	 * @return array
 	 */
-	private function query_order_ids( array $query_args ) {
+	private function query_order_ids( array $query_args, $remaining, &$truncated ) {
 		$ids   = array();
 		$page  = 1;
-		$limit = self::ORDER_BATCH;
+		$limit = min( self::ORDER_BATCH, $remaining );
+		if ( $limit <= 0 ) {
+			$truncated = true;
+			return $ids;
+		}
 
 		while ( true ) {
 			$args = array_merge(
@@ -124,6 +150,8 @@ class CustomerHandler {
 					'limit'  => $limit,
 					'paged'  => $page,
 					'return' => 'ids',
+					'orderby' => 'date',
+					'order'   => 'DESC',
 				)
 			);
 
@@ -135,6 +163,12 @@ class CustomerHandler {
 			$ids = array_merge( $ids, $batch );
 
 			if ( count( $batch ) < $limit ) {
+				break;
+			}
+
+			if ( count( $ids ) >= $remaining ) {
+				$ids       = array_slice( $ids, 0, $remaining );
+				$truncated = true;
 				break;
 			}
 
@@ -254,7 +288,7 @@ class CustomerHandler {
 	 * @return array
 	 */
 	private function get_recent_orders( array $normalized, array $statuses ) {
-		if ( ! function_exists( 'wc_get_orders' ) ) {
+		if ( ! function_exists( 'wc_get_orders' ) || ! function_exists( 'wc_get_order' ) ) {
 			return array();
 		}
 
@@ -263,6 +297,7 @@ class CustomerHandler {
 			'orderby' => 'date',
 			'order'   => 'DESC',
 			'status'  => $statuses,
+			'return'  => 'ids',
 		);
 
 		if ( $normalized['customer_id'] > 0 ) {
@@ -271,14 +306,15 @@ class CustomerHandler {
 			$args['billing_email'] = $normalized['email'];
 		}
 
-		$orders = wc_get_orders( $args );
-		if ( ! is_array( $orders ) ) {
+		$order_ids = wc_get_orders( $args );
+		if ( ! is_array( $order_ids ) ) {
 			return array();
 		}
 
 		$recent = array();
-		foreach ( $orders as $order ) {
-			if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
+		foreach ( $order_ids as $order_id ) {
+			$order = wc_get_order( $order_id );
+			if ( ! $order || ! method_exists( $order, 'get_id' ) ) {
 				continue;
 			}
 
@@ -448,6 +484,14 @@ class CustomerHandler {
 			return $cache[ $product_id ];
 		}
 
+		if ( function_exists( 'wp_cache_get' ) ) {
+			$cached = wp_cache_get( $product_id, self::PRODUCT_CATEGORY_CACHE_GROUP );
+			if ( is_array( $cached ) ) {
+				$cache[ $product_id ] = $cached;
+				return $cached;
+			}
+		}
+
 		$categories = array();
 		if ( function_exists( 'wc_get_product_terms' ) ) {
 			$terms = wc_get_product_terms( $product_id, 'product_cat', array( 'fields' => 'all' ) );
@@ -462,6 +506,9 @@ class CustomerHandler {
 		}
 
 		$cache[ $product_id ] = $categories;
+		if ( function_exists( 'wp_cache_set' ) ) {
+			wp_cache_set( $product_id, $categories, self::PRODUCT_CATEGORY_CACHE_GROUP, self::PRODUCT_CATEGORY_CACHE_TTL );
+		}
 
 		return $categories;
 	}

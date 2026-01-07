@@ -471,10 +471,11 @@ class EmailDraftHandler {
 	 * @return array
 	 */
 	private function build_prompt_messages( array $context, $intent, $tone, $custom_instructions, array $template_variables ) {
-		$store_name   = $this->get_store_name();
-		$intent_notes = $this->get_intent_guidance( $intent, $context );
-		$tone_notes   = $this->get_tone_guidance( $tone );
-		$summary      = $this->build_prompt_context( $context );
+		$store_name    = $this->get_store_name();
+		$intent_notes  = $this->get_intent_guidance( $intent, $context );
+		$tone_notes    = $this->get_tone_guidance( $tone );
+		$summary       = $this->prune_prompt_payload( $this->build_prompt_context( $context ) );
+		$template_hint = $this->prune_prompt_payload( $template_variables );
 
 		$system = sprintf(
 			'You are a customer support assistant for %s. Draft a customer email response. Return JSON with keys subject_line, email_body, plain_text_version. The email_body must be valid HTML using simple tags like <p>, <ul>, <li>, <strong>, and <a>. Mention specific products and tracking details when available. Avoid placeholder text when data exists.',
@@ -487,7 +488,7 @@ class EmailDraftHandler {
 			'Intent guidance: ' . $intent_notes,
 			'Tone guidance: ' . $tone_notes,
 			'Order context (JSON): ' . $this->encode_json( $summary ),
-			'Template variables (JSON): ' . $this->encode_json( $template_variables ),
+			'Template variables (JSON): ' . $this->encode_json( $template_hint ),
 		);
 
 		if ( '' !== $custom_instructions ) {
@@ -536,6 +537,41 @@ class EmailDraftHandler {
 			'issues'   => $issues,
 			'notes'    => isset( $context['notes'] ) ? $context['notes'] : array(),
 		);
+	}
+
+	/**
+	 * Remove empty values to keep prompts compact.
+	 *
+	 * @param mixed $payload Input payload.
+	 * @return mixed
+	 */
+	private function prune_prompt_payload( $payload ) {
+		if ( ! is_array( $payload ) ) {
+			return $payload;
+		}
+
+		foreach ( $payload as $key => $value ) {
+			$filtered = $this->prune_prompt_payload( $value );
+
+			if ( is_array( $filtered ) && empty( $filtered ) ) {
+				unset( $payload[ $key ] );
+				continue;
+			}
+
+			if ( is_string( $filtered ) && '' === trim( $filtered ) ) {
+				unset( $payload[ $key ] );
+				continue;
+			}
+
+			if ( null === $filtered ) {
+				unset( $payload[ $key ] );
+				continue;
+			}
+
+			$payload[ $key ] = $filtered;
+		}
+
+		return $payload;
 	}
 
 	/**

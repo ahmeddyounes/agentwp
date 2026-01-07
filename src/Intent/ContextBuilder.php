@@ -50,7 +50,7 @@ class ContextBuilder {
 	 * @return array
 	 */
 	private function get_recent_orders() {
-		if ( ! function_exists( 'wc_get_orders' ) ) {
+		if ( ! function_exists( 'wc_get_orders' ) || ! function_exists( 'wc_get_order' ) ) {
 			return array();
 		}
 
@@ -59,6 +59,7 @@ class ContextBuilder {
 				'limit'   => 5,
 				'orderby' => 'date',
 				'order'   => 'DESC',
+				'return'  => 'ids',
 			)
 		);
 
@@ -67,8 +68,9 @@ class ContextBuilder {
 		}
 
 		$summary = array();
-		foreach ( $orders as $order ) {
-			if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
+		foreach ( $orders as $order_id ) {
+			$order = wc_get_order( $order_id );
+			if ( ! $order || ! method_exists( $order, 'get_id' ) ) {
 				continue;
 			}
 

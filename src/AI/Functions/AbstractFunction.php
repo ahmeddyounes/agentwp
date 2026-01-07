@@ -9,10 +9,20 @@ namespace AgentWP\AI\Functions;
 
 abstract class AbstractFunction implements FunctionSchema {
 	/**
+	 * @var array<string, array>
+	 */
+	private static $definition_cache = array();
+
+	/**
 	 * @return array
 	 */
 	public function to_tool_definition() {
-		return array(
+		$class_name = static::class;
+		if ( isset( self::$definition_cache[ $class_name ] ) ) {
+			return self::$definition_cache[ $class_name ];
+		}
+
+		$definition = array(
 			'type'     => 'function',
 			'function' => array(
 				'name'        => $this->get_name(),
@@ -21,5 +31,9 @@ abstract class AbstractFunction implements FunctionSchema {
 				'strict'      => true,
 			),
 		);
+
+		self::$definition_cache[ $class_name ] = $definition;
+
+		return $definition;
 	}
 }

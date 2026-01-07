@@ -1,0 +1,11 @@
+[main f3946bc] M05-03: implement
+ 14 files changed, 7591 insertions(+), 9 deletions(-)
+ create mode 100644 .logs/M05-02.gitcommit.txt
+ create mode 100644 .logs/M05-03.codex.impl.last.md
+ create mode 100644 .logs/M05-03.codex.impl.raw.txt
+ create mode 100644 .plans/M05-03.md
+ create mode 100644 .t2/handoff/M05-03.md
+ create mode 100644 SECURITY.md
+ create mode 100644 phpcs.xml
+ create mode 100644 phpstan.neon
+
