@@ -26,6 +26,17 @@
   animation: agentwp-card-in 180ms ease-out;
 }
 
+.agentwp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
 .agentwp-card[data-theme='light'] {
   --card-surface: #ffffff;
   --card-surface-muted: #f1f5f9;
@@ -181,6 +192,12 @@
   transform: translateY(-1px);
 }
 
+.agentwp-card__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
 .agentwp-card__button:focus-visible {
   outline: 2px solid var(--card-ring);
   outline-offset: 2px;
@@ -245,6 +262,22 @@
   background: var(--card-surface-muted);
   border-radius: 14px;
   padding: 0.75rem;
+}
+
+.agentwp-card__chart-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--card-muted);
+  margin-bottom: 0.65rem;
+}
+
+.agentwp-card__chart-canvas {
+  position: relative;
+  width: 100%;
+  min-height: 180px;
 }
 
 .agentwp-card__chart-placeholder {

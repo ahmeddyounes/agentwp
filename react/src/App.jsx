@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import ReactMarkdown from 'react-markdown';
+import { ChartCard } from '../components/cards';
 
 const OPEN_STATE_KEY = 'agentwp-command-deck-open';
 const DRAFT_HISTORY_KEY = 'agentwp-draft-history';
@@ -21,6 +22,124 @@ const FOCUSABLE_SELECTORS = [
   'select:not([disabled])',
   '[tabindex]:not([tabindex="-1"])',
 ];
+const PERIOD_OPTIONS = [
+  { value: '7d', label: 'Last 7 days' },
+  { value: '30d', label: 'Last 30 days' },
+  { value: '90d', label: 'Last 90 days' },
+];
+
+const currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 0,
+});
+
+const formatCurrencyValue = (value) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return value?.toString() ?? '';
+  }
+  return currencyFormatter.format(value);
+};
+
+const buildDayLabels = (days, prefix = 'Day') =>
+  Array.from({ length: days }, (_, index) => `${prefix} ${index + 1}`);
+
+const buildRevenueSeries = (days, base, trend, variance, phase = 0) =>
+  Array.from({ length: days }, (_, index) =>
+    Math.round(base + index * trend + Math.sin(index * 0.45 + phase) * variance)
+  );
+
+const hexToRgba = (hex, alpha) => {
+  const cleanHex = hex.replace('#', '');
+  if (cleanHex.length !== 6) {
+    return hex;
+  }
+  const r = parseInt(cleanHex.slice(0, 2), 16);
+  const g = parseInt(cleanHex.slice(2, 4), 16);
+  const b = parseInt(cleanHex.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const ANALYTICS_DATA = {
+  '7d': {
+    label: 'Last 7 days',
+    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    current: buildRevenueSeries(7, 4200, 160, 420, 0.2),
+    previous: buildRevenueSeries(7, 3900, 120, 360, 1.1),
+    metrics: {
+      labels: ['Revenue', 'Shipping', 'Discounts', 'Returns'],
+      current: [128000, 18200, 9600, 4100],
+      previous: [116500, 16750, 10100, 4600],
+    },
+    categories: {
+      labels: ['Accessories', 'Home', 'Wellness', 'Apparel'],
+      values: [45200, 38200, 29600, 15000],
+    },
+  },
+  '30d': {
+    label: 'Last 30 days',
+    labels: buildDayLabels(30),
+    current: buildRevenueSeries(30, 3800, 55, 520, 0.3),
+    previous: buildRevenueSeries(30, 3600, 45, 480, 1.2),
+    metrics: {
+      labels: ['Revenue', 'Shipping', 'Discounts', 'Returns'],
+      current: [540000, 61200, 45200, 12300],
+      previous: [498000, 58500, 47600, 13800],
+    },
+    categories: {
+      labels: ['Accessories', 'Home', 'Wellness', 'Apparel'],
+      values: [188000, 162000, 115000, 75000],
+    },
+  },
+  '90d': {
+    label: 'Last 90 days',
+    labels: buildDayLabels(90, 'D'),
+    current: buildRevenueSeries(90, 3500, 22, 620, 0.4),
+    previous: buildRevenueSeries(90, 3300, 18, 560, 1.4),
+    metrics: {
+      labels: ['Revenue', 'Shipping', 'Discounts', 'Returns'],
+      current: [1480000, 166500, 128000, 44200],
+      previous: [1375000, 158000, 141000, 46800],
+    },
+    categories: {
+      labels: ['Accessories', 'Home', 'Wellness', 'Apparel'],
+      values: [510000, 436000, 318000, 216000],
+    },
+  },
+};
+
+const usePrefersDark = (fallback = true) => {
+  const [prefersDark, setPrefersDark] = useState(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) {
+      return fallback;
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    if (!window.matchMedia) {
+      return undefined;
+    }
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (event) => {
+      setPrefersDark(event.matches);
+    };
+    if (media.addEventListener) {
+      media.addEventListener('change', handleChange);
+    } else {
+      media.addListener(handleChange);
+    }
+    return () => {
+      if (media.removeEventListener) {
+        media.removeEventListener('change', handleChange);
+      } else {
+        media.removeListener(handleChange);
+      }
+    };
+  }, []);
+
+  return prefersDark;
+};
 
 const getInitialOpenState = () => {
   if (typeof window === 'undefined') {
@@ -275,6 +394,7 @@ export default function App() {
   const [draftBody, setDraftBody] = useState('');
   const [draftHistory, setDraftHistory] = useState([]);
   const [exportStatus, setExportStatus] = useState('idle');
+  const [selectedPeriod, setSelectedPeriod] = useState('7d');
   const inputRef = useRef(null);
   const modalRef = useRef(null);
   const responseHtmlRef = useRef(null);
@@ -282,6 +402,7 @@ export default function App() {
   const requestControllerRef = useRef(null);
   const chartRef = useRef(null);
   const exportTimerRef = useRef(null);
+  const prefersDark = usePrefersDark();
 
   const abortActiveRequest = useCallback(() => {
     if (requestControllerRef.current) {
@@ -633,6 +754,197 @@ export default function App() {
   const mailtoHref = hasDraft ? buildMailtoLink(draftSubject, resolvedBody) : '#';
   const exportLabel =
     exportStatus === 'exporting' ? 'Exporting...' : exportStatus === 'exported' ? 'Exported' : 'Export PNG';
+  const periodData = useMemo(
+    () => ANALYTICS_DATA[selectedPeriod] || ANALYTICS_DATA['7d'],
+    [selectedPeriod]
+  );
+  const chartPalette = useMemo(
+    () =>
+      prefersDark
+        ? {
+            primary: '#38bdf8',
+            secondary: '#a78bfa',
+            barPrimary: '#38bdf8',
+            barSecondary: '#64748b',
+            doughnut: ['#38bdf8', '#22c55e', '#f59e0b', '#f97316'],
+            canvas: '#111827',
+          }
+        : {
+            primary: '#0284c7',
+            secondary: '#6366f1',
+            barPrimary: '#0ea5e9',
+            barSecondary: '#94a3b8',
+            doughnut: ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444'],
+            canvas: '#f1f5f9',
+          },
+    [prefersDark]
+  );
+  const trendChartData = useMemo(
+    () => ({
+      labels: periodData.labels,
+      datasets: [
+        {
+          label: 'This period',
+          data: periodData.current,
+          borderColor: chartPalette.primary,
+          backgroundColor: hexToRgba(chartPalette.primary, 0.25),
+          tension: 0.35,
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 4,
+          fill: true,
+        },
+        {
+          label: 'Previous period',
+          data: periodData.previous,
+          borderColor: chartPalette.secondary,
+          backgroundColor: hexToRgba(chartPalette.secondary, 0.12),
+          tension: 0.35,
+          borderWidth: 2,
+          borderDash: [6, 4],
+          pointRadius: 2,
+          pointHoverRadius: 3,
+          fill: false,
+        },
+      ],
+    }),
+    [chartPalette, periodData]
+  );
+  const comparisonChartData = useMemo(
+    () => ({
+      labels: periodData.metrics.labels,
+      datasets: [
+        {
+          label: 'This period',
+          data: periodData.metrics.current,
+          backgroundColor: chartPalette.barPrimary,
+          borderRadius: 6,
+          borderSkipped: false,
+        },
+        {
+          label: 'Last period',
+          data: periodData.metrics.previous,
+          backgroundColor: chartPalette.barSecondary,
+          borderRadius: 6,
+          borderSkipped: false,
+        },
+      ],
+    }),
+    [chartPalette, periodData]
+  );
+  const categoryChartData = useMemo(
+    () => ({
+      labels: periodData.categories.labels,
+      datasets: [
+        {
+          label: 'Revenue',
+          data: periodData.categories.values,
+          backgroundColor: chartPalette.doughnut,
+          borderColor: chartPalette.canvas,
+          borderWidth: 2,
+        },
+      ],
+    }),
+    [chartPalette, periodData]
+  );
+  const trendTable = useMemo(
+    () => ({
+      caption: `Daily revenue for ${periodData.label}`,
+      headers: ['Day', 'This period', 'Previous period'],
+      rows: periodData.labels.map((label, index) => ({
+        id: `trend-${selectedPeriod}-${label}`,
+        cells: [
+          label,
+          formatCurrencyValue(periodData.current[index]),
+          formatCurrencyValue(periodData.previous[index]),
+        ],
+      })),
+    }),
+    [periodData, selectedPeriod]
+  );
+  const comparisonTable = useMemo(
+    () => ({
+      caption: `Period comparison metrics for ${periodData.label}`,
+      headers: ['Metric', 'This period', 'Last period'],
+      rows: periodData.metrics.labels.map((label, index) => ({
+        id: `metric-${selectedPeriod}-${label}`,
+        cells: [
+          label,
+          formatCurrencyValue(periodData.metrics.current[index]),
+          formatCurrencyValue(periodData.metrics.previous[index]),
+        ],
+      })),
+    }),
+    [periodData, selectedPeriod]
+  );
+  const categoryTable = useMemo(
+    () => ({
+      caption: `Revenue by product category for ${periodData.label}`,
+      headers: ['Category', 'Revenue'],
+      rows: periodData.categories.labels.map((label, index) => ({
+        id: `category-${selectedPeriod}-${label}`,
+        cells: [label, formatCurrencyValue(periodData.categories.values[index])],
+      })),
+    }),
+    [periodData, selectedPeriod]
+  );
+  const trendChartOptions = useMemo(
+    () => ({
+      plugins: {
+        legend: {
+          position: 'top',
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxTicksLimit: periodData.labels.length > 14 ? 8 : 7,
+          },
+        },
+      },
+    }),
+    [periodData.labels.length]
+  );
+  const comparisonChartOptions = useMemo(
+    () => ({
+      plugins: {
+        legend: {
+          position: 'bottom',
+        },
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false,
+          },
+        },
+      },
+    }),
+    []
+  );
+  const categoryChartOptions = useMemo(
+    () => ({
+      plugins: {
+        legend: {
+          position: 'bottom',
+        },
+      },
+      cutout: '62%',
+    }),
+    []
+  );
+  const totalRevenue = useMemo(
+    () => periodData.current.reduce((sum, value) => sum + value, 0),
+    [periodData]
+  );
+  const previousRevenue = useMemo(
+    () => periodData.previous.reduce((sum, value) => sum + value, 0),
+    [periodData]
+  );
+  const revenueDelta = previousRevenue
+    ? (totalRevenue - previousRevenue) / previousRevenue
+    : 0;
+  const trendLabel = `${revenueDelta >= 0 ? '+' : ''}${(revenueDelta * 100).toFixed(1)}% vs last period`;
   const chartBars = [72, 98, 84, 124, 96, 112, 78];
   const chartLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -919,6 +1231,97 @@ export default function App() {
                   >
                     Open in Mail
                   </a>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-800/80 bg-slate-950/40 px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                      Analytics charts
+                    </p>
+                    <p className="text-sm text-slate-300">
+                      Visualize revenue trends and period performance inside the Command Deck.
+                    </p>
+                  </div>
+                  <div className="min-w-[200px]">
+                    <label
+                      htmlFor="agentwp-analytics-period"
+                      className="block text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500"
+                    >
+                      Period
+                    </label>
+                    <select
+                      id="agentwp-analytics-period"
+                      value={selectedPeriod}
+                      onChange={(event) => setSelectedPeriod(event.target.value)}
+                      className="mt-2 w-full rounded-xl border border-slate-700/70 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                    >
+                      {PERIOD_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-4">
+                  <ChartCard
+                    title="Sales trend"
+                    subtitle="Daily revenue with previous period overlay"
+                    metric={formatCurrencyValue(totalRevenue)}
+                    trend={trendLabel}
+                    theme="auto"
+                    type="line"
+                    data={trendChartData}
+                    options={trendChartOptions}
+                    meta={
+                      <>
+                        <span>Revenue</span>
+                        <span>{periodData.label}</span>
+                      </>
+                    }
+                    table={trendTable}
+                    exportFilename={`agentwp-sales-trend-${selectedPeriod}.png`}
+                    valueFormatter={formatCurrencyValue}
+                    height={240}
+                  />
+                  <ChartCard
+                    title="Period comparison"
+                    subtitle="This period vs last period metrics"
+                    theme="auto"
+                    type="bar"
+                    data={comparisonChartData}
+                    options={comparisonChartOptions}
+                    meta={
+                      <>
+                        <span>Totals</span>
+                        <span>{periodData.label}</span>
+                      </>
+                    }
+                    table={comparisonTable}
+                    exportFilename={`agentwp-comparison-${selectedPeriod}.png`}
+                    valueFormatter={formatCurrencyValue}
+                    height={200}
+                  />
+                  <ChartCard
+                    title="Category breakdown"
+                    subtitle="Revenue by product category"
+                    theme="auto"
+                    type="doughnut"
+                    data={categoryChartData}
+                    options={categoryChartOptions}
+                    meta={
+                      <>
+                        <span>Revenue mix</span>
+                        <span>{periodData.label}</span>
+                      </>
+                    }
+                    table={categoryTable}
+                    exportFilename={`agentwp-category-${selectedPeriod}.png`}
+                    valueFormatter={formatCurrencyValue}
+                    height={220}
+                  />
                 </div>
               </div>
 
