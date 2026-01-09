@@ -26,3 +26,7 @@ function openssl_encrypt( ...$args ) {
 function openssl_decrypt( ...$args ) {
 	return EncryptionFunctionOverrides::openssl_decrypt( ...$args );
 }
+
+function apply_filters( $hook, $value, ...$args ) {
+	return EncryptionFunctionOverrides::apply_filters( $hook, $value, ...$args );
+}

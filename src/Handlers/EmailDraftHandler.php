@@ -650,6 +650,15 @@ class EmailDraftHandler {
 	private function sanitize_instructions( $value ) {
 		$value = is_string( $value ) ? $value : '';
 
+		// Limit length to prevent excessive memory/API usage.
+		// Use mb_substr to avoid breaking multibyte UTF-8 characters.
+		$char_len = function_exists( 'mb_strlen' ) ? mb_strlen( $value, 'UTF-8' ) : strlen( $value );
+		if ( $char_len > 5000 ) {
+			$value = function_exists( 'mb_substr' )
+				? mb_substr( $value, 0, 5000, 'UTF-8' )
+				: substr( $value, 0, 5000 );
+		}
+
 		if ( function_exists( 'sanitize_textarea_field' ) ) {
 			return sanitize_textarea_field( wp_unslash( $value ) );
 		}
@@ -663,6 +672,16 @@ class EmailDraftHandler {
 	 */
 	private function sanitize_subject( $value ) {
 		$value = is_string( $value ) ? $value : '';
+
+		// Standard email subject length limit.
+		// Use mb_substr to avoid breaking multibyte UTF-8 characters.
+		$char_len = function_exists( 'mb_strlen' ) ? mb_strlen( $value, 'UTF-8' ) : strlen( $value );
+		if ( $char_len > 255 ) {
+			$value = function_exists( 'mb_substr' )
+				? mb_substr( $value, 0, 255, 'UTF-8' )
+				: substr( $value, 0, 255 );
+		}
+
 		return sanitize_text_field( wp_unslash( $value ) );
 	}
 
@@ -672,6 +691,16 @@ class EmailDraftHandler {
 	 */
 	private function sanitize_body( $value ) {
 		$value = is_string( $value ) ? $value : '';
+
+		// Limit email body to 100K characters.
+		// Use mb_substr to avoid breaking multibyte UTF-8 characters.
+		$char_len = function_exists( 'mb_strlen' ) ? mb_strlen( $value, 'UTF-8' ) : strlen( $value );
+		if ( $char_len > 100000 ) {
+			$value = function_exists( 'mb_substr' )
+				? mb_substr( $value, 0, 100000, 'UTF-8' )
+				: substr( $value, 0, 100000 );
+		}
+
 		return wp_unslash( $value );
 	}
 
@@ -827,16 +856,21 @@ class EmailDraftHandler {
 
 		$max_lines = 4;
 		if ( count( $lines ) > $max_lines ) {
-			$lines = array_slice( $lines, 0, $max_lines );
+			// Slice to max_lines - 1 to account for the "and more" entry.
+			$lines = array_slice( $lines, 0, $max_lines - 1 );
 			$lines[] = 'and more';
 		}
 
 		if ( count( $lines ) > 1 ) {
 			$html = '<ul><li>' . implode( '</li><li>', array_map( array( $this, 'escape_html' ), $lines ) ) . '</li></ul>';
 			$text = "Items:\n- " . implode( "\n- ", $lines );
-		} else {
+		} elseif ( count( $lines ) === 1 ) {
 			$html = '<p>Item: ' . $this->escape_html( $lines[0] ) . '.</p>';
 			$text = 'Item: ' . $lines[0] . '.';
+		} else {
+			// Defensive fallback for empty array (should not happen due to empty check above).
+			$html = '';
+			$text = '';
 		}
 
 		return array(
@@ -1251,11 +1285,15 @@ class EmailDraftHandler {
 		}
 
 		$text = preg_replace( '/<\s*br\s*\/?>/i', "\n", $html );
-		$text = preg_replace( '/<\/\s*p\s*>/i', "\n\n", $text );
-		$text = preg_replace( '/<\/\s*li\s*>/i', "\n", $text );
+		$text = is_string( $text ) ? $text : $html;
+		$replaced = preg_replace( '/<\/\s*p\s*>/i', "\n\n", $text );
+		$text = is_string( $replaced ) ? $replaced : $text;
+		$replaced = preg_replace( '/<\/\s*li\s*>/i', "\n", $text );
+		$text = is_string( $replaced ) ? $replaced : $text;
 		$text = strip_tags( $text );
 		$text = html_entity_decode( $text, ENT_QUOTES, 'UTF-8' );
-		$text = preg_replace( "/\n{3,}/", "\n\n", $text );
+		$replaced = preg_replace( "/\n{3,}/", "\n\n", $text );
+		$text = is_string( $replaced ) ? $replaced : $text;
 
 		return trim( $text );
 	}
@@ -1278,7 +1316,8 @@ class EmailDraftHandler {
 			return esc_html( $value );
 		}
 
-		return htmlspecialchars( $value, ENT_QUOTES );
+		// Explicit UTF-8 charset prevents encoding issues with multibyte characters.
+		return htmlspecialchars( $value, ENT_QUOTES, 'UTF-8' );
 	}
 
 	/**
@@ -1291,7 +1330,8 @@ class EmailDraftHandler {
 			return esc_url( $value );
 		}
 
-		return htmlspecialchars( $value, ENT_QUOTES );
+		// Explicit UTF-8 charset prevents encoding issues with multibyte characters.
+		return htmlspecialchars( $value, ENT_QUOTES, 'UTF-8' );
 	}
 
 	/**
@@ -1361,7 +1401,8 @@ class EmailDraftHandler {
 			return $decrypted;
 		}
 
-		return $encryption->isEncrypted( $stored ) ? '' : $stored;
+		// Never return potentially unencrypted API key - always return empty on failure.
+		return '';
 	}
 
 	/**
@@ -1388,7 +1429,18 @@ class EmailDraftHandler {
 			return wp_generate_uuid4();
 		}
 
-		return uniqid( 'draft_', true );
+		// Fallback: use cryptographically secure random bytes.
+		try {
+			return 'draft_' . bin2hex( random_bytes( 16 ) );
+		} catch ( \Exception $e ) {
+			$crypto_strong = false;
+			$bytes = openssl_random_pseudo_bytes( 16, $crypto_strong );
+			if ( false === $bytes || ! $crypto_strong ) {
+				// Last resort: use uniqid with more entropy (less secure, but better than failing).
+				return 'draft_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+			}
+			return 'draft_' . bin2hex( $bytes );
+		}
 	}
 
 	/**
@@ -1396,7 +1448,9 @@ class EmailDraftHandler {
 	 * @return string
 	 */
 	private function build_draft_key( $draft_id ) {
-		return Plugin::TRANSIENT_PREFIX . 'draft_' . $draft_id;
+		// Include user ID in the key to prevent cross-user draft access.
+		$user_id = get_current_user_id();
+		return Plugin::TRANSIENT_PREFIX . 'email_draft_' . $user_id . '_' . $draft_id;
 	}
 
 	/**

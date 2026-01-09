@@ -8,15 +8,19 @@
 namespace AgentWP\Security;
 
 class Encryption {
-	const VERSION = 'awp1';
+	const VERSION = 'awp2';
+	const VERSION_1 = 'awp1';
 	const DELIMITER = ':';
-	const CIPHER = 'aes-256-ctr';
+	const CIPHER = 'aes-256-gcm';
+	const CIPHER_V1 = 'aes-256-ctr';
+	const NONCE_LENGTH = 12;
+	const TAG_LENGTH = 16;
 	const LEGACY_CIPHER = 'aes-256-gcm';
 	const LEGACY_NONCE_LENGTH = 12;
 	const LEGACY_TAG_LENGTH = 16;
 
 	/**
-	 * Encrypt plaintext.
+	 * Encrypt plaintext using AES-256-GCM (authenticated encryption).
 	 *
 	 * @param string $plaintext Plaintext value.
 	 * @return string
@@ -35,27 +39,35 @@ class Encryption {
 			return '';
 		}
 
-		$iv_length = $this->get_iv_length();
-		if ( $iv_length <= 0 ) {
-			return '';
-		}
-
 		try {
-			$iv = random_bytes( $iv_length );
+			$nonce = random_bytes( self::NONCE_LENGTH );
 		} catch ( \Exception $exception ) {
 			return '';
 		}
 
 		$key = $this->derive_key( $material );
+		$tag = '';
 
-		$ciphertext = openssl_encrypt( $plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv );
-		if ( false === $ciphertext ) {
+		// Use AES-256-GCM for authenticated encryption (encrypts + authenticates).
+		$ciphertext = openssl_encrypt(
+			$plaintext,
+			self::CIPHER,
+			$key,
+			OPENSSL_RAW_DATA,
+			$nonce,
+			$tag,
+			'',
+			self::TAG_LENGTH
+		);
+
+		if ( false === $ciphertext || '' === $tag ) {
 			return '';
 		}
 
 		$fingerprint = $this->get_fingerprint( $material );
 
-		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $iv . $ciphertext );
+		// Format: version:fingerprint:base64(nonce + tag + ciphertext)
+		return self::VERSION . self::DELIMITER . $fingerprint . self::DELIMITER . base64_encode( $nonce . $tag . $ciphertext );
 	}
 
 	/**
@@ -73,16 +85,24 @@ class Encryption {
 			return '';
 		}
 
-		$payload = $this->parse_payload( $ciphertext );
-		if ( null !== $payload ) {
+		// Try awp2 format (AES-256-GCM with fingerprint).
+		$payload_v2 = $this->parse_payload_v2( $ciphertext );
+		if ( null !== $payload_v2 ) {
 			$materials = $this->get_key_material_candidates();
 			foreach ( $materials as $material ) {
-				if ( $payload['fingerprint'] !== $this->get_fingerprint( $material ) ) {
+				if ( ! hash_equals( $payload_v2['fingerprint'], $this->get_fingerprint( $material ) ) ) {
 					continue;
 				}
 
 				$key       = $this->derive_key( $material );
-				$plaintext = openssl_decrypt( $payload['ciphertext'], self::CIPHER, $key, OPENSSL_RAW_DATA, $payload['iv'] );
+				$plaintext = openssl_decrypt(
+					$payload_v2['ciphertext'],
+					self::CIPHER,
+					$key,
+					OPENSSL_RAW_DATA,
+					$payload_v2['nonce'],
+					$payload_v2['tag']
+				);
 
 				if ( false !== $plaintext ) {
 					return $plaintext;
@@ -92,6 +112,27 @@ class Encryption {
 			return '';
 		}
 
+		// Try awp1 format (AES-256-CTR without authentication).
+		$payload_v1 = $this->parse_payload_v1( $ciphertext );
+		if ( null !== $payload_v1 ) {
+			$materials = $this->get_key_material_candidates();
+			foreach ( $materials as $material ) {
+				if ( ! hash_equals( $payload_v1['fingerprint'], $this->get_fingerprint( $material ) ) ) {
+					continue;
+				}
+
+				$key       = $this->derive_key( $material );
+				$plaintext = openssl_decrypt( $payload_v1['ciphertext'], self::CIPHER_V1, $key, OPENSSL_RAW_DATA, $payload_v1['iv'] );
+
+				if ( false !== $plaintext ) {
+					return $plaintext;
+				}
+			}
+
+			return '';
+		}
+
+		// Try legacy format (raw base64 AES-256-GCM without version prefix).
 		$legacy = $this->parse_legacy_payload( $ciphertext );
 		if ( null === $legacy ) {
 			return '';
@@ -128,7 +169,11 @@ class Encryption {
 			return false;
 		}
 
-		if ( null !== $this->parse_payload( $data ) ) {
+		if ( null !== $this->parse_payload_v2( $data ) ) {
+			return true;
+		}
+
+		if ( null !== $this->parse_payload_v1( $data ) ) {
 			return true;
 		}
 
@@ -159,12 +204,12 @@ class Encryption {
 	}
 
 	/**
-	 * Parse current payload format.
+	 * Parse awp2 payload format (AES-256-GCM with authentication tag).
 	 *
 	 * @param string $data Payload.
 	 * @return array|null
 	 */
-	private function parse_payload( string $data ) {
+	private function parse_payload_v2( string $data ) {
 		if ( 0 !== strpos( $data, self::VERSION . self::DELIMITER ) ) {
 			return null;
 		}
@@ -184,8 +229,47 @@ class Encryption {
 			return null;
 		}
 
-		$iv_length = $this->get_iv_length();
-		if ( $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
+		$min_length = self::NONCE_LENGTH + self::TAG_LENGTH + 1;
+		if ( strlen( $decoded ) < $min_length ) {
+			return null;
+		}
+
+		return array(
+			'fingerprint' => $fingerprint,
+			'nonce'       => substr( $decoded, 0, self::NONCE_LENGTH ),
+			'tag'         => substr( $decoded, self::NONCE_LENGTH, self::TAG_LENGTH ),
+			'ciphertext'  => substr( $decoded, self::NONCE_LENGTH + self::TAG_LENGTH ),
+		);
+	}
+
+	/**
+	 * Parse awp1 payload format (AES-256-CTR without authentication).
+	 *
+	 * @param string $data Payload.
+	 * @return array|null
+	 */
+	private function parse_payload_v1( string $data ) {
+		if ( 0 !== strpos( $data, self::VERSION_1 . self::DELIMITER ) ) {
+			return null;
+		}
+
+		$parts = explode( self::DELIMITER, $data, 3 );
+		if ( 3 !== count( $parts ) ) {
+			return null;
+		}
+
+		list( $version, $fingerprint, $payload ) = $parts;
+		if ( self::VERSION_1 !== $version || '' === $fingerprint || '' === $payload ) {
+			return null;
+		}
+
+		$decoded = base64_decode( $payload, true );
+		if ( false === $decoded ) {
+			return null;
+		}
+
+		$iv_length = openssl_cipher_iv_length( self::CIPHER_V1 );
+		if ( false === $iv_length || $iv_length <= 0 || strlen( $decoded ) <= $iv_length ) {
 			return null;
 		}
 
@@ -221,13 +305,14 @@ class Encryption {
 	}
 
 	/**
-	 * Determine if ciphertext is encrypted with current salts.
+	 * Determine if ciphertext is encrypted with current version and salts.
 	 *
 	 * @param string $ciphertext Ciphertext value.
 	 * @return bool
 	 */
 	private function is_current_encryption( string $ciphertext ): bool {
-		$payload = $this->parse_payload( $ciphertext );
+		// Only awp2 format is considered current (authenticated encryption).
+		$payload = $this->parse_payload_v2( $ciphertext );
 		if ( null === $payload ) {
 			return false;
 		}
@@ -306,14 +391,4 @@ class Encryption {
 		return hash( 'sha256', $material );
 	}
 
-	/**
-	 * Return IV length for the cipher.
-	 *
-	 * @return int
-	 */
-	private function get_iv_length(): int {
-		$length = openssl_cipher_iv_length( self::CIPHER );
-
-		return false === $length ? 0 : (int) $length;
-	}
 }

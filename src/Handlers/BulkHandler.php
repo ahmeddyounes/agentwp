@@ -22,6 +22,7 @@ class BulkHandler {
 	const PROGRESS_TTL     = 86400;
 	const ROLLBACK_TTL     = 86400;
 	const POLL_INTERVAL    = 2;
+	const MAX_ERRORS       = 100;
 
 	/**
 	 * Register background processing hooks.
@@ -196,7 +197,9 @@ class BulkHandler {
 			return Response::error( 'Missing bulk update draft ID.', 400 );
 		}
 
-		$draft = $this->load_draft( $draft_id );
+		// Atomically claim the draft by loading and deleting immediately.
+		// This prevents race conditions where two requests could process the same draft.
+		$draft = $this->claim_draft( $draft_id );
 		if ( null === $draft ) {
 			return Response::error( 'Bulk update draft not found or expired.', 404 );
 		}
@@ -279,7 +282,7 @@ class BulkHandler {
 				return Response::error( 'Unable to schedule bulk update.', 500 );
 			}
 
-			$this->delete_draft( $draft_id );
+			// Draft was already deleted atomically in claim_draft().
 
 			return Response::success(
 				array(
@@ -319,7 +322,7 @@ class BulkHandler {
 		);
 
 		$this->delete_job( $job_id );
-		$this->delete_draft( $draft_id );
+		// Draft was already deleted atomically in claim_draft().
 
 		return Response::success(
 			array(
@@ -382,6 +385,8 @@ class BulkHandler {
 
 		$draft_id = isset( $job['draft_id'] ) ? (string) $job['draft_id'] : '';
 		if ( '' !== $draft_id ) {
+			// Draft was already deleted by claim_draft() when job was created.
+			// This is a no-op but kept for safety in case of manual job creation.
 			$this->delete_draft( $draft_id );
 		}
 
@@ -426,15 +431,15 @@ class BulkHandler {
 		$errors    = array();
 		$rows      = array();
 
+		// Batch load all orders upfront to avoid N+1 queries.
+		$orders_map = $this->batch_load_orders( $order_ids );
+
 		foreach ( $order_ids as $order_id ) {
 			$processed++;
-			$order = function_exists( 'wc_get_order' ) ? wc_get_order( $order_id ) : null;
+			$order = isset( $orders_map[ $order_id ] ) ? $orders_map[ $order_id ] : null;
 			if ( ! $order ) {
 				$failed++;
-				$errors[] = array(
-					'order_id' => $order_id,
-					'message'  => 'Order not found.',
-				);
+				$this->add_error( $errors, $order_id, 'Order not found.' );
 				$this->maybe_update_progress( $progress_id, $processed, $updated, $failed, $errors );
 				continue;
 			}
@@ -445,10 +450,7 @@ class BulkHandler {
 					$new_status     = isset( $params['new_status'] ) ? $this->normalize_status( $params['new_status'] ) : '';
 					if ( '' === $new_status ) {
 						$failed++;
-						$errors[] = array(
-							'order_id' => $order_id,
-							'message'  => 'Missing target status.',
-						);
+						$this->add_error( $errors, $order_id, 'Missing target status.' );
 						break;
 					}
 
@@ -465,10 +467,7 @@ class BulkHandler {
 						$result['updated'][] = $order_id;
 					} else {
 						$failed++;
-						$errors[] = array(
-							'order_id' => $order_id,
-							'message'  => 'Unable to update status.',
-						);
+						$this->add_error( $errors, $order_id, 'Unable to update status.' );
 					}
 					break;
 				case 'add_tag':
@@ -477,10 +476,7 @@ class BulkHandler {
 					$tags = $this->normalize_tags( $tags, $tag );
 					if ( empty( $tags ) ) {
 						$failed++;
-						$errors[] = array(
-							'order_id' => $order_id,
-							'message'  => 'Missing tags to add.',
-						);
+						$this->add_error( $errors, $order_id, 'Missing tags to add.' );
 						break;
 					}
 
@@ -495,20 +491,14 @@ class BulkHandler {
 						$result['updated'][] = $order_id;
 					} else {
 						$failed++;
-						$errors[] = array(
-							'order_id' => $order_id,
-							'message'  => 'Unable to add tags.',
-						);
+						$this->add_error( $errors, $order_id, 'Unable to add tags.' );
 					}
 					break;
 				case 'add_note':
 					$note = isset( $params['note'] ) ? trim( (string) $params['note'] ) : '';
 					if ( '' === $note ) {
 						$failed++;
-						$errors[] = array(
-							'order_id' => $order_id,
-							'message'  => 'Missing note content.',
-						);
+						$this->add_error( $errors, $order_id, 'Missing note content.' );
 						break;
 					}
 
@@ -522,10 +512,7 @@ class BulkHandler {
 						);
 					} else {
 						$failed++;
-						$errors[] = array(
-							'order_id' => $order_id,
-							'message'  => 'Unable to add note.',
-						);
+						$this->add_error( $errors, $order_id, 'Unable to add note.' );
 					}
 					break;
 				case 'export_csv':
@@ -535,10 +522,7 @@ class BulkHandler {
 					break;
 				default:
 					$failed++;
-					$errors[] = array(
-						'order_id' => $order_id,
-						'message'  => 'Unsupported bulk action.',
-					);
+					$this->add_error( $errors, $order_id, 'Unsupported bulk action.' );
 			}
 
 			$this->maybe_update_progress( $progress_id, $processed, $updated, $failed, $errors );
@@ -615,21 +599,22 @@ class BulkHandler {
 			return Response::error( 'Rollback data not found or expired.', 404 );
 		}
 
-		$action  = isset( $rollback['action'] ) ? $this->normalize_action( $rollback['action'] ) : '';
-		$orders  = isset( $rollback['orders'] ) && is_array( $rollback['orders'] ) ? $rollback['orders'] : array();
-		$undone  = array();
-		$failed  = array();
-		$errors  = array();
+		$action       = isset( $rollback['action'] ) ? $this->normalize_action( $rollback['action'] ) : '';
+		$orders_data  = isset( $rollback['orders'] ) && is_array( $rollback['orders'] ) ? $rollback['orders'] : array();
+		$undone       = array();
+		$failed       = array();
+		$errors       = array();
 
-		foreach ( $orders as $order_id => $data ) {
+		// Batch load all orders to avoid N+1 queries.
+		$order_ids  = array_map( 'absint', array_keys( $orders_data ) );
+		$orders_map = $this->batch_load_orders( $order_ids );
+
+		foreach ( $orders_data as $order_id => $data ) {
 			$order_id = absint( $order_id );
-			$order    = function_exists( 'wc_get_order' ) ? wc_get_order( $order_id ) : null;
+			$order    = isset( $orders_map[ $order_id ] ) ? $orders_map[ $order_id ] : null;
 			if ( ! $order ) {
 				$failed[] = $order_id;
-				$errors[] = array(
-					'order_id' => $order_id,
-					'message'  => 'Order not found for rollback.',
-				);
+				$this->add_error( $errors, $order_id, 'Order not found for rollback.' );
 				continue;
 			}
 
@@ -638,10 +623,7 @@ class BulkHandler {
 					$previous_status = isset( $data['status'] ) ? $this->normalize_status( $data['status'] ) : '';
 					if ( '' === $previous_status ) {
 						$failed[] = $order_id;
-						$errors[] = array(
-							'order_id' => $order_id,
-							'message'  => 'Missing previous status.',
-						);
+						$this->add_error( $errors, $order_id, 'Missing previous status.' );
 						break;
 					}
 
@@ -650,10 +632,7 @@ class BulkHandler {
 						$undone[] = $order_id;
 					} else {
 						$failed[] = $order_id;
-						$errors[] = array(
-							'order_id' => $order_id,
-							'message'  => 'Unable to restore previous status.',
-						);
+						$this->add_error( $errors, $order_id, 'Unable to restore previous status.' );
 					}
 					break;
 				case 'add_tag':
@@ -663,10 +642,7 @@ class BulkHandler {
 						$undone[] = $order_id;
 					} else {
 						$failed[] = $order_id;
-						$errors[] = array(
-							'order_id' => $order_id,
-							'message'  => 'Unable to restore tags.',
-						);
+						$this->add_error( $errors, $order_id, 'Unable to restore tags.' );
 					}
 					break;
 				case 'add_note':
@@ -676,18 +652,12 @@ class BulkHandler {
 						$undone[] = $order_id;
 					} else {
 						$failed[] = $order_id;
-						$errors[] = array(
-							'order_id' => $order_id,
-							'message'  => 'Unable to remove notes.',
-						);
+						$this->add_error( $errors, $order_id, 'Unable to remove notes.' );
 					}
 					break;
 				default:
 					$failed[] = $order_id;
-					$errors[] = array(
-						'order_id' => $order_id,
-						'message'  => 'Rollback not supported for this action.',
-					);
+					$this->add_error( $errors, $order_id, 'Rollback not supported for this action.' );
 			}
 		}
 
@@ -893,6 +863,42 @@ class BulkHandler {
 	}
 
 	/**
+	 * Batch load orders to avoid N+1 queries.
+	 *
+	 * @param array $order_ids Order IDs to load.
+	 * @return array Associative array of order_id => order object.
+	 */
+	private function batch_load_orders( array $order_ids ) {
+		if ( empty( $order_ids ) || ! function_exists( 'wc_get_orders' ) ) {
+			return array();
+		}
+
+		$orders_map = array();
+		$batch_size = 100;
+		$chunks     = array_chunk( $order_ids, $batch_size );
+
+		foreach ( $chunks as $chunk ) {
+			$batch = wc_get_orders(
+				array(
+					'include' => $chunk,
+					'limit'   => count( $chunk ),
+					'orderby' => 'none',
+				)
+			);
+
+			if ( is_array( $batch ) ) {
+				foreach ( $batch as $order ) {
+					if ( $order && method_exists( $order, 'get_id' ) ) {
+						$orders_map[ $order->get_id() ] = $order;
+					}
+				}
+			}
+		}
+
+		return $orders_map;
+	}
+
+	/**
 	 * @param array $order_ids Order IDs.
 	 * @return array
 	 */
@@ -900,8 +906,11 @@ class BulkHandler {
 		$sample = array();
 		$order_ids = array_slice( $order_ids, 0, 5 );
 
+		// Batch load orders to avoid N+1 queries.
+		$orders_map = $this->batch_load_orders( $order_ids );
+
 		foreach ( $order_ids as $order_id ) {
-			$order = function_exists( 'wc_get_order' ) ? wc_get_order( $order_id ) : null;
+			$order = isset( $orders_map[ $order_id ] ) ? $orders_map[ $order_id ] : null;
 			if ( $order ) {
 				$sample[] = $this->format_order_summary( $order );
 			}
@@ -1238,7 +1247,18 @@ class BulkHandler {
 			return wp_generate_uuid4();
 		}
 
-		return uniqid( 'bulk_', true );
+		// Fallback: use cryptographically secure random bytes.
+		try {
+			return 'bulk_' . bin2hex( random_bytes( 16 ) );
+		} catch ( \Exception $e ) {
+			$crypto_strong = false;
+			$bytes = openssl_random_pseudo_bytes( 16, $crypto_strong );
+			if ( false === $bytes || ! $crypto_strong ) {
+				// Last resort: use uniqid with more entropy (less secure, but better than failing).
+				return 'bulk_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+			}
+			return 'bulk_' . bin2hex( $bytes );
+		}
 	}
 
 	/**
@@ -1246,7 +1266,9 @@ class BulkHandler {
 	 * @return string
 	 */
 	private function build_draft_key( $draft_id ) {
-		return Plugin::TRANSIENT_PREFIX . 'bulk_draft_' . $draft_id;
+		// Include user ID in the key to prevent cross-user draft access.
+		$user_id = get_current_user_id();
+		return Plugin::TRANSIENT_PREFIX . 'bulk_draft_' . $user_id . '_' . $draft_id;
 	}
 
 	/**
@@ -1254,7 +1276,9 @@ class BulkHandler {
 	 * @return string
 	 */
 	private function build_progress_key( $progress_id ) {
-		return Plugin::TRANSIENT_PREFIX . 'bulk_progress_' . $progress_id;
+		// Include user ID in the key to prevent cross-user progress access (IDOR protection).
+		$user_id = get_current_user_id();
+		return Plugin::TRANSIENT_PREFIX . 'bulk_progress_' . $user_id . '_' . $progress_id;
 	}
 
 	/**
@@ -1270,7 +1294,9 @@ class BulkHandler {
 	 * @return string
 	 */
 	private function build_rollback_key( $rollback_id ) {
-		return Plugin::TRANSIENT_PREFIX . 'bulk_rollback_' . $rollback_id;
+		// Include user ID in the key to prevent cross-user rollback access (IDOR protection).
+		$user_id = get_current_user_id();
+		return Plugin::TRANSIENT_PREFIX . 'bulk_rollback_' . $user_id . '_' . $rollback_id;
 	}
 
 	/**
@@ -1298,6 +1324,45 @@ class BulkHandler {
 
 		$draft = get_transient( $this->build_draft_key( $draft_id ) );
 		if ( false === $draft || ! is_array( $draft ) ) {
+			return null;
+		}
+
+		return $draft;
+	}
+
+	/**
+	 * Atomically claim a draft by loading and immediately deleting it.
+	 *
+	 * This prevents race conditions where two concurrent requests could
+	 * both load the same draft before either deletes it, causing double-processing.
+	 *
+	 * @param string $draft_id Draft identifier.
+	 * @return array|null The draft data if successfully claimed, null otherwise.
+	 */
+	private function claim_draft( $draft_id ) {
+		if ( ! function_exists( 'get_transient' ) || ! function_exists( 'delete_transient' ) ) {
+			return null;
+		}
+
+		$key   = $this->build_draft_key( $draft_id );
+		$draft = get_transient( $key );
+
+		if ( false === $draft || ! is_array( $draft ) ) {
+			return null;
+		}
+
+		// Atomically claim by deleting - only the first delete succeeds.
+		// This prevents race conditions where two requests could both claim the same draft.
+		$deleted = delete_transient( $key );
+
+		// If delete failed, check if already claimed by another request.
+		if ( ! $deleted ) {
+			$check = get_transient( $key );
+			if ( false !== $check ) {
+				// Transient still exists but delete failed - system issue, don't process.
+				return null;
+			}
+			// Transient was deleted by another concurrent request - reject this claim.
 			return null;
 		}
 
@@ -1388,6 +1453,12 @@ class BulkHandler {
 	private function normalize_bool( $value ) {
 		if ( function_exists( 'rest_sanitize_boolean' ) ) {
 			return rest_sanitize_boolean( $value );
+		}
+
+		// Handle string representations properly (e.g., "false" should be false).
+		if ( is_string( $value ) ) {
+			$value = strtolower( trim( $value ) );
+			return ! in_array( $value, array( 'false', '0', 'no', 'off', '' ), true );
 		}
 
 		return (bool) $value;
@@ -1530,8 +1601,11 @@ class BulkHandler {
 			return false;
 		}
 
+		// Include actor information for audit trail.
+		$actor = $this->get_current_actor();
+
 		$note = trim( (string) $note );
-		$audit_note = sprintf( '[AgentWP] Bulk status update: %s -> %s.', $current_status, $new_status );
+		$audit_note = sprintf( '[AgentWP] Bulk status update by %s: %s -> %s.', $actor, $current_status, $new_status );
 		if ( '' !== $note ) {
 			$audit_note .= ' Note: ' . $note . '.';
 		}
@@ -1539,21 +1613,51 @@ class BulkHandler {
 		$notify_customer = $this->normalize_bool( $notify_customer );
 		$notify_customer = apply_filters( 'agentwp_status_notify_customer', $notify_customer, $order, $new_status );
 
-		$filter = null;
+		// Use named method reference instead of closure for proper remove_filter().
 		if ( ! $notify_customer ) {
-			$filter = function () {
-				return false;
-			};
-			add_filter( 'woocommerce_email_enabled', $filter, 10, 2 );
+			add_filter( 'woocommerce_email_enabled', array( $this, 'disable_email_notifications' ), 10, 2 );
 		}
 
 		$order->update_status( $new_status, $audit_note );
 
-		if ( $filter ) {
-			remove_filter( 'woocommerce_email_enabled', $filter, 10 );
+		if ( ! $notify_customer ) {
+			remove_filter( 'woocommerce_email_enabled', array( $this, 'disable_email_notifications' ), 10 );
 		}
 
 		return true;
+	}
+
+	/**
+	 * Get the current user for audit trail purposes.
+	 *
+	 * @return string User display name or identifier.
+	 */
+	private function get_current_actor() {
+		$user_id = get_current_user_id();
+		if ( 0 === $user_id ) {
+			return 'system';
+		}
+
+		$user = get_userdata( $user_id );
+		if ( ! $user ) {
+			return sprintf( 'user #%d', $user_id );
+		}
+
+		return $user->display_name ?: $user->user_login;
+	}
+
+	/**
+	 * Filter callback to disable WooCommerce email notifications.
+	 *
+	 * Using a named method instead of a closure allows proper removal
+	 * via remove_filter(), since PHP cannot compare closures for equality.
+	 *
+	 * @param bool   $enabled Whether email is enabled.
+	 * @param object $email   Email object.
+	 * @return bool Always false.
+	 */
+	public function disable_email_notifications( $enabled, $email ) {
+		return false;
 	}
 
 	/**
@@ -1623,17 +1727,21 @@ class BulkHandler {
 	 */
 	private function format_export_row( $order ) {
 		$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
+		$currency     = method_exists( $order, 'get_currency' ) ? $order->get_currency() : '';
+		$billing_country  = method_exists( $order, 'get_billing_country' ) ? $order->get_billing_country() : '';
+		$shipping_country = method_exists( $order, 'get_shipping_country' ) ? $order->get_shipping_country() : '';
 
+		// Sanitize all user-controlled fields to prevent XSS.
 		return array(
 			'order_id'        => intval( $order->get_id() ),
 			'status'          => sanitize_text_field( $order->get_status() ),
 			'total'           => $order->get_total(),
-			'currency'        => method_exists( $order, 'get_currency' ) ? $order->get_currency() : '',
-			'customer_name'   => $this->get_customer_name( $order ),
-			'customer_email'  => $this->get_customer_email( $order ),
+			'currency'        => sanitize_text_field( $currency ),
+			'customer_name'   => sanitize_text_field( $this->get_customer_name( $order ) ),
+			'customer_email'  => sanitize_email( $this->get_customer_email( $order ) ),
 			'date_created'    => $date_created ? $date_created->date( 'c' ) : '',
-			'billing_country' => method_exists( $order, 'get_billing_country' ) ? $order->get_billing_country() : '',
-			'shipping_country'=> method_exists( $order, 'get_shipping_country' ) ? $order->get_shipping_country() : '',
+			'billing_country' => sanitize_text_field( $billing_country ),
+			'shipping_country'=> sanitize_text_field( $shipping_country ),
 		);
 	}
 
@@ -1649,8 +1757,14 @@ class BulkHandler {
 
 		$fields = $this->normalize_fields( $fields );
 		$upload = wp_upload_dir();
-		$base   = isset( $upload['basedir'] ) ? $upload['basedir'] : '';
-		$url    = isset( $upload['baseurl'] ) ? $upload['baseurl'] : '';
+
+		// wp_upload_dir() returns an 'error' key on failure.
+		if ( ! empty( $upload['error'] ) ) {
+			return array( 'error' => 'Unable to resolve upload directory: ' . $upload['error'] );
+		}
+
+		$base = isset( $upload['basedir'] ) ? $upload['basedir'] : '';
+		$url  = isset( $upload['baseurl'] ) ? $upload['baseurl'] : '';
 
 		if ( '' === $base || '' === $url ) {
 			return array( 'error' => 'Unable to resolve upload directory.' );
@@ -1663,25 +1777,33 @@ class BulkHandler {
 
 		$filename = 'agentwp-bulk-export-' . gmdate( 'Ymd-His' ) . '-' . wp_generate_password( 6, false ) . '.csv';
 		$path     = trailingslashit( $dir ) . $filename;
-		$file     = @fopen( $path, 'w' );
+
+		// Clear previous errors and attempt file creation without error suppression.
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Silencing fopen to capture error via error_get_last().
+		$file = @fopen( $path, 'w' );
 		if ( ! $file ) {
-			return array( 'error' => 'Unable to create CSV export file.' );
+			$last_error   = error_get_last();
+			$error_detail = isset( $last_error['message'] ) ? ': ' . $last_error['message'] : '.';
+			return array( 'error' => 'Unable to create CSV export file' . $error_detail );
 		}
 
-		fputcsv( $file, $fields );
-		foreach ( $rows as $row ) {
-			$line = array();
-			foreach ( $fields as $field ) {
-				$line[] = isset( $row[ $field ] ) ? $row[ $field ] : '';
+		// Use try-finally to ensure file handle is always closed.
+		try {
+			fputcsv( $file, $fields );
+			foreach ( $rows as $row ) {
+				$line = array();
+				foreach ( $fields as $field ) {
+					$line[] = isset( $row[ $field ] ) ? $row[ $field ] : '';
+				}
+				fputcsv( $file, $line );
 			}
-			fputcsv( $file, $line );
+		} finally {
+			fclose( $file );
 		}
-
-		fclose( $file );
 
 		return array(
 			'file_path' => $path,
-			'file_url'  => trailingslashit( $url ) . 'agentwp-exports/' . $filename,
+			'file_url'  => esc_url_raw( trailingslashit( $url ) . 'agentwp-exports/' . $filename ),
 			'rows'      => count( $rows ),
 		);
 	}
@@ -1927,9 +2049,14 @@ class BulkHandler {
 	 * @return array
 	 */
 	private function format_date_range( DateTimeImmutable $start, DateTimeImmutable $end ) {
+		// Convert to UTC for WooCommerce database queries (stores dates in UTC).
+		$utc       = new DateTimeZone( 'UTC' );
+		$start_utc = $start->setTimezone( $utc );
+		$end_utc   = $end->setTimezone( $utc );
+
 		return array(
-			'start' => $start->format( 'Y-m-d H:i:s' ),
-			'end'   => $end->format( 'Y-m-d H:i:s' ),
+			'start' => $start_utc->format( 'Y-m-d H:i:s' ),
+			'end'   => $end_utc->format( 'Y-m-d H:i:s' ),
 		);
 	}
 
@@ -1948,6 +2075,17 @@ class BulkHandler {
 
 		if ( '' === $timezone && function_exists( 'get_option' ) ) {
 			$timezone = (string) get_option( 'timezone_string' );
+		}
+
+		// Handle GMT offset when timezone_string is empty.
+		if ( '' === $timezone && function_exists( 'get_option' ) ) {
+			$gmt_offset = (float) get_option( 'gmt_offset', 0 );
+			if ( 0.0 !== $gmt_offset ) {
+				$hours    = (int) $gmt_offset;
+				$minutes  = abs( (int) ( ( $gmt_offset - $hours ) * 60 ) );
+				$sign     = $gmt_offset >= 0 ? '+' : '-';
+				$timezone = sprintf( '%s%02d:%02d', $sign, abs( $hours ), $minutes );
+			}
 		}
 
 		if ( '' === $timezone ) {
@@ -2227,5 +2365,30 @@ class BulkHandler {
 		}
 
 		return 0;
+	}
+
+	/**
+	 * Add an error to the errors array with bounds checking.
+	 *
+	 * Prevents unbounded memory growth by limiting the number of
+	 * detailed error messages stored.
+	 *
+	 * @param array  $errors   Reference to errors array.
+	 * @param int    $order_id Order ID.
+	 * @param string $message  Error message.
+	 * @return void
+	 */
+	private function add_error( array &$errors, int $order_id, string $message ): void {
+		if ( count( $errors ) >= self::MAX_ERRORS ) {
+			// Only track the first truncation.
+			if ( ! isset( $errors['truncated'] ) ) {
+				$errors['truncated'] = true;
+			}
+			return;
+		}
+		$errors[] = array(
+			'order_id' => $order_id,
+			'message'  => $message,
+		);
 	}
 }

@@ -34,6 +34,8 @@ class Resetter {
 	/**
 	 * Delete WooCommerce orders and refunds.
 	 *
+	 * Uses batched queries to prevent memory exhaustion on large datasets.
+	 *
 	 * @return void
 	 */
 	private static function delete_orders() {
@@ -41,24 +43,42 @@ class Resetter {
 			return;
 		}
 
-		$order_ids = wc_get_orders(
-			array(
-				'limit'  => -1,
-				'return' => 'ids',
-			)
-		);
+		$batch_size = 100;
+		$page       = 1;
 
-		foreach ( $order_ids as $order_id ) {
-			if ( function_exists( 'wc_delete_order' ) ) {
-				wc_delete_order( $order_id, true );
-			} else {
-				wp_delete_post( $order_id, true );
+		do {
+			$order_ids = wc_get_orders(
+				array(
+					'limit'  => $batch_size,
+					'page'   => $page,
+					'return' => 'ids',
+				)
+			);
+
+			// wc_get_orders() can return non-array on error.
+			if ( ! is_array( $order_ids ) || empty( $order_ids ) ) {
+				break;
 			}
-		}
+
+			foreach ( $order_ids as $order_id ) {
+				if ( function_exists( 'wc_delete_order' ) ) {
+					wc_delete_order( $order_id, true );
+				} else {
+					wp_delete_post( $order_id, true );
+				}
+			}
+
+			// Since we're deleting items, we don't increment page -
+			// the next query will get new items at page 1.
+			// But set a safety limit to prevent infinite loops.
+			$page++;
+		} while ( count( $order_ids ) === $batch_size && $page < 1000 );
 	}
 
 	/**
 	 * Delete demo products and categories.
+	 *
+	 * Uses batched queries to prevent memory exhaustion on large datasets.
 	 *
 	 * @return void
 	 */
@@ -67,16 +87,31 @@ class Resetter {
 			return;
 		}
 
-		$product_ids = wc_get_products(
-			array(
-				'limit'  => -1,
-				'return' => 'ids',
-			)
-		);
+		$batch_size = 100;
+		$page       = 1;
 
-		foreach ( $product_ids as $product_id ) {
-			wp_delete_post( $product_id, true );
-		}
+		do {
+			$product_ids = wc_get_products(
+				array(
+					'limit'  => $batch_size,
+					'page'   => $page,
+					'return' => 'ids',
+				)
+			);
+
+			// wc_get_products() can return non-array on error.
+			if ( ! is_array( $product_ids ) || empty( $product_ids ) ) {
+				break;
+			}
+
+			foreach ( $product_ids as $product_id ) {
+				wp_delete_post( $product_id, true );
+			}
+
+			// Since we're deleting items, next query will get new items.
+			// Safety limit to prevent infinite loops.
+			$page++;
+		} while ( count( $product_ids ) === $batch_size && $page < 1000 );
 
 		$terms = get_terms(
 			array(
@@ -98,56 +133,103 @@ class Resetter {
 	/**
 	 * Delete coupons.
 	 *
+	 * Uses batched queries to prevent memory exhaustion on large datasets.
+	 *
 	 * @return void
 	 */
 	private static function delete_coupons() {
-		$coupons = get_posts(
-			array(
-				'post_type'      => 'shop_coupon',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-			)
-		);
+		$batch_size = 100;
+		$page       = 1;
 
-		foreach ( $coupons as $coupon_id ) {
-			wp_delete_post( $coupon_id, true );
-		}
+		do {
+			$coupons = get_posts(
+				array(
+					'post_type'      => 'shop_coupon',
+					'posts_per_page' => $batch_size,
+					'paged'          => $page,
+					'fields'         => 'ids',
+				)
+			);
+
+			if ( empty( $coupons ) ) {
+				break;
+			}
+
+			foreach ( $coupons as $coupon_id ) {
+				wp_delete_post( $coupon_id, true );
+			}
+
+			// Safety limit to prevent infinite loops.
+			$page++;
+		} while ( count( $coupons ) === $batch_size && $page < 1000 );
 	}
 
 	/**
 	 * Delete customer accounts.
 	 *
+	 * Uses batched queries to prevent memory exhaustion on large datasets.
+	 *
 	 * @return void
 	 */
 	private static function delete_customers() {
-		$users = get_users(
-			array(
-				'role__in' => array( 'customer', 'subscriber' ),
-				'fields'   => array( 'ID' ),
-			)
-		);
+		$batch_size = 100;
+		$page       = 1;
 
-		foreach ( $users as $user ) {
-			wp_delete_user( $user->ID );
-		}
+		do {
+			$users = get_users(
+				array(
+					'role__in' => array( 'customer', 'subscriber' ),
+					'fields'   => array( 'ID' ),
+					'number'   => $batch_size,
+					'paged'    => $page,
+				)
+			);
+
+			if ( empty( $users ) ) {
+				break;
+			}
+
+			foreach ( $users as $user ) {
+				wp_delete_user( $user->ID );
+			}
+
+			// Safety limit to prevent infinite loops.
+			$page++;
+		} while ( count( $users ) === $batch_size && $page < 1000 );
 	}
 
 	/**
 	 * Delete comments and reviews.
 	 *
+	 * Uses batched queries to prevent memory exhaustion on large datasets.
+	 *
 	 * @return void
 	 */
 	private static function delete_comments() {
-		$comments = get_comments(
-			array(
-				'status' => 'all',
-				'fields' => 'ids',
-			)
-		);
+		$batch_size = 100;
+		$page       = 1;
 
-		foreach ( $comments as $comment_id ) {
-			wp_delete_comment( $comment_id, true );
-		}
+		do {
+			$comments = get_comments(
+				array(
+					'status' => 'all',
+					'fields' => 'ids',
+					'number' => $batch_size,
+					'paged'  => $page,
+				)
+			);
+
+			if ( empty( $comments ) ) {
+				break;
+			}
+
+			foreach ( $comments as $comment_id ) {
+				wp_delete_comment( $comment_id, true );
+			}
+
+			// Safety limit to prevent infinite loops.
+			$page++;
+		} while ( count( $comments ) === $batch_size && $page < 1000 );
 	}
 
 	/**

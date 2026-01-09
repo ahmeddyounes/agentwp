@@ -25,11 +25,20 @@ class Index {
 		add_action( 'init', array( __CLASS__, 'ensure_table' ) );
 		add_action( 'init', array( __CLASS__, 'maybe_backfill' ), 15 );
 
-		add_action( 'save_post_product', array( __CLASS__, 'handle_product_save' ), 10, 3 );
-		add_action( 'save_post_shop_order', array( __CLASS__, 'handle_order_save' ), 10, 3 );
+		// Use priority 20 to run after WooCommerce's own save handlers (typically priority 10).
+		// This ensures product/order data is fully saved before we index it.
+		add_action( 'save_post_product', array( __CLASS__, 'handle_product_save' ), 20, 3 );
+
+		// HPOS-compatible order hooks: woocommerce_new_order and woocommerce_update_order
+		// work with both legacy post storage and HPOS custom tables.
+		// save_post_shop_order only fires for legacy post-based storage.
+		add_action( 'woocommerce_new_order', array( __CLASS__, 'handle_order_created' ), 20, 2 );
+		add_action( 'woocommerce_update_order', array( __CLASS__, 'handle_order_updated' ), 20, 2 );
+
 		add_action( 'before_delete_post', array( __CLASS__, 'handle_post_delete' ) );
+		add_action( 'woocommerce_before_delete_order', array( __CLASS__, 'handle_order_delete' ) );
 		add_action( 'user_register', array( __CLASS__, 'handle_user_register' ) );
-		add_action( 'profile_update', array( __CLASS__, 'handle_user_update' ), 10, 2 );
+		add_action( 'profile_update', array( __CLASS__, 'handle_user_update' ), 20, 2 );
 	}
 
 	/**
@@ -91,7 +100,7 @@ class Index {
 	 * @return array
 	 */
 	public static function search( $query, array $types, $limit = self::DEFAULT_LIMIT ) {
-		$limit  = max( 1, absint( $limit ) );
+		$limit  = min( 100, max( 1, absint( $limit ) ) );
 		$query  = sanitize_text_field( (string) $query );
 		$query  = trim( $query );
 		$types  = self::normalize_types( $types );
@@ -131,12 +140,13 @@ class Index {
 	}
 
 	/**
-	 * Handle order save.
+	 * Handle order save (legacy post-based storage).
 	 *
 	 * @param int     $post_id Post ID.
 	 * @param \WP_Post $post Post instance.
 	 * @param bool    $update Whether this is an existing post being updated.
 	 * @return void
+	 * @deprecated Use handle_order_created/handle_order_updated for HPOS compatibility.
 	 */
 	public static function handle_order_save( $post_id, $post, $update ) {
 		if ( ! self::should_handle_post_save( $post_id, $post ) ) {
@@ -144,6 +154,46 @@ class Index {
 		}
 
 		self::index_order( $post_id );
+	}
+
+	/**
+	 * Handle new order creation (HPOS-compatible).
+	 *
+	 * @param int                            $order_id Order ID.
+	 * @param \WC_Order|\WC_Abstract_Order|null $order Order object.
+	 * @return void
+	 */
+	public static function handle_order_created( $order_id, $order = null ) {
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
+
+		self::index_order( $order_id );
+	}
+
+	/**
+	 * Handle order update (HPOS-compatible).
+	 *
+	 * @param int                            $order_id Order ID.
+	 * @param \WC_Order|\WC_Abstract_Order|null $order Order object.
+	 * @return void
+	 */
+	public static function handle_order_updated( $order_id, $order = null ) {
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
+
+		self::index_order( $order_id );
+	}
+
+	/**
+	 * Handle order deletion (HPOS-compatible).
+	 *
+	 * @param int $order_id Order ID.
+	 * @return void
+	 */
+	public static function handle_order_delete( $order_id ) {
+		self::delete_index_entry( 'orders', $order_id );
 	}
 
 	/**
@@ -335,26 +385,38 @@ class Index {
 
 		if ( self::supports_fulltext() && strlen( $normalized ) >= 3 ) {
 			$against = self::build_fulltext_query( $normalized );
+			// Use %i placeholder for table identifier to prevent SQL injection.
 			$sql     = $wpdb->prepare(
-				"SELECT type, object_id, primary_text, secondary_text FROM {$table}
+				'SELECT type, object_id, primary_text, secondary_text FROM %i
 				WHERE type = %s AND MATCH(search_text, primary_text, secondary_text) AGAINST (%s IN BOOLEAN MODE)
-				LIMIT %d",
+				LIMIT %d',
+				$table,
 				$type,
 				$against,
 				$limit
 			);
-			$rows    = $wpdb->get_results( $sql, ARRAY_A );
+			$rows = $wpdb->get_results( $sql, ARRAY_A );
+			// $wpdb->get_results() can return null on database errors.
+			if ( ! is_array( $rows ) ) {
+				$rows = array();
+			}
 		} else {
 			$like = '%' . $wpdb->esc_like( $normalized ) . '%';
+			// Use %i placeholder for table identifier to prevent SQL injection.
 			$sql  = $wpdb->prepare(
-				"SELECT type, object_id, primary_text, secondary_text FROM {$table}
+				'SELECT type, object_id, primary_text, secondary_text FROM %i
 				WHERE type = %s AND search_text LIKE %s
-				LIMIT %d",
+				LIMIT %d',
+				$table,
 				$type,
 				$like,
 				$limit
 			);
 			$rows = $wpdb->get_results( $sql, ARRAY_A );
+			// $wpdb->get_results() can return null on database errors.
+			if ( ! is_array( $rows ) ) {
+				$rows = array();
+			}
 		}
 
 		if ( empty( $rows ) && ! self::is_backfill_complete( $type ) ) {
@@ -620,7 +682,8 @@ class Index {
 		$text = wp_strip_all_tags( (string) $text );
 		$text = remove_accents( $text );
 		$text = strtolower( $text );
-		$text = preg_replace( '/\s+/', ' ', $text );
+		$normalized = preg_replace( '/\s+/', ' ', $text );
+		$text       = is_string( $normalized ) ? $normalized : $text;
 
 		return trim( $text );
 	}
@@ -633,6 +696,12 @@ class Index {
 	 */
 	private static function build_fulltext_query( $normalized ) {
 		$tokens = preg_split( '/\s+/', $normalized );
+
+		// Handle preg_split error.
+		if ( ! is_array( $tokens ) ) {
+			return $normalized;
+		}
+
 		$tokens = array_filter( $tokens );
 
 		if ( empty( $tokens ) ) {
@@ -641,7 +710,8 @@ class Index {
 
 		$parts = array();
 		foreach ( $tokens as $token ) {
-			$token = preg_replace( '/[^a-z0-9@._\-]/', '', $token );
+			$cleaned = preg_replace( '/[^a-z0-9@._\-]/', '', $token );
+			$token   = is_string( $cleaned ) ? $cleaned : $token;
 			if ( '' === $token ) {
 				continue;
 			}

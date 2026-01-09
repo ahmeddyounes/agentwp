@@ -8,6 +8,7 @@
 namespace AgentWP\Intent;
 
 use AgentWP\AI\Response;
+use AgentWP\Contracts\MemoryStoreInterface;
 use AgentWP\Intent\Handlers\AnalyticsQueryHandler;
 use AgentWP\Intent\Handlers\CustomerLookupHandler;
 use AgentWP\Intent\Handlers\EmailDraftHandler;
@@ -29,7 +30,7 @@ class Engine {
 	private $context_builder;
 
 	/**
-	 * @var MemoryStore
+	 * @var MemoryStoreInterface|MemoryStore
 	 */
 	private $memory;
 
@@ -49,18 +50,18 @@ class Engine {
 	private $fallback_handler;
 
 	/**
-	 * @param array|null $handlers Optional handlers.
-	 * @param FunctionRegistry|null $function_registry Optional registry.
-	 * @param ContextBuilder|null $context_builder Optional context builder.
-	 * @param IntentClassifier|null $classifier Optional classifier.
-	 * @param MemoryStore|null $memory Optional memory store.
+	 * @param array|null                        $handlers          Optional handlers.
+	 * @param FunctionRegistry|null             $function_registry Optional registry.
+	 * @param ContextBuilder|null               $context_builder   Optional context builder.
+	 * @param IntentClassifier|null             $classifier        Optional classifier.
+	 * @param MemoryStoreInterface|MemoryStore|null $memory        Optional memory store.
 	 */
 	public function __construct(
 		array $handlers = array(),
-		FunctionRegistry $function_registry = null,
-		ContextBuilder $context_builder = null,
-		IntentClassifier $classifier = null,
-		MemoryStore $memory = null
+		?FunctionRegistry $function_registry = null,
+		?ContextBuilder $context_builder = null,
+		?IntentClassifier $classifier = null,
+		MemoryStoreInterface|MemoryStore|null $memory = null
 	) {
 		$this->classifier      = $classifier ? $classifier : new IntentClassifier();
 		$this->context_builder = $context_builder ? $context_builder : new ContextBuilder();

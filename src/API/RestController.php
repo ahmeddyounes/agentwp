@@ -198,7 +198,8 @@ abstract class RestController extends WP_REST_Controller {
 		$bucket = get_transient( $key );
 		$now    = time();
 
-		if ( ! is_array( $bucket ) ) {
+		// Validate bucket structure - ensure required keys exist.
+		if ( ! is_array( $bucket ) || ! isset( $bucket['start'], $bucket['count'] ) ) {
 			$bucket = array(
 				'start' => $now,
 				'count' => 0,

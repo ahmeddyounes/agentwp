@@ -46,7 +46,7 @@ class MemoryStore {
 		$memory[] = $entry;
 
 		if ( count( $memory ) > $this->limit ) {
-			$memory = array_slice( $memory, -1 * $this->limit );
+			$memory = array_slice( $memory, -$this->limit );
 		}
 
 		$_SESSION[ self::SESSION_KEY ] = $memory;

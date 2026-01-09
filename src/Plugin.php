@@ -7,6 +7,21 @@
 
 namespace AgentWP;
 
+use AgentWP\Container\Container;
+use AgentWP\Container\ContainerInterface;
+use AgentWP\Container\ServiceProvider;
+use AgentWP\Plugin\AdminMenuManager;
+use AgentWP\Plugin\AssetManager;
+use AgentWP\Plugin\ResponseFormatter;
+use AgentWP\Plugin\RestRouteRegistrar;
+use AgentWP\Plugin\SettingsManager;
+use AgentWP\Plugin\ThemeManager;
+use AgentWP\Providers\CoreServiceProvider;
+use AgentWP\Providers\HandlerServiceProvider;
+use AgentWP\Providers\InfrastructureServiceProvider;
+use AgentWP\Providers\IntentServiceProvider;
+use AgentWP\Providers\RestServiceProvider;
+
 class Plugin {
 	const OPTION_SETTINGS     = 'agentwp_settings';
 	const OPTION_API_KEY      = 'agentwp_api_key';
@@ -24,9 +39,21 @@ class Plugin {
 	private static $instance = null;
 
 	/**
+	 * @var ContainerInterface
+	 */
+	private ContainerInterface $container;
+
+	/**
 	 * @var string
 	 */
 	private $menu_hook = '';
+
+	/**
+	 * Registered service providers.
+	 *
+	 * @var ServiceProvider[]
+	 */
+	private array $providers = array();
 
 	/**
 	 * Initialize plugin hooks.
@@ -75,21 +102,78 @@ class Plugin {
 	 */
 	public static function deactivate() {
 		self::delete_transients();
+		self::unschedule_action_scheduler_jobs();
+		self::cleanup_export_files();
+
 		if ( class_exists( 'AgentWP\\Demo\\Manager' ) ) {
 			Demo\Manager::deactivate();
 		}
 	}
 
 	/**
+	 * Unschedule all pending Action Scheduler jobs for the plugin.
+	 *
+	 * @return void
+	 */
+	private static function unschedule_action_scheduler_jobs() {
+		// Clean up BulkHandler async jobs.
+		if ( function_exists( 'as_unschedule_all_actions' ) ) {
+			as_unschedule_all_actions( Handlers\BulkHandler::ACTION_HOOK );
+		}
+	}
+
+	/**
+	 * Clean up export files created by BulkHandler.
+	 *
+	 * @return void
+	 */
+	private static function cleanup_export_files() {
+		if ( ! function_exists( 'wp_upload_dir' ) ) {
+			return;
+		}
+
+		$upload = wp_upload_dir();
+		// wp_upload_dir() returns an 'error' key on failure.
+		if ( ! empty( $upload['error'] ) ) {
+			return;
+		}
+		$basedir = isset( $upload['basedir'] ) ? $upload['basedir'] : '';
+		if ( '' === $basedir ) {
+			return;
+		}
+
+		$export_dir = trailingslashit( $basedir ) . 'agentwp-exports';
+		if ( ! is_dir( $export_dir ) ) {
+			return;
+		}
+
+		// Delete all CSV files in the export directory.
+		$files = glob( $export_dir . '/*.csv' );
+		if ( is_array( $files ) ) {
+			foreach ( $files as $file ) {
+				if ( is_file( $file ) ) {
+					@unlink( $file );
+				}
+			}
+		}
+
+		// Try to remove the directory if empty.
+		@rmdir( $export_dir );
+	}
+
+	/**
 	 * Set up hooks.
 	 */
 	private function __construct() {
+		$this->container = new Container();
+		$this->registerProviders();
+		$this->bootProviders();
+
 		add_action( 'init', array( $this, 'load_textdomain' ) );
-		add_action( 'admin_menu', array( $this, 'register_menu' ) );
-		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
-		add_action( 'admin_head', array( $this, 'output_theme_attribute' ) );
-		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
-		add_filter( 'rest_post_dispatch', array( $this, 'format_rest_response' ), 10, 3 );
+		// Note: admin_menu, admin_enqueue_scripts, admin_head hooks are now
+		// registered by CoreServiceProvider via AdminMenuManager and AssetManager.
+		// Note: rest_api_init and rest_post_dispatch hooks are now registered
+		// by RestServiceProvider via RestRouteRegistrar and ResponseFormatter.
 
 		if ( class_exists( 'AgentWP\\Billing\\UsageTracker' ) ) {
 			Billing\UsageTracker::init();
@@ -106,6 +190,72 @@ class Plugin {
 		if ( class_exists( 'AgentWP\\Demo\\Manager' ) ) {
 			Demo\Manager::init();
 		}
+	}
+
+	/**
+	 * Register service providers.
+	 *
+	 * @return void
+	 */
+	private function registerProviders(): void {
+		$this->providers = array(
+			new CoreServiceProvider( $this->container ),
+			new InfrastructureServiceProvider( $this->container ),
+			new RestServiceProvider( $this->container ),
+			new IntentServiceProvider( $this->container ),
+			new HandlerServiceProvider( $this->container ),
+		);
+
+		foreach ( $this->providers as $provider ) {
+			$provider->register();
+		}
+
+		/**
+		 * Allow extensions to register additional providers.
+		 *
+		 * @param ContainerInterface $container The DI container.
+		 */
+		do_action( 'agentwp_register_providers', $this->container );
+	}
+
+	/**
+	 * Boot service providers.
+	 *
+	 * @return void
+	 */
+	private function bootProviders(): void {
+		foreach ( $this->providers as $provider ) {
+			if ( method_exists( $provider, 'boot' ) ) {
+				$provider->boot();
+			}
+		}
+
+		/**
+		 * Fires after all providers have been booted.
+		 *
+		 * Use this hook to perform post-boot initialization.
+		 *
+		 * @param ContainerInterface $container The DI container.
+		 */
+		do_action( 'agentwp_boot_providers', $this->container );
+	}
+
+	/**
+	 * Get the container instance.
+	 *
+	 * @return ContainerInterface
+	 */
+	public function getContainer(): ContainerInterface {
+		return $this->container;
+	}
+
+	/**
+	 * Get the container instance statically.
+	 *
+	 * @return ContainerInterface|null
+	 */
+	public static function container(): ?ContainerInterface {
+		return self::$instance?->container;
 	}
 
 	/**
@@ -190,6 +340,7 @@ class Plugin {
 			wp_enqueue_style( 'wp-components' );
 			$theme = $this->get_user_theme_preference();
 
+			// Use JSON_HEX_TAG to prevent XSS via </script> in JSON strings.
 			wp_add_inline_script(
 				'agentwp-admin',
 				'window.agentwpSettings = ' . wp_json_encode(
@@ -200,7 +351,8 @@ class Plugin {
 						'supportEmail' => sanitize_email( get_option( 'admin_email' ) ),
 						'version' => defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '',
 						'demoMode' => $demo_mode,
-					)
+					),
+					JSON_HEX_TAG | JSON_HEX_AMP
 				),
 				'before'
 			);
@@ -234,7 +386,8 @@ class Plugin {
 		$theme = $this->get_user_theme_preference();
 
 		$script = '(function(){';
-		$script .= 'var theme=' . wp_json_encode( $theme ) . ';';
+		// Use JSON_HEX_TAG to prevent XSS via </script> in JSON strings.
+		$script .= 'var theme=' . wp_json_encode( $theme, JSON_HEX_TAG | JSON_HEX_AMP ) . ';';
 		$script .= "if(!theme){try{theme=window.localStorage.getItem('agentwp-theme-preference');}catch(e){theme='';}}";
 		$script .= "if(theme!=='light'&&theme!=='dark'){return;}";
 		$script .= 'var root=document.documentElement;';
@@ -242,7 +395,7 @@ class Plugin {
 		$script .= 'root.style.colorScheme=theme;';
 		$script .= '})();';
 
-		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Inline script is generated from safe values.
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Theme values are validated above.
 		echo '<script>' . $script . '</script>';
 	}
 
@@ -271,6 +424,15 @@ class Plugin {
 	 * @return void
 	 */
 	public function register_rest_routes() {
+		// Use container-based registration if available.
+		if ( $this->container->has( RestRouteRegistrar::class ) ) {
+			/** @var RestRouteRegistrar $registrar */
+			$registrar = $this->container->get( RestRouteRegistrar::class );
+			$registrar->registerRoutes();
+			return;
+		}
+
+		// Fallback to direct instantiation for backward compatibility.
 		if ( class_exists( 'AgentWP\\Rest\\SettingsController' ) ) {
 			$controller = new Rest\SettingsController();
 			$controller->register_routes();
@@ -314,6 +476,15 @@ class Plugin {
 		if ( ! $this->is_agentwp_route( $request ) ) {
 			return $result;
 		}
+
+		// Use container-based formatter if available.
+		if ( $this->container->has( ResponseFormatter::class ) ) {
+			/** @var ResponseFormatter $formatter */
+			$formatter = $this->container->get( ResponseFormatter::class );
+			return $formatter->format( $result, $request );
+		}
+
+		// Fallback to inline formatting for backward compatibility.
 
 		$status     = 200;
 		$error_code = '';

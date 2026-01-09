@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+build/*
+!build/.gitkeep
+dist/
+
+# Logs and caches
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp.cjs
+.pnp.loader.mjs
+.pnpm-debug.log*
+.phpunit.result.cache
+.php-cs-fixer.cache
+/.cache/
+
+# Environment and system files
+.env
+.env.*
+.DS_Store
+.idea/
+.vscode/
+.sass-cache/
+coverage/
+
+# Misc
+*.log
+/.hive-mind
+/.claude-flow

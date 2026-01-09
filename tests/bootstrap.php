@@ -3,6 +3,9 @@
  * PHPUnit bootstrap for AgentWP.
  */
 
+// Suppress deprecation warnings (WP_Mock compatibility with PHP 8.4).
+error_reporting( E_ALL & ~E_DEPRECATED );
+
 require dirname( __DIR__ ) . '/vendor/autoload.php';
 
 if ( ! class_exists( 'WP_Error' ) ) {
@@ -73,6 +76,12 @@ if ( ! function_exists( 'wp_remote_retrieve_body' ) ) {
 if ( ! function_exists( 'wp_remote_retrieve_headers' ) ) {
 	function wp_remote_retrieve_headers( $response ) {
 		return isset( $response['headers'] ) ? $response['headers'] : array();
+	}
+}
+
+if ( ! function_exists( 'apply_filters' ) ) {
+	function apply_filters( $hook, $value, ...$args ) {
+		return $value;
 	}
 }
 

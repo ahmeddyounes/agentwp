@@ -149,24 +149,32 @@ class AnalyticsHandler {
 		$has_total_sales   = $this->table_has_column( $table, 'total_sales' );
 		$has_items_sold    = $this->table_has_column( $table, 'num_items_sold' );
 		$total_column      = $has_total_sales ? 'total_sales' : 'net_total';
+		// Validate column against whitelist to prevent SQL injection.
+		if ( ! in_array( $total_column, self::ALLOWED_TOTAL_COLUMNS, true ) ) {
+			$total_column = 'net_total';
+		}
 		$items_select      = $has_items_sold ? 'COALESCE(SUM(num_items_sold), 0) AS items_sold' : '0 AS items_sold';
 		$parent_filter_sql = $this->table_has_column( $table, 'parent_id' ) ? ' AND parent_id = 0' : '';
 
 		$params = array( $range['start_mysql'], $range['end_mysql'] );
 		$status_clause = $this->build_status_clause( $statuses, $params );
 
-		$sql = "
+		// Use %i placeholder for table name (WordPress 6.2+).
+		$sql = $wpdb->prepare(
+			"
 			SELECT
 				COALESCE(SUM({$total_column}), 0) AS total_revenue,
 				COALESCE(SUM(net_total), 0) AS net_revenue,
 				{$items_select},
 				COUNT(order_id) AS order_count
-			FROM {$table}
-			WHERE date_created >= %s
-				AND date_created <= %s
+			FROM %i
+			WHERE date_created >= %%s
+				AND date_created <= %%s
 				{$parent_filter_sql}
 				{$status_clause}
-		";
+			",
+			$table
+		);
 
 		$row = $wpdb->get_row( $wpdb->prepare( $sql, $params ), ARRAY_A );
 		if ( ! is_array( $row ) ) {
@@ -204,16 +212,21 @@ class AnalyticsHandler {
 		$params = array( $range['start_mysql'], $range['end_mysql'] );
 		$status_clause = $this->build_status_clause( $statuses, $params, 'stats.status' );
 
-		$sql = "
+		// Use %i placeholder for table names (WordPress 6.2+).
+		$sql = $wpdb->prepare(
+			"
 			SELECT COALESCE(SUM(lookup.product_qty), 0)
-			FROM {$items_table} AS lookup
-			INNER JOIN {$stats_table} AS stats
+			FROM %i AS lookup
+			INNER JOIN %i AS stats
 				ON lookup.order_id = stats.order_id
-			WHERE stats.date_created >= %s
-				AND stats.date_created <= %s
+			WHERE stats.date_created >= %%s
+				AND stats.date_created <= %%s
 				{$parent_filter_sql}
 				{$status_clause}
-		";
+			",
+			$items_table,
+			$stats_table
+		);
 
 		$total = $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
 		return absint( $total );
@@ -235,35 +248,49 @@ class AnalyticsHandler {
 		}
 
 		$revenue_column = $this->get_product_revenue_column( $table );
+		// Validate revenue column against whitelist to prevent SQL injection.
+		if ( null !== $revenue_column && ! in_array( $revenue_column, self::ALLOWED_REVENUE_COLUMNS, true ) ) {
+			$revenue_column = null;
+		}
 		$revenue_select = $revenue_column
 			? "COALESCE(SUM(lookup.{$revenue_column}), 0) AS net_revenue"
 			: '0 AS net_revenue';
 		$order_by = $revenue_column ? 'net_revenue' : 'items_sold';
+		// Validate order by column against whitelist to prevent SQL injection.
+		if ( ! in_array( $order_by, self::ALLOWED_ORDER_COLUMNS, true ) ) {
+			$order_by = 'items_sold';
+		}
 		$parent_filter_sql = $this->table_has_column( $stats_table, 'parent_id' ) ? ' AND stats.parent_id = 0' : '';
 
 		$params = array( $range['start_mysql'], $range['end_mysql'] );
 		$status_clause = $this->build_status_clause( $statuses, $params, 'stats.status' );
 
-		$sql = "
+		// Use %i placeholder for table names (WordPress 6.2+).
+		$sql = $wpdb->prepare(
+			"
 			SELECT
 				lookup.product_id AS product_id,
 				COALESCE(SUM(lookup.product_qty), 0) AS items_sold,
 				{$revenue_select},
 				COALESCE(posts.post_title, '') AS product_name
-			FROM {$table} AS lookup
-			INNER JOIN {$stats_table} AS stats
+			FROM %i AS lookup
+			INNER JOIN %i AS stats
 				ON lookup.order_id = stats.order_id
-			LEFT JOIN {$wpdb->posts} AS posts
+			LEFT JOIN %i AS posts
 				ON posts.ID = lookup.product_id
-			WHERE stats.date_created >= %s
-				AND stats.date_created <= %s
+			WHERE stats.date_created >= %%s
+				AND stats.date_created <= %%s
 				{$parent_filter_sql}
 				{$status_clause}
 				AND lookup.product_id > 0
 			GROUP BY lookup.product_id
 			ORDER BY {$order_by} DESC
-			LIMIT %d
-		";
+			LIMIT %%d
+			",
+			$table,
+			$stats_table,
+			$wpdb->posts
+		);
 
 		$params[] = self::TOP_LIMIT;
 
@@ -303,40 +330,56 @@ class AnalyticsHandler {
 		}
 
 		$revenue_column = $this->get_product_revenue_column( $table );
+		// Validate revenue column against whitelist to prevent SQL injection.
+		if ( null !== $revenue_column && ! in_array( $revenue_column, self::ALLOWED_REVENUE_COLUMNS, true ) ) {
+			$revenue_column = null;
+		}
 		$revenue_select = $revenue_column
 			? "COALESCE(SUM(lookup.{$revenue_column}), 0) AS net_revenue"
 			: '0 AS net_revenue';
 		$order_by = $revenue_column ? 'net_revenue' : 'items_sold';
+		// Validate order by column against whitelist to prevent SQL injection.
+		if ( ! in_array( $order_by, self::ALLOWED_ORDER_COLUMNS, true ) ) {
+			$order_by = 'items_sold';
+		}
 		$parent_filter_sql = $this->table_has_column( $stats_table, 'parent_id' ) ? ' AND stats.parent_id = 0' : '';
 
 		$params = array( $range['start_mysql'], $range['end_mysql'] );
 		$status_clause = $this->build_status_clause( $statuses, $params, 'stats.status' );
 
-		$sql = "
+		// Use %i placeholder for table names (WordPress 6.2+).
+		$sql = $wpdb->prepare(
+			"
 			SELECT
 				terms.term_id AS term_id,
 				terms.name AS category_name,
 				COALESCE(SUM(lookup.product_qty), 0) AS items_sold,
 				{$revenue_select}
-			FROM {$table} AS lookup
-			INNER JOIN {$stats_table} AS stats
+			FROM %i AS lookup
+			INNER JOIN %i AS stats
 				ON lookup.order_id = stats.order_id
-			INNER JOIN {$wpdb->term_relationships} AS rel
+			INNER JOIN %i AS rel
 				ON rel.object_id = lookup.product_id
-			INNER JOIN {$wpdb->term_taxonomy} AS tax
+			INNER JOIN %i AS tax
 				ON tax.term_taxonomy_id = rel.term_taxonomy_id
-			INNER JOIN {$wpdb->terms} AS terms
+			INNER JOIN %i AS terms
 				ON terms.term_id = tax.term_id
-			WHERE stats.date_created >= %s
-				AND stats.date_created <= %s
+			WHERE stats.date_created >= %%s
+				AND stats.date_created <= %%s
 				{$parent_filter_sql}
 				{$status_clause}
 				AND lookup.product_id > 0
 				AND tax.taxonomy = 'product_cat'
 			GROUP BY terms.term_id
 			ORDER BY {$order_by} DESC
-			LIMIT %d
-		";
+			LIMIT %%d
+			",
+			$table,
+			$stats_table,
+			$wpdb->term_relationships,
+			$wpdb->term_taxonomy,
+			$wpdb->terms
+		);
 
 		$params[] = self::TOP_LIMIT;
 
@@ -501,11 +544,16 @@ class AnalyticsHandler {
 	 * @return array
 	 */
 	private function format_range( DateTimeImmutable $start, DateTimeImmutable $end ) {
+		// Convert to UTC for WooCommerce database queries (wc_order_stats stores dates in UTC).
+		$utc = new DateTimeZone( 'UTC' );
+		$start_utc = $start->setTimezone( $utc );
+		$end_utc   = $end->setTimezone( $utc );
+
 		return array(
 			'start'       => $start,
 			'end'         => $end,
-			'start_mysql' => $start->format( 'Y-m-d H:i:s' ),
-			'end_mysql'   => $end->format( 'Y-m-d H:i:s' ),
+			'start_mysql' => $start_utc->format( 'Y-m-d H:i:s' ),
+			'end_mysql'   => $end_utc->format( 'Y-m-d H:i:s' ),
 			'start_date'  => $start->format( 'Y-m-d' ),
 			'end_date'    => $end->format( 'Y-m-d' ),
 		);
@@ -548,6 +596,26 @@ class AnalyticsHandler {
 	}
 
 	/**
+	 * Allowed column names for status clause to prevent SQL injection.
+	 */
+	private const ALLOWED_STATUS_COLUMNS = array( 'status', 'stats.status' );
+
+	/**
+	 * Allowed column names for ORDER BY to prevent SQL injection.
+	 */
+	private const ALLOWED_ORDER_COLUMNS = array( 'net_revenue', 'items_sold' );
+
+	/**
+	 * Allowed column names for total revenue to prevent SQL injection.
+	 */
+	private const ALLOWED_TOTAL_COLUMNS = array( 'total_sales', 'net_total' );
+
+	/**
+	 * Allowed column names for product revenue to prevent SQL injection.
+	 */
+	private const ALLOWED_REVENUE_COLUMNS = array( 'product_net_revenue', 'product_gross_revenue' );
+
+	/**
 	 * @param array $statuses Status list.
 	 * @param array $params Parameters to append to.
 	 * @param string $column Column name.
@@ -556,6 +624,11 @@ class AnalyticsHandler {
 	private function build_status_clause( array $statuses, array &$params, $column = 'status' ) {
 		if ( empty( $statuses ) ) {
 			return '';
+		}
+
+		// Validate column name against whitelist to prevent SQL injection.
+		if ( ! in_array( $column, self::ALLOWED_STATUS_COLUMNS, true ) ) {
+			$column = 'status';
 		}
 
 		$placeholders = implode( ', ', array_fill( 0, count( $statuses ), '%s' ) );
@@ -603,6 +676,12 @@ class AnalyticsHandler {
 	private function normalize_bool( $value ) {
 		if ( function_exists( 'rest_sanitize_boolean' ) ) {
 			return rest_sanitize_boolean( $value );
+		}
+
+		// Handle string representations properly (e.g., "false" should be false).
+		if ( is_string( $value ) ) {
+			$value = strtolower( trim( $value ) );
+			return ! in_array( $value, array( 'false', '0', 'no', 'off', '' ), true );
 		}
 
 		return (bool) $value;
@@ -656,7 +735,14 @@ class AnalyticsHandler {
 	 */
 	private function build_cache_key( array $payload ) {
 		$encoded = function_exists( 'wp_json_encode' ) ? wp_json_encode( $payload ) : json_encode( $payload );
-		$hash    = $encoded ? md5( $encoded ) : md5( 'sales_report' );
+
+		// Fallback to serialize if JSON encoding fails (e.g., malformed UTF-8).
+		// This prevents cache key collisions when different queries fail to encode.
+		if ( false === $encoded || '' === $encoded ) {
+			$encoded = serialize( $payload );
+		}
+
+		$hash = md5( $encoded );
 
 		return Plugin::TRANSIENT_PREFIX . 'sales_report_' . $hash;
 	}
@@ -733,6 +819,17 @@ class AnalyticsHandler {
 			$timezone = (string) get_option( 'timezone_string' );
 		}
 
+		// Handle GMT offset when timezone_string is empty.
+		if ( '' === $timezone && function_exists( 'get_option' ) ) {
+			$gmt_offset = (float) get_option( 'gmt_offset', 0 );
+			if ( 0.0 !== $gmt_offset ) {
+				$hours   = (int) $gmt_offset;
+				$minutes = abs( (int) ( ( $gmt_offset - $hours ) * 60 ) );
+				$sign    = $gmt_offset >= 0 ? '+' : '-';
+				$timezone = sprintf( '%s%02d:%02d', $sign, abs( $hours ), $minutes );
+			}
+		}
+
 		if ( '' === $timezone ) {
 			$timezone = 'UTC';
 		}
@@ -762,11 +859,11 @@ class AnalyticsHandler {
 	 * @return bool
 	 */
 	private function table_has_column( $table, $column ) {
-		static $cache = array();
-		$key = $table . ':' . $column;
+		$cache_key = 'agentwp_col_' . md5( $table . ':' . $column );
+		$cached    = wp_cache_get( $cache_key, 'agentwp_schema' );
 
-		if ( isset( $cache[ $key ] ) ) {
-			return $cache[ $key ];
+		if ( false !== $cached ) {
+			return (bool) $cached;
 		}
 
 		global $wpdb;
@@ -777,9 +874,12 @@ class AnalyticsHandler {
 				$column
 			)
 		);
-		$cache[ $key ] = ! empty( $result );
+		$exists = ! empty( $result );
 
-		return $cache[ $key ];
+		// Cache for 1 hour with automatic expiration.
+		wp_cache_set( $cache_key, $exists ? 1 : 0, 'agentwp_schema', HOUR_IN_SECONDS );
+
+		return $exists;
 	}
 
 	/**

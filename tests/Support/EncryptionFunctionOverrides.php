@@ -11,6 +11,7 @@ final class EncryptionFunctionOverrides {
 	public static $random_bytes;
 	public static $openssl_encrypt;
 	public static $openssl_decrypt;
+	public static $apply_filters;
 
 	public static function reset(): void {
 		self::$function_exists         = null;
@@ -18,6 +19,7 @@ final class EncryptionFunctionOverrides {
 		self::$random_bytes            = null;
 		self::$openssl_encrypt         = null;
 		self::$openssl_decrypt         = null;
+		self::$apply_filters           = null;
 	}
 
 	public static function function_exists( $name ): bool {
@@ -58,5 +60,13 @@ final class EncryptionFunctionOverrides {
 		}
 
 		return \openssl_decrypt( ...$args );
+	}
+
+	public static function apply_filters( $hook, $value, ...$args ) {
+		if ( null !== self::$apply_filters ) {
+			return call_user_func( self::$apply_filters, $hook, $value, ...$args );
+		}
+
+		return \apply_filters( $hook, $value, ...$args );
 	}
 }

@@ -419,6 +419,7 @@ class EmailContextBuilder {
 			}
 
 			$digits = preg_replace( '/\D+/', '', $value );
+			$digits = is_string( $digits ) ? $digits : '';
 			if ( strlen( $digits ) >= 4 ) {
 				return substr( $digits, -4 );
 			}
@@ -526,6 +527,23 @@ class EmailContextBuilder {
 		if ( ! is_array( $items ) ) {
 			return array();
 		}
+
+		// Validate and sanitize deserialized structure to prevent object injection attacks.
+		// Only allow arrays with expected string fields, discard any unexpected object types.
+		$items = array_filter(
+			$items,
+			function ( $item ) {
+				// Must be an array, not an object (prevents PHP object injection).
+				if ( ! is_array( $item ) ) {
+					return false;
+				}
+				// Ensure critical fields are scalar types.
+				if ( isset( $item['tracking_number'] ) && ! is_scalar( $item['tracking_number'] ) ) {
+					return false;
+				}
+				return true;
+			}
+		);
 
 		$providers = function_exists( 'wc_shipment_tracking_get_providers' ) ? wc_shipment_tracking_get_providers() : array();
 		$shipments = array();
@@ -705,7 +723,8 @@ class EmailContextBuilder {
 			return '';
 		}
 
-		$slug = function_exists( 'sanitize_title' ) ? sanitize_title( $provider ) : strtolower( preg_replace( '/\s+/', '-', $provider ) );
+		$replaced = preg_replace( '/\s+/', '-', $provider );
+		$slug     = function_exists( 'sanitize_title' ) ? sanitize_title( $provider ) : strtolower( is_string( $replaced ) ? $replaced : $provider );
 
 		return sprintf(
 			'https://track.aftership.com/%s/%s',
@@ -779,7 +798,7 @@ class EmailContextBuilder {
 		}
 
 		if ( is_numeric( $value ) ) {
-			return date( 'c', (int) $value );
+			return gmdate( 'c', (int) $value );
 		}
 
 		$value = is_scalar( $value ) ? trim( (string) $value ) : '';
@@ -789,7 +808,7 @@ class EmailContextBuilder {
 
 		$timestamp = strtotime( $value );
 		if ( false !== $timestamp ) {
-			return date( 'c', $timestamp );
+			return gmdate( 'c', $timestamp );
 		}
 
 		return sanitize_text_field( $value );
@@ -827,6 +846,7 @@ class EmailContextBuilder {
 			}
 
 			$list = preg_split( '/[\s,|]+/', $value );
+			$list = is_array( $list ) ? $list : array();
 		}
 
 		$numbers = array();

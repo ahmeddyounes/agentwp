@@ -46,12 +46,12 @@ class UsageTracker {
 	 * @param int    $output_tokens Output tokens.
 	 * @param string $intent_type Intent identifier.
 	 * @param string $timestamp Optional timestamp (UTC).
-	 * @return void
+	 * @return bool True if logged successfully, false otherwise.
 	 */
 	public static function log_usage( $model, $input_tokens, $output_tokens, $intent_type, $timestamp = '' ) {
 		global $wpdb;
 		if ( ! $wpdb ) {
-			return;
+			return false;
 		}
 
 		self::ensure_table();
@@ -68,19 +68,30 @@ class UsageTracker {
 
 		self::purge_old_rows();
 
-		$table = self::get_table_name();
-		$wpdb->insert(
+		$table  = self::get_table_name();
+		$result = $wpdb->insert(
 			$table,
 			array(
-				'intent_type'  => $intent_type,
-				'model'        => $model,
-				'input_tokens' => $input_tokens,
+				'intent_type'   => $intent_type,
+				'model'         => $model,
+				'input_tokens'  => $input_tokens,
 				'output_tokens' => $output_tokens,
-				'total_tokens' => $total_tokens,
-				'created_at'   => $timestamp,
+				'total_tokens'  => $total_tokens,
+				'created_at'    => $timestamp,
 			),
 			array( '%s', '%s', '%d', '%d', '%d', '%s' )
 		);
+
+		// Check for insert failure (returns false on error, number of rows on success).
+		if ( false === $result ) {
+			// Log error for debugging but don't expose to user.
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && ! empty( $wpdb->last_error ) ) {
+				error_log( 'AgentWP UsageTracker: Insert failed - ' . $wpdb->last_error );
+			}
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -112,11 +123,15 @@ class UsageTracker {
 		}
 
 		$table = self::get_table_name();
+		// Limit results to prevent memory exhaustion from large datasets.
+		// 50,000 rows covers ~500 requests/day for 90 days with headroom.
+		$max_rows = 50000;
 		$rows  = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT intent_type, model, input_tokens, output_tokens, created_at FROM {$table} WHERE created_at >= %s AND created_at <= %s ORDER BY created_at ASC",
+				"SELECT intent_type, model, input_tokens, output_tokens, created_at FROM {$table} WHERE created_at >= %s AND created_at <= %s ORDER BY created_at ASC LIMIT %d",
 				$summary['period_start'],
-				$summary['period_end']
+				$summary['period_end'],
+				$max_rows
 			),
 			ARRAY_A
 		);
@@ -134,9 +149,17 @@ class UsageTracker {
 		}
 
 		$breakdown = array();
+		// Maximum reasonable token count per row to prevent overflow from corrupted data.
+		$max_tokens_per_row = 10000000;
+
 		foreach ( $rows as $row ) {
 			$input_tokens  = isset( $row['input_tokens'] ) ? (int) $row['input_tokens'] : 0;
 			$output_tokens = isset( $row['output_tokens'] ) ? (int) $row['output_tokens'] : 0;
+
+			// Bound token values to prevent overflow from corrupted database values.
+			$input_tokens  = max( 0, min( $input_tokens, $max_tokens_per_row ) );
+			$output_tokens = max( 0, min( $output_tokens, $max_tokens_per_row ) );
+
 			$total_tokens  = $input_tokens + $output_tokens;
 			$model         = isset( $row['model'] ) ? $row['model'] : '';
 			$cost          = self::calculate_cost( $model, $input_tokens, $output_tokens );
@@ -194,22 +217,36 @@ class UsageTracker {
 	/**
 	 * Ensure the usage table exists.
 	 *
-	 * @return void
+	 * @return bool True if table exists or was created, false on failure.
 	 */
 	public static function ensure_table() {
 		global $wpdb;
 		if ( ! $wpdb ) {
-			return;
+			return false;
 		}
 
 		$installed_version = get_option( self::VERSION_OPTION, '' );
 		$table             = self::get_table_name();
 
 		if ( $installed_version === self::VERSION && self::table_exists( $table ) ) {
-			return;
+			return true;
 		}
 
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		// Load upgrade.php for dbDelta if not already loaded.
+		if ( ! function_exists( 'dbDelta' ) ) {
+			$upgrade_file = defined( 'ABSPATH' ) ? ABSPATH . 'wp-admin/includes/upgrade.php' : '';
+			if ( '' !== $upgrade_file && file_exists( $upgrade_file ) ) {
+				require_once $upgrade_file;
+			}
+		}
+
+		// Verify dbDelta is available after loading.
+		if ( ! function_exists( 'dbDelta' ) ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'AgentWP UsageTracker: dbDelta function not available.' );
+			}
+			return false;
+		}
 
 		$charset_collate = $wpdb->get_charset_collate();
 		$sql             = "CREATE TABLE {$table} (
@@ -227,7 +264,17 @@ class UsageTracker {
 		) {$charset_collate};";
 
 		dbDelta( $sql );
+
+		// Verify table was created.
+		if ( ! self::table_exists( $table ) ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'AgentWP UsageTracker: Failed to create table.' );
+			}
+			return false;
+		}
+
 		update_option( self::VERSION_OPTION, self::VERSION, false );
+		return true;
 	}
 
 	/**
@@ -317,24 +364,35 @@ class UsageTracker {
 	 */
 	private static function get_period_range( $period ) {
 		$period = is_string( $period ) ? strtolower( $period ) : 'month';
-		$now    = new DateTimeImmutable( 'now', new DateTimeZone( 'UTC' ) );
 
-		switch ( $period ) {
-			case 'day':
-				$start = $now->setTime( 0, 0, 0 );
-				break;
-			case 'week':
-				$start = $now->sub( new DateInterval( 'P6D' ) )->setTime( 0, 0, 0 );
-				break;
-			case 'month':
-			default:
-				$start = $now->modify( 'first day of this month' )->setTime( 0, 0, 0 );
-				break;
+		try {
+			$now = new DateTimeImmutable( 'now', new DateTimeZone( 'UTC' ) );
+		} catch ( \Exception $e ) {
+			// Fallback to timestamp-based approach.
+			$now = DateTimeImmutable::createFromFormat( 'U', (string) time() );
 		}
 
-		$cutoff = $now->sub( new DateInterval( 'P' . self::RETENTION_DAYS . 'D' ) );
-		if ( $start < $cutoff ) {
-			$start = $cutoff->setTime( 0, 0, 0 );
+		try {
+			switch ( $period ) {
+				case 'day':
+					$start = $now->setTime( 0, 0, 0 );
+					break;
+				case 'week':
+					$start = $now->sub( new DateInterval( 'P6D' ) )->setTime( 0, 0, 0 );
+					break;
+				case 'month':
+				default:
+					$start = $now->modify( 'first day of this month' )->setTime( 0, 0, 0 );
+					break;
+			}
+
+			$cutoff = $now->sub( new DateInterval( 'P' . self::RETENTION_DAYS . 'D' ) );
+			if ( $start < $cutoff ) {
+				$start = $cutoff->setTime( 0, 0, 0 );
+			}
+		} catch ( \Exception $e ) {
+			// Default to today only.
+			$start = $now->setTime( 0, 0, 0 );
 		}
 
 		return array( $start, $now );
@@ -351,9 +409,14 @@ class UsageTracker {
 			return;
 		}
 
-		$cutoff = ( new DateTimeImmutable( 'now', new DateTimeZone( 'UTC' ) ) )
-			->sub( new DateInterval( 'P' . self::RETENTION_DAYS . 'D' ) )
-			->format( 'Y-m-d H:i:s' );
+		try {
+			$cutoff = ( new DateTimeImmutable( 'now', new DateTimeZone( 'UTC' ) ) )
+				->sub( new DateInterval( 'P' . self::RETENTION_DAYS . 'D' ) )
+				->format( 'Y-m-d H:i:s' );
+		} catch ( \Exception $e ) {
+			// Fallback to simple timestamp math.
+			$cutoff = gmdate( 'Y-m-d H:i:s', time() - ( self::RETENTION_DAYS * 86400 ) );
+		}
 
 		$table = self::get_table_name();
 		$wpdb->query(

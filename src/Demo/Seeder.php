@@ -122,7 +122,8 @@ class Seeder {
 			$ids[] = $product_id;
 		}
 
-		return array_filter( $ids );
+		// Re-index to ensure contiguous keys after filtering.
+		return array_values( array_filter( $ids ) );
 	}
 
 	/**
@@ -266,7 +267,8 @@ class Seeder {
 			$ids[] = $order->get_id();
 		}
 
-		return array_filter( $ids );
+		// Re-index to ensure contiguous keys after filtering.
+		return array_values( array_filter( $ids ) );
 	}
 
 	/**

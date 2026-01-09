@@ -14,6 +14,27 @@ class OpenAIClient {
 	const API_BASE = 'https://api.openai.com/v1';
 
 	/**
+	 * Maximum content length for stream responses (1MB).
+	 * Prevents memory exhaustion from malicious or malfunctioning streams.
+	 */
+	const MAX_STREAM_CONTENT_LENGTH = 1048576;
+
+	/**
+	 * Maximum number of tool calls in a stream response.
+	 */
+	const MAX_STREAM_TOOL_CALLS = 50;
+
+	/**
+	 * Maximum number of raw chunks to store.
+	 */
+	const MAX_STREAM_RAW_CHUNKS = 100;
+
+	/**
+	 * Maximum length for tool call arguments (100KB).
+	 */
+	const MAX_TOOL_ARGUMENTS_LENGTH = 102400;
+
+	/**
 	 * @var string
 	 */
 	private $api_key;
@@ -76,7 +97,8 @@ class OpenAIClient {
 	public function __construct( $api_key, $model = Model::GPT_4O_MINI, array $options = array() ) {
 		$this->api_key       = is_string( $api_key ) ? $api_key : '';
 		$this->model         = Model::normalize( $model );
-		$this->timeout       = isset( $options['timeout'] ) ? (int) $options['timeout'] : 60;
+		// Enforce timeout bounds: minimum 1 second, maximum 300 seconds.
+		$this->timeout       = isset( $options['timeout'] ) ? min( max( 1, (int) $options['timeout'] ), 300 ) : 60;
 		$this->stream        = ! empty( $options['stream'] );
 		$this->on_stream     = isset( $options['on_stream'] ) && is_callable( $options['on_stream'] ) ? $options['on_stream'] : null;
 		$this->token_counter = isset( $options['token_counter'] ) && $options['token_counter'] instanceof TokenCounter
@@ -268,14 +290,31 @@ class OpenAIClient {
 	 * @return array
 	 */
 	private function send_request( array $payload ) {
+		$body = wp_json_encode( $payload );
+
+		if ( false === $body ) {
+			return array(
+				'success'     => false,
+				'status'      => 0,
+				'body'        => '',
+				'headers'     => array(),
+				'error'       => 'Failed to encode request payload as JSON',
+				'error_code'  => 'json_encode_error',
+				'error_type'  => 'client_error',
+				'retryable'   => false,
+				'retry_after' => 0,
+			);
+		}
+
 		$args = array(
 			'timeout'     => $this->timeout,
 			'redirection' => 0,
+			'sslverify'   => true,
 			'headers'     => array(
 				'Authorization' => 'Bearer ' . $this->api_key,
 				'Content-Type'  => 'application/json',
 			),
-			'body'        => wp_json_encode( $payload ),
+			'body'        => $body,
 		);
 
 		$response = wp_remote_post( $this->base_url . '/chat/completions', $args );
@@ -302,15 +341,18 @@ class OpenAIClient {
 		$header_retry = 0;
 
 		if ( $headers && isset( $headers['retry-after'] ) ) {
-			$header_retry = (int) $headers['retry-after'];
+			$header_retry = $this->parse_retry_after( $headers['retry-after'] );
 		}
 
 		if ( $status < 200 || $status >= 300 ) {
 			$error   = 'OpenAI API request failed.';
-			$decoded = json_decode( $body, true );
-			if ( is_array( $decoded ) && isset( $decoded['error'] ) && is_array( $decoded['error'] ) ) {
+			// Limit JSON decode depth to prevent deeply nested attack payloads.
+			$decoded = json_decode( $body, true, 32 );
+			// Check for JSON parsing errors to handle malformed responses (e.g., HTML error pages).
+			if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) && isset( $decoded['error'] ) && is_array( $decoded['error'] ) ) {
 				if ( isset( $decoded['error']['message'] ) ) {
-					$error = $decoded['error']['message'];
+					// Sanitize error message to prevent API key exposure.
+					$error = $this->sanitize_error_message( $decoded['error']['message'] );
 				}
 				$error_code = isset( $decoded['error']['code'] ) ? (string) $decoded['error']['code'] : '';
 				$error_type = isset( $decoded['error']['type'] ) ? (string) $decoded['error']['type'] : '';
@@ -398,6 +440,26 @@ class OpenAIClient {
 	}
 
 	/**
+	 * Sanitize error message to prevent API key exposure.
+	 *
+	 * @param string $message Raw error message.
+	 * @return string Sanitized message.
+	 */
+	private function sanitize_error_message( $message ) {
+		if ( ! is_string( $message ) ) {
+			return 'Unknown error';
+		}
+
+		// Remove potential API key patterns (sk-..., sk-proj-...).
+		$sanitized = preg_replace( '/\bsk-[a-zA-Z0-9_-]{20,}\b/', '[REDACTED]', $message );
+
+		// Remove Bearer token references.
+		$sanitized = preg_replace( '/Bearer\s+[a-zA-Z0-9_-]+/i', 'Bearer [REDACTED]', $sanitized );
+
+		return $sanitized;
+	}
+
+	/**
 	 * @param int $delay Base delay.
 	 * @param int $retry_after Retry-After header.
 	 * @return void
@@ -410,10 +472,55 @@ class OpenAIClient {
 		}
 
 		$base   = min( $base, $this->max_delay );
-		$jitter = mt_rand( 0, 1000 ) / 1000;
+		$jitter = random_int( 0, 1000 ) / 1000;
 		$sleep  = $base + $jitter;
 
 		usleep( (int) round( $sleep * 1000000 ) );
+	}
+
+	/**
+	 * Parse Retry-After header value.
+	 *
+	 * Handles integer seconds, HTTP-date format, and array headers.
+	 *
+	 * @param mixed $value Retry-After header value (may be array from WordPress).
+	 * @return int Seconds to wait.
+	 */
+	private function parse_retry_after( $value ): int {
+		// Handle array headers (some servers send multiple, WordPress may return array).
+		if ( is_array( $value ) ) {
+			$value = reset( $value );
+			if ( false === $value || '' === $value ) {
+				return 0;
+			}
+		}
+
+		// Numeric value is seconds directly.
+		if ( is_numeric( $value ) ) {
+			$seconds = (int) $value;
+
+			// If it's a large number (Unix timestamp after Sep 2001), it's a timestamp.
+			// Any reasonable Retry-After in seconds would be much smaller (typically <7200).
+			if ( $seconds > 1000000000 ) {
+				return max( 0, $seconds - time() );
+			}
+
+			return max( 0, $seconds );
+		}
+
+		// Try to parse as HTTP-date format.
+		// HTTP dates are always in GMT/UTC, so parse with UTC context.
+		if ( is_string( $value ) ) {
+			try {
+				$date = new \DateTimeImmutable( $value, new \DateTimeZone( 'UTC' ) );
+				$now = new \DateTimeImmutable( 'now', new \DateTimeZone( 'UTC' ) );
+				return max( 0, $date->getTimestamp() - $now->getTimestamp() );
+			} catch ( \Exception $e ) {
+				// Invalid date format.
+			}
+		}
+
+		return 0;
 	}
 
 	/**
@@ -421,7 +528,7 @@ class OpenAIClient {
 	 * @return array
 	 */
 	private function parse_response_body( $body ) {
-		$payload = json_decode( $body, true );
+		$payload = json_decode( $body, true, 64 );
 		if ( ! is_array( $payload ) ) {
 			return array(
 				'success'    => false,
@@ -434,9 +541,12 @@ class OpenAIClient {
 			);
 		}
 
-		$message    = isset( $payload['choices'][0]['message'] ) && is_array( $payload['choices'][0]['message'] )
-			? $payload['choices'][0]['message']
-			: array();
+		$message = array();
+		if ( isset( $payload['choices'] ) && is_array( $payload['choices'] )
+			&& isset( $payload['choices'][0] ) && is_array( $payload['choices'][0] )
+			&& isset( $payload['choices'][0]['message'] ) && is_array( $payload['choices'][0]['message'] ) ) {
+			$message = $payload['choices'][0]['message'];
+		}
 		$content    = isset( $message['content'] ) ? $message['content'] : '';
 		$tool_calls = isset( $message['tool_calls'] ) && is_array( $message['tool_calls'] ) ? $message['tool_calls'] : array();
 
@@ -473,6 +583,11 @@ class OpenAIClient {
 		$raw        = array();
 		$model      = '';
 
+		// Track limits to prevent memory exhaustion.
+		$content_length    = 0;
+		$content_truncated = false;
+		$tools_truncated   = false;
+
 		if ( ! is_array( $lines ) ) {
 			$lines = array();
 		}
@@ -488,13 +603,16 @@ class OpenAIClient {
 			}
 
 			$payload = trim( substr( $line, 5 ) );
-			$chunk   = json_decode( $payload, true );
+			$chunk   = json_decode( $payload, true, 32 );
 
 			if ( ! is_array( $chunk ) ) {
 				continue;
 			}
 
-			$raw[] = $chunk;
+			// Limit raw chunks to prevent unbounded memory growth.
+			if ( count( $raw ) < self::MAX_STREAM_RAW_CHUNKS ) {
+				$raw[] = $chunk;
+			}
 			if ( is_callable( $this->on_stream ) ) {
 				call_user_func( $this->on_stream, $chunk );
 			}
@@ -507,18 +625,39 @@ class OpenAIClient {
 				$usage = $chunk['usage'];
 			}
 
-			$choice = isset( $chunk['choices'][0] ) ? $chunk['choices'][0] : array();
+			$choice = ( isset( $chunk['choices'] ) && is_array( $chunk['choices'] ) && isset( $chunk['choices'][0] ) )
+				? $chunk['choices'][0]
+				: array();
 			$delta  = isset( $choice['delta'] ) && is_array( $choice['delta'] ) ? $choice['delta'] : array();
 
-			if ( isset( $delta['content'] ) ) {
-				$content .= $delta['content'];
+			// Accumulate content with length limit to prevent memory exhaustion.
+			if ( isset( $delta['content'] ) && ! $content_truncated ) {
+				$delta_content = $delta['content'];
+				$delta_length  = strlen( $delta_content );
+
+				if ( $content_length + $delta_length > self::MAX_STREAM_CONTENT_LENGTH ) {
+					// Truncate to stay within limit.
+					$remaining         = self::MAX_STREAM_CONTENT_LENGTH - $content_length;
+					$content          .= substr( $delta_content, 0, $remaining );
+					$content_length    = self::MAX_STREAM_CONTENT_LENGTH;
+					$content_truncated = true;
+				} else {
+					$content        .= $delta_content;
+					$content_length += $delta_length;
+				}
 			}
 
-			if ( isset( $delta['tool_calls'] ) && is_array( $delta['tool_calls'] ) ) {
+			// Accumulate tool calls with count limit.
+			if ( isset( $delta['tool_calls'] ) && is_array( $delta['tool_calls'] ) && ! $tools_truncated ) {
 				$tool_calls = $this->merge_tool_call_deltas( $tool_calls, $delta['tool_calls'] );
+				if ( count( $tool_calls ) > self::MAX_STREAM_TOOL_CALLS ) {
+					// Truncate to limit.
+					$tool_calls      = array_slice( $tool_calls, 0, self::MAX_STREAM_TOOL_CALLS, true );
+					$tools_truncated = true;
+				}
 			}
 
-			if ( isset( $delta['function_call'] ) && is_array( $delta['function_call'] ) ) {
+			if ( isset( $delta['function_call'] ) && is_array( $delta['function_call'] ) && ! $tools_truncated ) {
 				$tool_calls = $this->merge_tool_call_deltas(
 					$tool_calls,
 					array(
@@ -529,6 +668,10 @@ class OpenAIClient {
 						),
 					)
 				);
+				if ( count( $tool_calls ) > self::MAX_STREAM_TOOL_CALLS ) {
+					$tool_calls      = array_slice( $tool_calls, 0, self::MAX_STREAM_TOOL_CALLS, true );
+					$tools_truncated = true;
+				}
 			}
 		}
 
@@ -576,8 +719,17 @@ class OpenAIClient {
 					$tool_calls[ $index ]['function']['name'] = $delta['function']['name'];
 				}
 
+				// Accumulate arguments with length limit to prevent memory exhaustion.
 				if ( isset( $delta['function']['arguments'] ) ) {
-					$tool_calls[ $index ]['function']['arguments'] .= $delta['function']['arguments'];
+					$current_length = strlen( $tool_calls[ $index ]['function']['arguments'] );
+					if ( $current_length < self::MAX_TOOL_ARGUMENTS_LENGTH ) {
+						$delta_args = $delta['function']['arguments'];
+						$remaining  = self::MAX_TOOL_ARGUMENTS_LENGTH - $current_length;
+						if ( strlen( $delta_args ) > $remaining ) {
+							$delta_args = substr( $delta_args, 0, $remaining );
+						}
+						$tool_calls[ $index ]['function']['arguments'] .= $delta_args;
+					}
 				}
 			}
 		}

@@ -161,6 +161,8 @@ class StockHandler {
 	/**
 	 * Confirm and apply a draft stock update.
 	 *
+	 * Uses atomic draft claiming to prevent double-execution race conditions.
+	 *
 	 * @param string $draft_id Draft identifier.
 	 * @return Response
 	 */
@@ -174,9 +176,10 @@ class StockHandler {
 			return Response::error( 'Missing stock update draft ID.', 400 );
 		}
 
-		$draft = $this->load_draft( $draft_id );
+		// Atomically claim and delete the draft to prevent double execution.
+		$draft = $this->claim_draft( $draft_id );
 		if ( null === $draft ) {
-			return Response::error( 'Stock update draft not found or expired.', 404 );
+			return Response::error( 'Stock update draft not found, expired, or already claimed.', 404 );
 		}
 
 		if ( isset( $draft['type'] ) && self::DRAFT_TYPE !== $draft['type'] ) {
@@ -205,11 +208,25 @@ class StockHandler {
 			return Response::error( 'Product not found for stock update confirmation.', 404 );
 		}
 
-		$manage_stock      = method_exists( $product, 'managing_stock' ) ? $product->managing_stock() : false;
+		$manage_stock       = method_exists( $product, 'managing_stock' ) ? $product->managing_stock() : false;
 		$backorders_allowed = method_exists( $product, 'backorders_allowed' ) ? $product->backorders_allowed() : false;
-		$current_stock     = $this->normalize_stock_quantity(
+		$current_stock      = $this->normalize_stock_quantity(
 			method_exists( $product, 'get_stock_quantity' ) ? $product->get_stock_quantity() : null
 		);
+
+		// Re-validate against current stock to catch concurrent modifications.
+		$draft_current = isset( $payload['current_stock'] ) ? (int) $payload['current_stock'] : null;
+		if ( null !== $draft_current && $draft_current !== $current_stock ) {
+			return Response::error(
+				sprintf(
+					'Stock has changed since draft creation (was %d, now %d). Please create a new draft.',
+					$draft_current,
+					$current_stock
+				),
+				409
+			);
+		}
+
 		$new_stock = $this->calculate_new_stock( $current_stock, $quantity, $operation );
 
 		if ( 'decrease' === $operation && $new_stock < 0 && ! $backorders_allowed ) {
@@ -218,15 +235,13 @@ class StockHandler {
 
 		$updated_stock = wc_update_product_stock( $product, $quantity, $operation );
 		if ( is_wp_error( $updated_stock ) ) {
-			return Response::error( $updated_stock->get_error_message(), 400 );
+			return Response::error( sanitize_text_field( $updated_stock->get_error_message() ), 400 );
 		}
 		if ( false === $updated_stock ) {
 			return Response::error( 'Unable to update product stock.', 500 );
 		}
 
-		$this->delete_draft( $draft_id );
-
-		$refreshed = wc_get_product( $product_id );
+		$refreshed       = wc_get_product( $product_id );
 		$product_payload = $refreshed ? $this->format_product( $refreshed, true ) : array();
 
 		return Response::success(
@@ -470,14 +485,21 @@ class StockHandler {
 	 * @return int
 	 */
 	private function calculate_new_stock( $current_stock, $quantity, $operation ) {
+		// Ensure inputs are within reasonable bounds to prevent overflow.
+		$max_stock      = 999999999;
+		$current_stock  = max( 0, min( $current_stock, $max_stock ) );
+		$quantity       = max( 0, min( $quantity, $max_stock ) );
+
 		switch ( $operation ) {
 			case 'increase':
-				return $current_stock + $quantity;
+				$new_stock = $current_stock + $quantity;
+				return min( $new_stock, $max_stock );
 			case 'decrease':
-				return $current_stock - $quantity;
+				$new_stock = $current_stock - $quantity;
+				return max( 0, $new_stock );
 			case 'set':
 			default:
-				return $quantity;
+				return min( $quantity, $max_stock );
 		}
 	}
 
@@ -489,7 +511,18 @@ class StockHandler {
 			return wp_generate_uuid4();
 		}
 
-		return uniqid( 'draft_', true );
+		// Fallback: use cryptographically secure random bytes.
+		try {
+			return 'draft_' . bin2hex( random_bytes( 16 ) );
+		} catch ( \Exception $e ) {
+			$crypto_strong = false;
+			$bytes = openssl_random_pseudo_bytes( 16, $crypto_strong );
+			if ( false === $bytes || ! $crypto_strong ) {
+				// Last resort: use uniqid with more entropy (less secure, but better than failing).
+				return 'draft_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+			}
+			return 'draft_' . bin2hex( $bytes );
+		}
 	}
 
 	/**
@@ -497,7 +530,9 @@ class StockHandler {
 	 * @return string
 	 */
 	private function build_draft_key( $draft_id ) {
-		return Plugin::TRANSIENT_PREFIX . 'draft_' . $draft_id;
+		// Include user ID in the key to prevent cross-user draft access.
+		$user_id = get_current_user_id();
+		return Plugin::TRANSIENT_PREFIX . 'stock_draft_' . $user_id . '_' . $draft_id;
 	}
 
 	/**
@@ -554,6 +589,46 @@ class StockHandler {
 
 		$draft = get_transient( $this->build_draft_key( $draft_id ) );
 		if ( false === $draft || ! is_array( $draft ) ) {
+			return null;
+		}
+
+		return $draft;
+	}
+
+	/**
+	 * Atomically claim a draft by loading and deleting in one operation.
+	 *
+	 * This prevents race conditions where two concurrent requests could both
+	 * claim and execute the same draft (double execution).
+	 *
+	 * @param string $draft_id Draft identifier.
+	 * @return array|null The draft if successfully claimed, null otherwise.
+	 */
+	private function claim_draft( $draft_id ) {
+		if ( ! function_exists( 'get_transient' ) || ! function_exists( 'delete_transient' ) ) {
+			return null;
+		}
+
+		$key   = $this->build_draft_key( $draft_id );
+		$draft = get_transient( $key );
+
+		if ( false === $draft || ! is_array( $draft ) ) {
+			return null;
+		}
+
+		// Delete immediately to prevent concurrent claims.
+		// If another request already deleted it, this is a no-op.
+		$deleted = delete_transient( $key );
+
+		// If delete failed (already deleted by another request), treat as not found.
+		if ( ! $deleted ) {
+			// Double-check the transient is actually gone.
+			$check = get_transient( $key );
+			if ( false !== $check ) {
+				// Transient still exists but delete failed - system issue.
+				return null;
+			}
+			// Transient was already deleted by another request (race condition).
 			return null;
 		}
 

@@ -84,21 +84,28 @@ class IntentController extends RestController {
 	}
 
 	/**
+	 * Maximum allowed prompt length to prevent DoS via excessive input.
+	 */
+	private const MAX_PROMPT_LENGTH = 10000;
+
+	/**
 	 * Schema for intent payload.
 	 *
 	 * @return array
 	 */
 	private function get_intent_schema() {
 		return array(
-			'type'     => 'object',
-			'properties'           => array(
+			'type'       => 'object',
+			'properties' => array(
 				'prompt'   => array(
 					'type'      => 'string',
 					'minLength' => 1,
+					'maxLength' => self::MAX_PROMPT_LENGTH,
 				),
 				'input'    => array(
 					'type'      => 'string',
 					'minLength' => 1,
+					'maxLength' => self::MAX_PROMPT_LENGTH,
 				),
 				'context'  => array(
 					'type' => 'object',

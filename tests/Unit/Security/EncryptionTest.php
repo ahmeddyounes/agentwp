@@ -1,7 +1,6 @@
 <?php
 /**
- * @runTestsInSeparateProcesses
- * @preserveGlobalState disabled
+ * Unit tests for Encryption class.
  */
 
 namespace AgentWP\Tests\Unit\Security;
@@ -10,13 +9,17 @@ use AgentWP\Security\Encryption;
 use AgentWP\Tests\Support\EncryptionFunctionOverrides;
 use AgentWP\Tests\TestCase;
 
+/**
+ * @runTestsInSeparateProcesses
+ * @preserveGlobalState disabled
+ */
 class EncryptionTest extends TestCase {
-	protected function setUp(): void {
+	public function setUp(): void {
 		parent::setUp();
 		EncryptionFunctionOverrides::reset();
 	}
 
-	protected function tearDown(): void {
+	public function tearDown(): void {
 		EncryptionFunctionOverrides::reset();
 		parent::tearDown();
 	}
@@ -240,13 +243,12 @@ class EncryptionTest extends TestCase {
 
 	public function test_get_key_material_candidates_with_rotations(): void {
 		$this->define_key_material( 'current', 'salt' );
-		\WP_Mock::userFunction(
-			'apply_filters',
-			array(
-				'args'   => array( 'agentwp_encryption_rotation_materials', array() ),
-				'return' => array( 'legacy', 'current' ),
-			)
-		);
+		EncryptionFunctionOverrides::$apply_filters = static function ( $hook, $value ) {
+			if ( 'agentwp_encryption_rotation_materials' === $hook ) {
+				return array( 'legacy', 'current' );
+			}
+			return $value;
+		};
 
 		$encryption = new Encryption();
 		$materials  = $this->invoke_private( $encryption, 'get_key_material_candidates' );

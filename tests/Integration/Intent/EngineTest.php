@@ -12,6 +12,7 @@ use AgentWP\Intent\FunctionRegistry;
 use AgentWP\Intent\Handler;
 use AgentWP\Intent\Intent;
 use AgentWP\Intent\IntentClassifier;
+use AgentWP\Tests\Fakes\FakeMemoryStore;
 use AgentWP\Tests\TestCase;
 
 class EngineTest extends TestCase {
@@ -43,15 +44,7 @@ class EngineTest extends TestCase {
 			}
 		};
 
-		$memory = new class() {
-			public $entries = array();
-			public function get() {
-				return array();
-			}
-			public function add_exchange( array $entry ) {
-				$this->entries[] = $entry;
-			}
-		};
+		$memory = new FakeMemoryStore();
 
 		$engine = new Engine(
 			array( $handler ),
@@ -65,7 +58,7 @@ class EngineTest extends TestCase {
 
 		$this->assertTrue( $response->is_success() );
 		$this->assertSame( 'Handled order status.', $response->get_data()['message'] );
-		$this->assertNotEmpty( $memory->entries );
-		$this->assertSame( Intent::ORDER_STATUS, $memory->entries[0]['intent'] );
+		$this->assertGreaterThan( 0, $memory->count() );
+		$this->assertTrue( $memory->hasIntent( Intent::ORDER_STATUS ) );
 	}
 }

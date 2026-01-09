@@ -9,6 +9,7 @@ namespace AgentWP\Handlers;
 
 use AgentWP\AI\Response;
 use AgentWP\Plugin;
+use Exception;
 
 class RefundHandler {
 	const DRAFT_TYPE = 'refund';
@@ -136,7 +137,9 @@ class RefundHandler {
 			return Response::error( 'Missing refund draft ID.', 400 );
 		}
 
-		$draft = $this->load_draft( $draft_id );
+		// Atomically claim the draft by loading and deleting immediately.
+		// This prevents race conditions where two requests could process the same draft.
+		$draft = $this->claim_draft( $draft_id );
 		if ( null === $draft ) {
 			return Response::error( 'Refund draft not found or expired.', 404 );
 		}
@@ -181,24 +184,38 @@ class RefundHandler {
 			: array();
 		$should_restock = $this->is_full_refund( $refund_amount, $remaining ) && ! empty( $items_to_restock );
 
-		$refund = wc_create_refund(
-			array(
-				'amount'         => $refund_amount,
-				'reason'         => $reason,
-				'order_id'       => $order_id,
-				'refund_payment' => ! $requires_manual_refund,
-				'restock_items'  => false,
-			)
-		);
+		try {
+			$refund = wc_create_refund(
+				array(
+					'amount'         => $refund_amount,
+					'reason'         => $reason,
+					'order_id'       => $order_id,
+					'refund_payment' => ! $requires_manual_refund,
+					'restock_items'  => false,
+				)
+			);
+		} catch ( Exception $exception ) {
+			// Log the actual exception for debugging but don't expose internal details to users.
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'AgentWP refund error: ' . $exception->getMessage() );
+			}
+			return Response::error( 'Refund creation failed. Please try again or contact support.', 500 );
+		}
 
 		if ( is_wp_error( $refund ) ) {
-			return Response::error( $refund->get_error_message(), 400 );
+			// Sanitize error message to prevent potential XSS from untrusted error content.
+			return Response::error( sanitize_text_field( $refund->get_error_message() ), 400 );
+		}
+
+		// wc_create_refund() can return false on failure (not just WP_Error).
+		if ( false === $refund ) {
+			return Response::error( 'Failed to create refund.', 500 );
 		}
 
 		$refund_id = is_object( $refund ) && method_exists( $refund, 'get_id' ) ? $refund->get_id() : 0;
 		$restocked = $should_restock ? $this->restock_items( $order, $items_to_restock ) : array();
 
-		$this->delete_draft( $draft_id );
+		// Draft was already deleted atomically in claim_draft().
 		$this->add_audit_note( $order, $draft_id, $refund_amount, $reason, ! empty( $restocked ) );
 		$this->maybe_notify_customer( $order, $refund, $payload );
 
@@ -222,6 +239,12 @@ class RefundHandler {
 	private function normalize_bool( $value ) {
 		if ( function_exists( 'rest_sanitize_boolean' ) ) {
 			return rest_sanitize_boolean( $value );
+		}
+
+		// Handle string representations properly (e.g., "false" should be false).
+		if ( is_string( $value ) ) {
+			$value = strtolower( trim( $value ) );
+			return ! in_array( $value, array( 'false', '0', 'no', 'off', '' ), true );
 		}
 
 		return (bool) $value;
@@ -378,7 +401,18 @@ class RefundHandler {
 			return wp_generate_uuid4();
 		}
 
-		return uniqid( 'draft_', true );
+		// Fallback: use cryptographically secure random bytes.
+		try {
+			return 'draft_' . bin2hex( random_bytes( 16 ) );
+		} catch ( \Exception $e ) {
+			$crypto_strong = false;
+			$bytes = openssl_random_pseudo_bytes( 16, $crypto_strong );
+			if ( false === $bytes || ! $crypto_strong ) {
+				// Last resort: use uniqid with more entropy (less secure, but better than failing).
+				return 'draft_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+			}
+			return 'draft_' . bin2hex( $bytes );
+		}
 	}
 
 	/**
@@ -386,7 +420,9 @@ class RefundHandler {
 	 * @return string
 	 */
 	private function build_draft_key( $draft_id ) {
-		return Plugin::TRANSIENT_PREFIX . 'draft_' . $draft_id;
+		// Include user ID in the key to prevent cross-user draft access.
+		$user_id = get_current_user_id();
+		return Plugin::TRANSIENT_PREFIX . 'draft_' . $user_id . '_' . $draft_id;
 	}
 
 	/**
@@ -443,6 +479,45 @@ class RefundHandler {
 
 		$draft = get_transient( $this->build_draft_key( $draft_id ) );
 		if ( false === $draft || ! is_array( $draft ) ) {
+			return null;
+		}
+
+		return $draft;
+	}
+
+	/**
+	 * Atomically claim a draft by loading and immediately deleting it.
+	 *
+	 * This prevents race conditions where two concurrent requests could
+	 * both load the same draft before either deletes it, causing double-processing.
+	 *
+	 * @param string $draft_id Draft identifier.
+	 * @return array|null The draft data if successfully claimed, null otherwise.
+	 */
+	private function claim_draft( $draft_id ) {
+		if ( ! function_exists( 'get_transient' ) || ! function_exists( 'delete_transient' ) ) {
+			return null;
+		}
+
+		$key   = $this->build_draft_key( $draft_id );
+		$draft = get_transient( $key );
+
+		if ( false === $draft || ! is_array( $draft ) ) {
+			return null;
+		}
+
+		// Atomically claim by deleting - only the first delete succeeds.
+		// This prevents race conditions where two requests could both claim the same draft.
+		$deleted = delete_transient( $key );
+
+		// If delete failed, check if already claimed by another request.
+		if ( ! $deleted ) {
+			$check = get_transient( $key );
+			if ( false !== $check ) {
+				// Transient still exists but delete failed - system issue, don't process.
+				return null;
+			}
+			// Transient was deleted by another concurrent request - reject this claim.
 			return null;
 		}
 
@@ -511,17 +586,40 @@ class RefundHandler {
 			return;
 		}
 
+		// Include actor information for audit trail.
+		$actor = $this->get_current_actor();
+
 		$reason_text = '' !== $reason ? $reason : 'no reason provided';
 		$amount      = $this->normalize_amount( $amount );
 		$note        = sprintf(
-			'[AgentWP] Refund confirmed (draft %s). Amount: %s. Reason: %s. Restocked: %s.',
+			'[AgentWP] Refund confirmed (draft %s) by %s. Amount: %s. Reason: %s. Restocked: %s.',
 			$draft_id,
+			$actor,
 			$amount,
 			$reason_text,
 			$restocked ? 'yes' : 'no'
 		);
 
 		$order->add_order_note( $note );
+	}
+
+	/**
+	 * Get the current user for audit trail purposes.
+	 *
+	 * @return string User display name or identifier.
+	 */
+	private function get_current_actor() {
+		$user_id = get_current_user_id();
+		if ( 0 === $user_id ) {
+			return 'system';
+		}
+
+		$user = get_userdata( $user_id );
+		if ( ! $user ) {
+			return sprintf( 'user #%d', $user_id );
+		}
+
+		return $user->display_name ?: $user->user_login;
 	}
 
 	/**
@@ -535,25 +633,33 @@ class RefundHandler {
 			return;
 		}
 
+		// Verify required methods exist before attempting notification.
+		if ( ! method_exists( $order, 'get_id' ) || ! method_exists( $refund, 'get_id' ) ) {
+			return;
+		}
+
 		$notify = apply_filters( 'agentwp_refund_notify_customer', false, $refund, $order, $payload );
 		if ( ! $notify ) {
 			return;
 		}
 
+		$order_id  = $order->get_id();
+		$refund_id = $refund->get_id();
+
 		if ( function_exists( 'wc_send_order_refund_notification' ) ) {
-			wc_send_order_refund_notification( $order->get_id(), $refund->get_id() );
+			wc_send_order_refund_notification( $order_id, $refund_id );
 			return;
 		}
 
 		if ( method_exists( $order, 'send_customer_refund_notification' ) ) {
-			$order->send_customer_refund_notification( $refund->get_id() );
+			$order->send_customer_refund_notification( $refund_id );
 			return;
 		}
 
 		if ( function_exists( 'WC' ) ) {
 			$mailer = WC()->mailer();
 			if ( $mailer && isset( $mailer->emails['WC_Email_Customer_Refunded_Order'] ) ) {
-				$mailer->emails['WC_Email_Customer_Refunded_Order']->trigger( $order->get_id(), $refund->get_id() );
+				$mailer->emails['WC_Email_Customer_Refunded_Order']->trigger( $order_id, $refund_id );
 			}
 		}
 	}

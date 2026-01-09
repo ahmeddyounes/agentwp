@@ -152,6 +152,9 @@ class TokenCounter {
 	/**
 	 * Approximate tokens when tiktoken is unavailable.
 	 *
+	 * Uses mb_strlen to count UTF-8 characters, not bytes.
+	 * This provides more accurate estimates for multibyte text.
+	 *
 	 * @param string $text Text input.
 	 * @return int
 	 */
@@ -160,6 +163,11 @@ class TokenCounter {
 			return 0;
 		}
 
-		return (int) ceil( strlen( $text ) / 4 );
+		// Use mb_strlen for accurate character count with multibyte text.
+		$char_count = function_exists( 'mb_strlen' )
+			? mb_strlen( $text, 'UTF-8' )
+			: strlen( $text );
+
+		return (int) ceil( $char_count / 4 );
 	}
 }

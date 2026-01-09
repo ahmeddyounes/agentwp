@@ -288,6 +288,7 @@ class SettingsController extends RestController {
 			array(
 				'timeout'     => 3,
 				'redirection' => 0,
+				'sslverify'   => true,
 				'headers'     => array(
 					'Authorization' => 'Bearer ' . $api_key,
 				),
@@ -361,13 +362,16 @@ class SettingsController extends RestController {
 				'budget_limit'      => array(
 					'type'    => 'number',
 					'minimum' => 0,
+					'maximum' => 100000, // Reasonable maximum budget limit.
 				),
 				'draft_ttl_minutes' => array(
 					'type'    => 'integer',
 					'minimum' => 0,
+					'maximum' => 10080, // Maximum 7 days (60 * 24 * 7).
 				),
 				'hotkey'            => array(
-					'type' => 'string',
+					'type'      => 'string',
+					'maxLength' => 50, // Reasonable keyboard shortcut length.
 				),
 				'theme'             => array(
 					'type' => 'string',
@@ -394,7 +398,9 @@ class SettingsController extends RestController {
 			'additionalProperties' => false,
 			'properties'           => array(
 				'api_key' => array(
-					'type' => 'string',
+					'type'      => 'string',
+					'minLength' => 20,  // OpenAI API keys are at least 20 chars.
+					'maxLength' => 256, // Reasonable maximum for API keys.
 				),
 			),
 		);

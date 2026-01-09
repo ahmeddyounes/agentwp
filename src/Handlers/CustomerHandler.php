@@ -179,6 +179,37 @@ class CustomerHandler {
 	}
 
 	/**
+	 * Batch load orders to avoid N+1 queries.
+	 *
+	 * @param array $order_ids Order IDs to load.
+	 * @return array Array of order objects.
+	 */
+	private function batch_load_orders( array $order_ids ) {
+		if ( empty( $order_ids ) || ! function_exists( 'wc_get_orders' ) ) {
+			return array();
+		}
+
+		$orders = array();
+		$chunks = array_chunk( $order_ids, self::ORDER_BATCH );
+
+		foreach ( $chunks as $chunk ) {
+			$batch = wc_get_orders(
+				array(
+					'include' => $chunk,
+					'limit'   => count( $chunk ),
+					'orderby' => 'none',
+				)
+			);
+
+			if ( is_array( $batch ) ) {
+				$orders = array_merge( $orders, $batch );
+			}
+		}
+
+		return $orders;
+	}
+
+	/**
 	 * @param array $order_ids Order IDs to summarize.
 	 * @return array
 	 */
@@ -194,8 +225,10 @@ class CustomerHandler {
 		$category_totals = array();
 		$category_cache  = array();
 
-		foreach ( $order_ids as $order_id ) {
-			$order = function_exists( 'wc_get_order' ) ? wc_get_order( $order_id ) : null;
+		// Batch load orders to avoid N+1 queries.
+		$orders = $this->batch_load_orders( $order_ids );
+
+		foreach ( $orders as $order ) {
 			if ( ! $order || ! method_exists( $order, 'get_total' ) ) {
 				continue;
 			}
@@ -203,7 +236,7 @@ class CustomerHandler {
 			$total_spent += $this->normalize_amount( $order->get_total() );
 
 			$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
-			if ( $date_created ) {
+			if ( $date_created && method_exists( $date_created, 'getTimestamp' ) ) {
 				$timestamp = $date_created->getTimestamp();
 				if ( null === $first_ts || $timestamp < $first_ts ) {
 					$first_ts   = $timestamp;
@@ -596,7 +629,8 @@ class CustomerHandler {
 			$diff    = max( 0, $now_ts - $first_ts );
 			$seconds = defined( 'DAY_IN_SECONDS' ) ? DAY_IN_SECONDS : 86400;
 			$days_since_first = (int) max( 1, floor( $diff / $seconds ) );
-			$orders_per_month = $total_orders / ( $days_since_first / 30 );
+			$months_since_first = max( 1, $days_since_first / 30 );
+			$orders_per_month = $total_orders / $months_since_first;
 		}
 
 		$orders_per_month = round( $orders_per_month, 2 );

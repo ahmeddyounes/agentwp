@@ -9,6 +9,7 @@ namespace AgentWP\Handlers;
 
 use AgentWP\AI\Response;
 use AgentWP\Plugin;
+use Exception;
 
 class OrderStatusHandler {
 	const DRAFT_TYPE = 'status_update';
@@ -242,6 +243,8 @@ class OrderStatusHandler {
 	/**
 	 * Confirm and apply a draft status update.
 	 *
+	 * Uses atomic draft claiming to prevent double-execution race conditions.
+	 *
 	 * @param string $draft_id Draft identifier.
 	 * @return Response
 	 */
@@ -255,9 +258,10 @@ class OrderStatusHandler {
 			return Response::error( 'Missing status update draft ID.', 400 );
 		}
 
-		$draft = $this->load_draft( $draft_id );
+		// Atomically claim and delete the draft to prevent double execution.
+		$draft = $this->claim_draft( $draft_id );
 		if ( null === $draft ) {
-			return Response::error( 'Status update draft not found or expired.', 404 );
+			return Response::error( 'Status update draft not found, expired, or already claimed.', 404 );
 		}
 
 		if ( isset( $draft['type'] ) && self::DRAFT_TYPE !== $draft['type'] ) {
@@ -288,13 +292,27 @@ class OrderStatusHandler {
 			return Response::error( 'Order not found for status update confirmation.', 404 );
 		}
 
-		$new_status = isset( $payload['new_status'] ) ? $this->normalize_status( $payload['new_status'] ) : '';
+		$new_status     = isset( $payload['new_status'] ) ? $this->normalize_status( $payload['new_status'] ) : '';
 		$valid_statuses = $this->get_valid_statuses();
 		if ( '' === $new_status || ! in_array( $new_status, $valid_statuses, true ) ) {
 			return Response::error( 'Draft contains an invalid target status.', 400 );
 		}
 
 		$current_status = $this->normalize_status( $order->get_status() );
+
+		// TOCTOU protection: verify status hasn't changed since draft creation.
+		$draft_current = isset( $payload['current_status'] ) ? $this->normalize_status( $payload['current_status'] ) : null;
+		if ( null !== $draft_current && $draft_current !== $current_status ) {
+			return Response::error(
+				sprintf(
+					'Order status has changed since draft creation (was "%s", now "%s"). Please create a new draft.',
+					$draft_current,
+					$current_status
+				),
+				409
+			);
+		}
+
 		if ( $new_status === $current_status ) {
 			return Response::error( 'Order already has the requested status.', 400 );
 		}
@@ -308,15 +326,13 @@ class OrderStatusHandler {
 			return Response::error( 'Unable to apply status update.', 500 );
 		}
 
-		$this->delete_draft( $draft_id );
-
 		return Response::success(
 			array(
-				'draft_id'       => $draft_id,
-				'order_id'       => $order_id,
+				'draft_id'        => $draft_id,
+				'order_id'        => $order_id,
 				'previous_status' => $current_status,
-				'new_status'     => $new_status,
-				'notified'       => $notify_customer,
+				'new_status'      => $new_status,
+				'notified'        => $notify_customer,
 			)
 		);
 	}
@@ -391,7 +407,7 @@ class OrderStatusHandler {
 			}
 		}
 
-		$this->delete_draft( $draft_id );
+		// Draft already deleted by claim_draft, no need to delete again.
 
 		return Response::success(
 			array(
@@ -419,21 +435,40 @@ class OrderStatusHandler {
 		$notify_customer = $this->normalize_bool( $notify_customer );
 		$notify_customer = apply_filters( 'agentwp_status_notify_customer', $notify_customer, $order, $new_status );
 
-		$filter = null;
+		// Use named method reference instead of closure for proper remove_filter().
 		if ( ! $notify_customer ) {
-			$filter = function ( $enabled, $email ) {
-				return false;
-			};
-			add_filter( 'woocommerce_email_enabled', $filter, 10, 2 );
+			add_filter( 'woocommerce_email_enabled', array( $this, 'disable_email_notifications' ), 10, 2 );
 		}
 
-		$order->update_status( $new_status, $note );
+		try {
+			$order->update_status( $new_status, $note );
+		} catch ( Exception $exception ) {
+			// Ensure filter is removed even if exception occurs.
+			if ( ! $notify_customer ) {
+				remove_filter( 'woocommerce_email_enabled', array( $this, 'disable_email_notifications' ), 10 );
+			}
+			return false;
+		}
 
-		if ( $filter ) {
-			remove_filter( 'woocommerce_email_enabled', $filter, 10 );
+		if ( ! $notify_customer ) {
+			remove_filter( 'woocommerce_email_enabled', array( $this, 'disable_email_notifications' ), 10 );
 		}
 
 		return true;
+	}
+
+	/**
+	 * Filter callback to disable WooCommerce email notifications.
+	 *
+	 * Using a named method instead of a closure allows proper removal
+	 * via remove_filter(), since PHP cannot compare closures for equality.
+	 *
+	 * @param bool   $enabled Whether email is enabled.
+	 * @param object $email   Email object.
+	 * @return bool Always false.
+	 */
+	public function disable_email_notifications( $enabled, $email ) {
+		return false;
 	}
 
 	/**
@@ -446,11 +481,15 @@ class OrderStatusHandler {
 	 * @return string
 	 */
 	private function build_audit_note( $draft_id, $order_id, $current_status, $new_status, $note, $is_bulk ) {
+		// Include actor information for audit trail.
+		$actor = $this->get_current_actor();
+
 		$summary = sprintf(
-			'[AgentWP] %s status update confirmed (draft %s) for order #%d. %s -> %s.',
+			'[AgentWP] %s status update confirmed (draft %s) for order #%d by %s. %s -> %s.',
 			$is_bulk ? 'Bulk' : 'Order',
 			$draft_id,
 			$order_id,
+			$actor,
 			$this->get_status_label( $current_status ),
 			$this->get_status_label( $new_status )
 		);
@@ -461,6 +500,25 @@ class OrderStatusHandler {
 		}
 
 		return $summary;
+	}
+
+	/**
+	 * Get the current user for audit trail purposes.
+	 *
+	 * @return string User display name or identifier.
+	 */
+	private function get_current_actor() {
+		$user_id = get_current_user_id();
+		if ( 0 === $user_id ) {
+			return 'system';
+		}
+
+		$user = get_userdata( $user_id );
+		if ( ! $user ) {
+			return sprintf( 'user #%d', $user_id );
+		}
+
+		return $user->display_name ?: $user->user_login;
 	}
 
 	/**
@@ -482,6 +540,12 @@ class OrderStatusHandler {
 	private function normalize_bool( $value ) {
 		if ( function_exists( 'rest_sanitize_boolean' ) ) {
 			return rest_sanitize_boolean( $value );
+		}
+
+		// Handle string representations properly (e.g., "false" should be false).
+		if ( is_string( $value ) ) {
+			$value = strtolower( trim( $value ) );
+			return ! in_array( $value, array( 'false', '0', 'no', 'off', '' ), true );
 		}
 
 		return (bool) $value;
@@ -580,7 +644,18 @@ class OrderStatusHandler {
 			return wp_generate_uuid4();
 		}
 
-		return uniqid( 'draft_', true );
+		// Fallback: use cryptographically secure random bytes.
+		try {
+			return 'draft_' . bin2hex( random_bytes( 16 ) );
+		} catch ( \Exception $e ) {
+			$crypto_strong = false;
+			$bytes = openssl_random_pseudo_bytes( 16, $crypto_strong );
+			if ( false === $bytes || ! $crypto_strong ) {
+				// Last resort: use uniqid with more entropy (less secure, but better than failing).
+				return 'draft_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+			}
+			return 'draft_' . bin2hex( $bytes );
+		}
 	}
 
 	/**
@@ -588,7 +663,9 @@ class OrderStatusHandler {
 	 * @return string
 	 */
 	private function build_draft_key( $draft_id ) {
-		return Plugin::TRANSIENT_PREFIX . 'draft_' . $draft_id;
+		// Include user ID in the key to prevent cross-user draft access.
+		$user_id = get_current_user_id();
+		return Plugin::TRANSIENT_PREFIX . 'status_draft_' . $user_id . '_' . $draft_id;
 	}
 
 	/**
@@ -645,6 +722,44 @@ class OrderStatusHandler {
 
 		$draft = get_transient( $this->build_draft_key( $draft_id ) );
 		if ( false === $draft || ! is_array( $draft ) ) {
+			return null;
+		}
+
+		return $draft;
+	}
+
+	/**
+	 * Atomically claim a draft by loading and deleting in one operation.
+	 *
+	 * This prevents race conditions where two concurrent requests could both
+	 * claim and execute the same draft (double execution).
+	 *
+	 * @param string $draft_id Draft identifier.
+	 * @return array|null The draft if successfully claimed, null otherwise.
+	 */
+	private function claim_draft( $draft_id ) {
+		if ( ! function_exists( 'get_transient' ) || ! function_exists( 'delete_transient' ) ) {
+			return null;
+		}
+
+		$key   = $this->build_draft_key( $draft_id );
+		$draft = get_transient( $key );
+
+		if ( false === $draft || ! is_array( $draft ) ) {
+			return null;
+		}
+
+		// Delete immediately to prevent concurrent claims.
+		$deleted = delete_transient( $key );
+
+		// If delete failed, check if already deleted by another request.
+		if ( ! $deleted ) {
+			$check = get_transient( $key );
+			if ( false !== $check ) {
+				// Transient still exists but delete failed - system issue.
+				return null;
+			}
+			// Transient was already deleted by another request (race condition).
 			return null;
 		}
 

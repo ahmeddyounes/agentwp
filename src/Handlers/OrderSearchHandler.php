@@ -688,9 +688,14 @@ class OrderSearchHandler {
 	 * @return array
 	 */
 	private function format_date_range( DateTimeImmutable $start, DateTimeImmutable $end ) {
+		// Convert to UTC for WooCommerce database queries (stores dates in UTC).
+		$utc       = new DateTimeZone( 'UTC' );
+		$start_utc = $start->setTimezone( $utc );
+		$end_utc   = $end->setTimezone( $utc );
+
 		return array(
-			'start' => $start->format( 'Y-m-d H:i:s' ),
-			'end'   => $end->format( 'Y-m-d H:i:s' ),
+			'start' => $start_utc->format( 'Y-m-d H:i:s' ),
+			'end'   => $end_utc->format( 'Y-m-d H:i:s' ),
 		);
 	}
 
@@ -709,6 +714,17 @@ class OrderSearchHandler {
 
 		if ( '' === $timezone && function_exists( 'get_option' ) ) {
 			$timezone = (string) get_option( 'timezone_string' );
+		}
+
+		// Handle GMT offset when timezone_string is empty.
+		if ( '' === $timezone && function_exists( 'get_option' ) ) {
+			$gmt_offset = (float) get_option( 'gmt_offset', 0 );
+			if ( 0.0 !== $gmt_offset ) {
+				$hours    = (int) $gmt_offset;
+				$minutes  = abs( (int) ( ( $gmt_offset - $hours ) * 60 ) );
+				$sign     = $gmt_offset >= 0 ? '+' : '-';
+				$timezone = sprintf( '%s%02d:%02d', $sign, abs( $hours ), $minutes );
+			}
 		}
 
 		if ( '' === $timezone ) {
