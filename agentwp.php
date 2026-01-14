@@ -23,6 +23,7 @@ define( 'AGENTWP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 $agentwp_autoload = AGENTWP_PLUGIN_DIR . 'vendor/autoload.php';
 if ( file_exists( $agentwp_autoload ) ) {
+	// phpcs:ignore WordPressVIPMinimum.Files.IncludingFile.UsingVariable -- Autoloader path is derived from the plugin directory.
 	require_once $agentwp_autoload;
 } else {
 	spl_autoload_register(
@@ -38,6 +39,7 @@ if ( file_exists( $agentwp_autoload ) ) {
 			$file           = $base_dir . str_replace( '\\', '/', $relative_class ) . '.php';
 
 			if ( file_exists( $file ) ) {
+				// phpcs:ignore WordPressVIPMinimum.Files.IncludingFile.UsingVariable -- File path is derived from a fixed PSR-4 mapping.
 				require $file;
 			}
 		}

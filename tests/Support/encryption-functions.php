@@ -19,8 +19,8 @@ function random_bytes( $length ) {
 	return EncryptionFunctionOverrides::random_bytes( $length );
 }
 
-function openssl_encrypt( ...$args ) {
-	return EncryptionFunctionOverrides::openssl_encrypt( ...$args );
+function openssl_encrypt( $data, $cipher_algo, $passphrase, $options = 0, $iv = '', &$tag = null, $aad = '', $tag_length = 16 ) {
+	return EncryptionFunctionOverrides::openssl_encrypt( $data, $cipher_algo, $passphrase, $options, $iv, $tag, $aad, $tag_length );
 }
 
 function openssl_decrypt( ...$args ) {

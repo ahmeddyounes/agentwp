@@ -116,11 +116,10 @@ final class WordPressTransientCache implements TransientCacheInterface {
 		// For backward compatibility - non-wrapped truthy values.
 		if ( false !== $raw ) {
 			return $raw;
-		}
+			}
 
-		// Cache miss - use locking to prevent stampede.
-		$lockKey      = $prefixed_key . '_lock';
-		$lockAcquired = false;
+			// Cache miss - use locking to prevent stampede.
+			$lockAcquired = false;
 
 		for ( $i = 0; $i < self::MAX_LOCK_ATTEMPTS; $i++ ) {
 			if ( $this->add( $key . '_lock', 1, self::LOCK_TIMEOUT ) ) {
@@ -167,20 +166,26 @@ final class WordPressTransientCache implements TransientCacheInterface {
 	/**
 	 * {@inheritDoc}
 	 */
-	public function add( string $key, mixed $value, int $expiration = 0 ): bool {
-		$prefixed_key = $this->prefixKey( $key );
+		public function add( string $key, mixed $value, int $expiration = 0 ): bool {
+			$prefixed_key = $this->prefixKey( $key );
+			$is_lock_key  = str_ends_with( $key, '_lock' );
 
-		// Wrap value to distinguish false from not-found.
-		$wrapped = array(
-			'__wrapped__' => true,
-			'value'       => $value,
+			if ( $expiration > 0 && $expiration < 300 && ! $is_lock_key ) {
+				$expiration = 300;
+			}
+
+			// Wrap value to distinguish false from not-found.
+			$wrapped = array(
+				'__wrapped__' => true,
+				'value'       => $value,
 		);
 
-		// If object cache supports atomic add, use it.
-		if ( wp_using_ext_object_cache() ) {
-			// wp_cache_add returns false if key already exists.
-			return wp_cache_add( $prefixed_key, $wrapped, 'transient', $expiration );
-		}
+			// If object cache supports atomic add, use it.
+			if ( wp_using_ext_object_cache() ) {
+				// wp_cache_add returns false if key already exists.
+				// phpcs:ignore WordPressVIPMinimum.Performance.LowExpiryCacheTime.CacheTimeUndetermined -- Lock keys may intentionally use short TTLs.
+				return wp_cache_add( $prefixed_key, $wrapped, 'transient', $expiration );
+			}
 
 		// For database-backed transients, check existence first then set.
 		// This has a small race window but is the best we can do without object cache.
@@ -189,8 +194,8 @@ final class WordPressTransientCache implements TransientCacheInterface {
 			return false;
 		}
 
-		return set_transient( $prefixed_key, $wrapped, $expiration );
-	}
+			return set_transient( $prefixed_key, $wrapped, $expiration );
+		}
 
 	/**
 	 * Prefix a key.

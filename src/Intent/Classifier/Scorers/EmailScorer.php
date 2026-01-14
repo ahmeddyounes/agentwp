@@ -55,6 +55,7 @@ final class EmailScorer extends AbstractScorer {
 	 * @return int Score.
 	 */
 	public function score( string $text, array $context = array() ): int {
+		unset( $context );
 		$hasEmail  = $this->containsAny( $text, self::EMAIL_PHRASES );
 		$hasAction = $this->containsAny( $text, self::ACTION_PHRASES );
 

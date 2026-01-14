@@ -1,47 +1,57 @@
 <?php
 /**
- * Conversation memory stored in session.
+ * Conversation memory stored in WordPress transients.
  *
  * @package AgentWP
  */
 
 namespace AgentWP\Intent;
 
-class MemoryStore {
-	const SESSION_KEY = 'agentwp_intent_memory';
+use AgentWP\Contracts\MemoryStoreInterface;
+
+final class MemoryStore implements MemoryStoreInterface {
+	const TRANSIENT_KEY_PREFIX = 'agentwp_intent_memory_';
 
 	/**
-	 * @var int
+	 * @var int Max memory entries.
 	 */
-	private $limit;
+	private int $limit;
+
+	/**
+	 * @var int TTL in seconds.
+	 */
+	private int $ttl;
 
 	/**
 	 * @param int $limit Max memory entries.
+	 * @param int $ttl   TTL in seconds.
 	 */
-	public function __construct( $limit = 5 ) {
+	public function __construct( $limit = 5, $ttl = 1800 ) {
 		$this->limit = max( 1, (int) $limit );
+		$this->ttl   = max( 60, (int) $ttl );
 	}
 
 	/**
-	 * @return array
+	 * {@inheritDoc}
 	 */
-	public function get() {
-		$this->ensure_session();
-
-		if ( ! isset( $_SESSION[ self::SESSION_KEY ] ) || ! is_array( $_SESSION[ self::SESSION_KEY ] ) ) {
+	public function get(): array {
+		$key = $this->get_transient_key();
+		if ( '' === $key || ! function_exists( 'get_transient' ) ) {
 			return array();
 		}
 
-		return array_values( $_SESSION[ self::SESSION_KEY ] );
+		$value = get_transient( $key );
+		if ( false === $value || ! is_array( $value ) ) {
+			return array();
+		}
+
+		return array_values( $value );
 	}
 
 	/**
-	 * @param array $entry Exchange entry.
-	 * @return void
+	 * {@inheritDoc}
 	 */
-	public function add_exchange( array $entry ) {
-		$this->ensure_session();
-
+	public function addExchange( array $entry ): void {
 		$memory   = $this->get();
 		$memory[] = $entry;
 
@@ -49,27 +59,49 @@ class MemoryStore {
 			$memory = array_slice( $memory, -$this->limit );
 		}
 
-		$_SESSION[ self::SESSION_KEY ] = $memory;
+		$key = $this->get_transient_key();
+		if ( '' === $key || ! function_exists( 'set_transient' ) ) {
+			return;
+		}
+
+		set_transient( $key, $memory, $this->ttl );
 	}
 
 	/**
+	 * Alias for backward compatibility.
+	 *
+	 * @param array{time: string, input: string, intent: string, message: string} $entry Exchange entry.
 	 * @return void
 	 */
-	private function ensure_session() {
-		if ( headers_sent() ) {
+	public function add_exchange( array $entry ) {
+		$this->addExchange( $entry );
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function clear(): void {
+		$key = $this->get_transient_key();
+		if ( '' === $key || ! function_exists( 'delete_transient' ) ) {
 			return;
 		}
 
-		if ( function_exists( 'session_status' ) ) {
-			if ( PHP_SESSION_NONE === session_status() ) {
-				session_start();
-			}
+		delete_transient( $key );
+	}
 
-			return;
+	/**
+	 * @return string Transient key, or empty string when unavailable.
+	 */
+	private function get_transient_key(): string {
+		if ( ! function_exists( 'get_current_user_id' ) ) {
+			return '';
 		}
 
-		if ( ! isset( $_SESSION ) ) {
-			session_start();
+		$user_id = (int) get_current_user_id();
+		if ( $user_id <= 0 ) {
+			return '';
 		}
+
+		return self::TRANSIENT_KEY_PREFIX . $user_id;
 	}
 }

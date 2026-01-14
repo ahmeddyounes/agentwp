@@ -8,6 +8,7 @@
 namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
+use WP_REST_Request;
 use WP_REST_Server;
 
 class HealthController extends RestController {
@@ -33,10 +34,12 @@ class HealthController extends RestController {
 	 *
 	 * @openapi GET /agentwp/v1/health
 	 *
-	 * @param WP_REST_Request $request Request instance.
+	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return \WP_REST_Response
 	 */
 	public function get_health( $request ) {
+		unset( $request );
+
 		return $this->response_success(
 			array(
 				'status'  => 'ok',

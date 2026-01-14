@@ -187,15 +187,15 @@ class BulkHandler {
 	 * @param string $draft_id Draft identifier.
 	 * @return Response
 	 */
-	private function confirm_bulk_update( $draft_id ): Response {
-		if ( ! function_exists( 'wc_get_order' ) ) {
-			return Response::error( 'WooCommerce is required to process bulk updates.', 400 );
-		}
+		private function confirm_bulk_update( $draft_id ): Response {
+			if ( ! function_exists( 'wc_get_order' ) ) {
+				return Response::error( 'WooCommerce is required to process bulk updates.', 400 );
+			}
 
-		$draft_id = is_string( $draft_id ) ? trim( $draft_id ) : '';
-		if ( '' === $draft_id ) {
-			return Response::error( 'Missing bulk update draft ID.', 400 );
-		}
+			$draft_id = trim( (string) $draft_id );
+			if ( '' === $draft_id ) {
+				return Response::error( 'Missing bulk update draft ID.', 400 );
+			}
 
 		// Atomically claim the draft by loading and deleting immediately.
 		// This prevents race conditions where two requests could process the same draft.
@@ -346,11 +346,11 @@ class BulkHandler {
 	 * @param string $job_id Job identifier.
 	 * @return void
 	 */
-	private function process_scheduled_job( $job_id ) {
-		$job_id = is_string( $job_id ) ? trim( $job_id ) : '';
-		if ( '' === $job_id ) {
-			return;
-		}
+		private function process_scheduled_job( $job_id ) {
+			$job_id = trim( (string) $job_id );
+			if ( '' === $job_id ) {
+				return;
+			}
 
 		$job = $this->load_job( $job_id );
 		if ( ! is_array( $job ) ) {
@@ -516,9 +516,15 @@ class BulkHandler {
 					}
 					break;
 				case 'export_csv':
-					$rows[] = $this->format_export_row( $order );
-					$updated++;
-					$result['updated'][] = $order_id;
+					$row = $this->format_export_row( $order );
+					if ( ! empty( $row ) ) {
+						$rows[] = $row;
+						$updated++;
+						$result['updated'][] = $order_id;
+					} else {
+						$failed++;
+						$this->add_error( $errors, $order_id, 'Unable to export order row.' );
+					}
 					break;
 				default:
 					$failed++;
@@ -588,11 +594,11 @@ class BulkHandler {
 	 * @param string $rollback_id Rollback identifier.
 	 * @return Response
 	 */
-	private function rollback_bulk_action( $rollback_id ): Response {
-		$rollback_id = is_string( $rollback_id ) ? trim( $rollback_id ) : '';
-		if ( '' === $rollback_id ) {
-			return Response::error( 'Missing rollback ID.', 400 );
-		}
+		private function rollback_bulk_action( $rollback_id ): Response {
+			$rollback_id = trim( (string) $rollback_id );
+			if ( '' === $rollback_id ) {
+				return Response::error( 'Missing rollback ID.', 400 );
+			}
 
 		$rollback = $this->load_rollback( $rollback_id );
 		if ( ! is_array( $rollback ) ) {
@@ -672,11 +678,11 @@ class BulkHandler {
 		);
 	}
 
-	/**
-	 * @param array $criteria Criteria input.
-	 * @return array
-	 */
-	private function normalize_criteria( $criteria ) {
+		/**
+		 * @param array|string $criteria Criteria input.
+		 * @return array
+		 */
+		private function normalize_criteria( $criteria ) {
 		$parsed = array(
 			'status'         => '',
 			'date_range'     => null,
@@ -699,14 +705,14 @@ class BulkHandler {
 			$parsed['country'] = isset( $criteria['country'] ) ? $this->normalize_country( $criteria['country'] ) : '';
 		}
 
-		if ( '' !== $query ) {
-			$text_parsed = $this->parse_criteria_text( $query );
-			foreach ( $text_parsed as $key => $value ) {
-				if ( ! isset( $parsed[ $key ] ) || '' === $parsed[ $key ] || null === $parsed[ $key ] ) {
-					$parsed[ $key ] = $value;
+			if ( '' !== $query ) {
+				$text_parsed = $this->parse_criteria_text( $query );
+				foreach ( $text_parsed as $key => $value ) {
+					if ( ! isset( $parsed[ $key ] ) || '' === $parsed[ $key ] ) {
+						$parsed[ $key ] = $value;
+					}
 				}
 			}
-		}
 
 		if ( '' === $parsed['status'] ) {
 			unset( $parsed['status'] );
@@ -846,21 +852,33 @@ class BulkHandler {
 			);
 		}
 
-		if ( count( $meta_query ) > 1 ) {
-			$args['meta_query'] = $meta_query;
+			if ( count( $meta_query ) > 1 ) {
+				$args['meta_query'] = $meta_query; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Needed for bulk filtering.
+			}
+
+			$order_ids = wc_get_orders( $args );
+			if ( ! is_array( $order_ids ) ) {
+				return array();
+			}
+
+			$normalized_ids = array();
+			foreach ( $order_ids as $order_id ) {
+				$normalized = 0;
+
+				if ( is_numeric( $order_id ) ) {
+					$normalized = absint( $order_id );
+				} elseif ( is_object( $order_id ) && method_exists( $order_id, 'get_id' ) ) {
+					$normalized = absint( $order_id->get_id() );
+				}
+
+				if ( $normalized > 0 ) {
+					$normalized_ids[] = $normalized;
+				}
+			}
+			$order_ids = array_values( array_unique( $normalized_ids ) );
+
+			return $order_ids;
 		}
-
-		$order_ids = wc_get_orders( $args );
-		if ( ! is_array( $order_ids ) ) {
-			return array();
-		}
-
-		$order_ids = array_map( 'absint', $order_ids );
-		$order_ids = array_filter( $order_ids );
-		$order_ids = array_values( array_unique( $order_ids ) );
-
-		return $order_ids;
-	}
 
 	/**
 	 * Batch load orders to avoid N+1 queries.
@@ -886,14 +904,17 @@ class BulkHandler {
 				)
 			);
 
-			if ( is_array( $batch ) ) {
-				foreach ( $batch as $order ) {
-					if ( $order && method_exists( $order, 'get_id' ) ) {
-						$orders_map[ $order->get_id() ] = $order;
+				if ( is_array( $batch ) ) {
+					foreach ( $batch as $order ) {
+						if ( is_object( $order ) && method_exists( $order, 'get_id' ) ) {
+							$order_id = absint( $order->get_id() );
+							if ( $order_id > 0 ) {
+								$orders_map[ $order_id ] = $order;
+							}
+						}
 					}
 				}
 			}
-		}
 
 		return $orders_map;
 	}
@@ -912,7 +933,10 @@ class BulkHandler {
 		foreach ( $order_ids as $order_id ) {
 			$order = isset( $orders_map[ $order_id ] ) ? $orders_map[ $order_id ] : null;
 			if ( $order ) {
-				$sample[] = $this->format_order_summary( $order );
+				$summary = $this->format_order_summary( $order );
+				if ( ! empty( $summary ) ) {
+					$sample[] = $summary;
+				}
 			}
 		}
 
@@ -923,20 +947,32 @@ class BulkHandler {
 	 * @param object $order Order object.
 	 * @return array
 	 */
-	private function format_order_summary( $order ) {
-		$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
+		private function format_order_summary( $order ) {
+			if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
+				return array();
+			}
 
-		return array(
-			'order_id'       => intval( $order->get_id() ),
-			'status'         => sanitize_text_field( $order->get_status() ),
-			'total'          => $order->get_total(),
-			'currency'       => method_exists( $order, 'get_currency' ) ? sanitize_text_field( $order->get_currency() ) : '',
-			'customer_name'  => sanitize_text_field( $this->get_customer_name( $order ) ),
-			'customer_email' => sanitize_email( $this->get_customer_email( $order ) ),
-			'date_created'   => $date_created ? $date_created->date( 'c' ) : '',
-			'country'        => sanitize_text_field( $this->get_order_country( $order ) ),
-		);
-	}
+			$order_id = absint( $order->get_id() );
+			if ( $order_id <= 0 ) {
+				return array();
+			}
+
+			$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
+			$created_at   = ( is_object( $date_created ) && method_exists( $date_created, 'date' ) ) ? $date_created->date( 'c' ) : '';
+			$status       = method_exists( $order, 'get_status' ) ? sanitize_text_field( $order->get_status() ) : '';
+			$total        = method_exists( $order, 'get_total' ) ? $order->get_total() : 0;
+
+			return array(
+				'order_id'       => $order_id,
+				'status'         => $status,
+				'total'          => $total,
+				'currency'       => method_exists( $order, 'get_currency' ) ? sanitize_text_field( $order->get_currency() ) : '',
+				'customer_name'  => sanitize_text_field( $this->get_customer_name( $order ) ),
+				'customer_email' => sanitize_email( $this->get_customer_email( $order ) ),
+				'date_created'   => $created_at,
+				'country'        => sanitize_text_field( $this->get_order_country( $order ) ),
+			);
+		}
 
 	/**
 	 * @param mixed $order_ids Order ID input.
@@ -953,12 +989,19 @@ class BulkHandler {
 			return $ids;
 		}
 
-		foreach ( $order_ids as $order_id ) {
-			$normalized = absint( $order_id );
-			if ( $normalized > 0 ) {
-				$ids[] = $normalized;
+			foreach ( $order_ids as $order_id ) {
+				$normalized = 0;
+
+				if ( is_numeric( $order_id ) ) {
+					$normalized = absint( $order_id );
+				} elseif ( is_object( $order_id ) && method_exists( $order_id, 'get_id' ) ) {
+					$normalized = absint( $order_id->get_id() );
+				}
+
+				if ( $normalized > 0 ) {
+					$ids[] = $normalized;
+				}
 			}
-		}
 
 		$ids = array_values( array_unique( $ids ) );
 
@@ -1250,21 +1293,21 @@ class BulkHandler {
 		// Fallback: use cryptographically secure random bytes.
 		try {
 			return 'bulk_' . bin2hex( random_bytes( 16 ) );
-		} catch ( \Exception $e ) {
-			$crypto_strong = false;
-			$bytes = openssl_random_pseudo_bytes( 16, $crypto_strong );
-			if ( false === $bytes || ! $crypto_strong ) {
-				// Last resort: use uniqid with more entropy (less secure, but better than failing).
-				return 'bulk_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+			} catch ( \Exception $e ) {
+				$crypto_strong = false;
+				$bytes         = openssl_random_pseudo_bytes( 16, $crypto_strong );
+				if ( ! $crypto_strong ) {
+					// Last resort: use uniqid with more entropy (less secure, but better than failing).
+					return 'bulk_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+				}
+				return 'bulk_' . bin2hex( $bytes );
 			}
-			return 'bulk_' . bin2hex( $bytes );
 		}
-	}
 
-	/**
-	 * @param string $draft_id Draft identifier.
-	 * @return string
-	 */
+		/**
+		 * @param string $draft_id Draft identifier.
+		 * @return string
+		 */
 	private function build_draft_key( $draft_id ) {
 		// Include user ID in the key to prevent cross-user draft access.
 		$user_id = get_current_user_id();
@@ -1313,27 +1356,10 @@ class BulkHandler {
 		return set_transient( $this->build_draft_key( $draft_id ), $draft, $ttl );
 	}
 
-	/**
-	 * @param string $draft_id Draft identifier.
-	 * @return array|null
-	 */
-	private function load_draft( $draft_id ) {
-		if ( ! function_exists( 'get_transient' ) ) {
-			return null;
-		}
-
-		$draft = get_transient( $this->build_draft_key( $draft_id ) );
-		if ( false === $draft || ! is_array( $draft ) ) {
-			return null;
-		}
-
-		return $draft;
-	}
-
-	/**
-	 * Atomically claim a draft by loading and immediately deleting it.
-	 *
-	 * This prevents race conditions where two concurrent requests could
+		/**
+		 * Atomically claim a draft by loading and immediately deleting it.
+		 *
+		 * This prevents race conditions where two concurrent requests could
 	 * both load the same draft before either deletes it, causing double-processing.
 	 *
 	 * @param string $draft_id Draft identifier.
@@ -1450,14 +1476,16 @@ class BulkHandler {
 	 * @param mixed $value Input.
 	 * @return bool
 	 */
-	private function normalize_bool( $value ) {
-		if ( function_exists( 'rest_sanitize_boolean' ) ) {
-			return rest_sanitize_boolean( $value );
-		}
+		private function normalize_bool( $value ) {
+			if ( function_exists( 'rest_sanitize_boolean' ) ) {
+				if ( is_bool( $value ) || is_int( $value ) || is_string( $value ) ) {
+					return rest_sanitize_boolean( $value );
+				}
+			}
 
-		// Handle string representations properly (e.g., "false" should be false).
-		if ( is_string( $value ) ) {
-			$value = strtolower( trim( $value ) );
+			// Handle string representations properly (e.g., "false" should be false).
+			if ( is_string( $value ) ) {
+				$value = strtolower( trim( $value ) );
 			return ! in_array( $value, array( 'false', '0', 'no', 'off', '' ), true );
 		}
 
@@ -1584,22 +1612,22 @@ class BulkHandler {
 		return array_values( array_unique( $sanitized ) );
 	}
 
-	/**
-	 * @param array $order Order object.
-	 * @param string $new_status New status.
-	 * @param string $note Note for audit.
-	 * @param bool $notify_customer Notify flag.
-	 * @return bool
-	 */
-	private function apply_status_update( $order, $new_status, $note, $notify_customer ) {
-		if ( ! $order || ! method_exists( $order, 'update_status' ) ) {
-			return false;
-		}
+		/**
+		 * @param object $order Order object.
+		 * @param string $new_status New status.
+		 * @param string $note Note for audit.
+		 * @param bool $notify_customer Notify flag.
+		 * @return bool
+		 */
+		private function apply_status_update( $order, $new_status, $note, $notify_customer ) {
+			if ( ! is_object( $order ) || ! method_exists( $order, 'update_status' ) || ! method_exists( $order, 'get_status' ) ) {
+				return false;
+			}
 
-		$current_status = $this->normalize_status( $order->get_status() );
-		if ( $current_status === $new_status ) {
-			return false;
-		}
+			$current_status = $this->normalize_status( (string) $order->get_status() );
+			if ( $current_status === $new_status ) {
+				return false;
+			}
 
 		// Include actor information for audit trail.
 		$actor = $this->get_current_actor();
@@ -1656,9 +1684,10 @@ class BulkHandler {
 	 * @param object $email   Email object.
 	 * @return bool Always false.
 	 */
-	public function disable_email_notifications( $enabled, $email ) {
-		return false;
-	}
+		public function disable_email_notifications( $enabled, $email ) {
+			unset( $enabled, $email );
+			return false;
+		}
 
 	/**
 	 * @param object $order Order object.
@@ -1706,10 +1735,10 @@ class BulkHandler {
 	 * @param bool   $is_customer_note Customer visibility.
 	 * @return int
 	 */
-	private function apply_order_note( $order, $note, $is_customer_note ) {
-		if ( ! $order || ! method_exists( $order, 'add_order_note' ) ) {
-			return 0;
-		}
+		private function apply_order_note( $order, $note, $is_customer_note ) {
+			if ( ! is_object( $order ) || ! method_exists( $order, 'add_order_note' ) ) {
+				return 0;
+			}
 
 		$note = trim( (string) $note );
 		if ( '' === $note ) {
@@ -1725,88 +1754,138 @@ class BulkHandler {
 	 * @param object $order Order object.
 	 * @return array
 	 */
-	private function format_export_row( $order ) {
-		$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
-		$currency     = method_exists( $order, 'get_currency' ) ? $order->get_currency() : '';
-		$billing_country  = method_exists( $order, 'get_billing_country' ) ? $order->get_billing_country() : '';
-		$shipping_country = method_exists( $order, 'get_shipping_country' ) ? $order->get_shipping_country() : '';
+		private function format_export_row( $order ) {
+			if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
+				return array();
+			}
 
-		// Sanitize all user-controlled fields to prevent XSS.
-		return array(
-			'order_id'        => intval( $order->get_id() ),
-			'status'          => sanitize_text_field( $order->get_status() ),
-			'total'           => $order->get_total(),
-			'currency'        => sanitize_text_field( $currency ),
-			'customer_name'   => sanitize_text_field( $this->get_customer_name( $order ) ),
-			'customer_email'  => sanitize_email( $this->get_customer_email( $order ) ),
-			'date_created'    => $date_created ? $date_created->date( 'c' ) : '',
-			'billing_country' => sanitize_text_field( $billing_country ),
-			'shipping_country'=> sanitize_text_field( $shipping_country ),
-		);
-	}
+			$order_id = absint( $order->get_id() );
+			if ( $order_id <= 0 ) {
+				return array();
+			}
+
+			$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
+			$currency     = method_exists( $order, 'get_currency' ) ? $order->get_currency() : '';
+			$billing_country  = method_exists( $order, 'get_billing_country' ) ? $order->get_billing_country() : '';
+			$shipping_country = method_exists( $order, 'get_shipping_country' ) ? $order->get_shipping_country() : '';
+			$status           = method_exists( $order, 'get_status' ) ? sanitize_text_field( $order->get_status() ) : '';
+			$total            = method_exists( $order, 'get_total' ) ? $order->get_total() : 0;
+			$created_at       = ( is_object( $date_created ) && method_exists( $date_created, 'date' ) ) ? $date_created->date( 'c' ) : '';
+
+			// Sanitize all user-controlled fields to prevent XSS.
+			return array(
+				'order_id'        => $order_id,
+				'status'          => $status,
+				'total'           => $total,
+				'currency'        => sanitize_text_field( $currency ),
+				'customer_name'   => sanitize_text_field( $this->get_customer_name( $order ) ),
+				'customer_email'  => sanitize_email( $this->get_customer_email( $order ) ),
+				'date_created'    => $created_at,
+				'billing_country' => sanitize_text_field( $billing_country ),
+				'shipping_country'=> sanitize_text_field( $shipping_country ),
+			);
+		}
 
 	/**
 	 * @param array $rows Data rows.
 	 * @param array $fields Fields list.
 	 * @return array
 	 */
-	private function export_csv( array $rows, array $fields ) {
-		if ( ! function_exists( 'wp_upload_dir' ) ) {
-			return array( 'error' => 'Unable to export CSV in this environment.' );
+		private function export_csv( array $rows, array $fields ) {
+			$fields = $this->normalize_fields( $fields );
+			$csv     = $this->build_csv_content( $rows, $fields );
+			$base64  = base64_encode( $csv );
+			$random  = $this->generate_export_suffix();
+			$random  = '' !== $random ? '-' . $random : '';
+			$filename = 'agentwp-bulk-export-' . gmdate( 'Ymd-His' ) . $random . '.csv';
+
+			return array(
+				'filename'       => $filename,
+				'mime_type'      => 'text/csv',
+				'content_base64' => $base64,
+				'file_url'       => 'data:text/csv;base64,' . $base64,
+				'rows'           => count( $rows ),
+			);
 		}
 
-		$fields = $this->normalize_fields( $fields );
-		$upload = wp_upload_dir();
+		/**
+		 * Build CSV content as a string.
+		 *
+		 * @param array $rows   Data rows.
+		 * @param array $fields Fields list.
+		 * @return string
+		 */
+		private function build_csv_content( array $rows, array $fields ): string {
+			$lines   = array();
+			$lines[] = $this->build_csv_row( $fields );
 
-		// wp_upload_dir() returns an 'error' key on failure.
-		if ( ! empty( $upload['error'] ) ) {
-			return array( 'error' => 'Unable to resolve upload directory: ' . $upload['error'] );
-		}
-
-		$base = isset( $upload['basedir'] ) ? $upload['basedir'] : '';
-		$url  = isset( $upload['baseurl'] ) ? $upload['baseurl'] : '';
-
-		if ( '' === $base || '' === $url ) {
-			return array( 'error' => 'Unable to resolve upload directory.' );
-		}
-
-		$dir = trailingslashit( $base ) . 'agentwp-exports';
-		if ( function_exists( 'wp_mkdir_p' ) ) {
-			wp_mkdir_p( $dir );
-		}
-
-		$filename = 'agentwp-bulk-export-' . gmdate( 'Ymd-His' ) . '-' . wp_generate_password( 6, false ) . '.csv';
-		$path     = trailingslashit( $dir ) . $filename;
-
-		// Clear previous errors and attempt file creation without error suppression.
-		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Silencing fopen to capture error via error_get_last().
-		$file = @fopen( $path, 'w' );
-		if ( ! $file ) {
-			$last_error   = error_get_last();
-			$error_detail = isset( $last_error['message'] ) ? ': ' . $last_error['message'] : '.';
-			return array( 'error' => 'Unable to create CSV export file' . $error_detail );
-		}
-
-		// Use try-finally to ensure file handle is always closed.
-		try {
-			fputcsv( $file, $fields );
 			foreach ( $rows as $row ) {
 				$line = array();
 				foreach ( $fields as $field ) {
 					$line[] = isset( $row[ $field ] ) ? $row[ $field ] : '';
 				}
-				fputcsv( $file, $line );
+				$lines[] = $this->build_csv_row( $line );
 			}
-		} finally {
-			fclose( $file );
+
+			return implode( "\r\n", $lines ) . "\r\n";
 		}
 
-		return array(
-			'file_path' => $path,
-			'file_url'  => esc_url_raw( trailingslashit( $url ) . 'agentwp-exports/' . $filename ),
-			'rows'      => count( $rows ),
-		);
-	}
+		/**
+		 * Build a single CSV row.
+		 *
+		 * @param array $fields Fields to output.
+		 * @return string
+		 */
+		private function build_csv_row( array $fields ): string {
+			$encoded = array();
+			foreach ( $fields as $field ) {
+				$encoded[] = $this->escape_csv_field( $field );
+			}
+			return implode( ',', $encoded );
+		}
+
+		/**
+		 * Escape a value for inclusion in a CSV field.
+		 *
+		 * @param mixed $value Field value.
+		 * @return string
+		 */
+		private function escape_csv_field( $value ): string {
+			$value = is_scalar( $value ) ? (string) $value : '';
+
+			// Normalize newlines and prevent spreadsheet formula injection.
+			$value = str_replace( array( "\r\n", "\r" ), "\n", $value );
+			if ( '' !== $value && preg_match( '/^[=+\\-@]/', ltrim( $value ) ) ) {
+				$value = "'" . $value;
+			}
+
+			$needs_quotes = str_contains( $value, ',' ) || str_contains( $value, '"' ) || str_contains( $value, "\n" );
+			$value       = str_replace( '"', '""', $value );
+
+			if ( $needs_quotes ) {
+				return '"' . $value . '"';
+			}
+
+			return $value;
+		}
+
+		/**
+		 * Generate a random suffix for filenames.
+		 *
+		 * @return string
+		 */
+		private function generate_export_suffix(): string {
+			if ( function_exists( 'wp_generate_password' ) ) {
+				$random = wp_generate_password( 6, false );
+				return is_string( $random ) ? $random : '';
+			}
+
+			try {
+				return bin2hex( random_bytes( 3 ) );
+			} catch ( Exception $e ) {
+				return '';
+			}
+		}
 
 	/**
 	 * @param int $order_id Order ID.
@@ -2224,13 +2303,13 @@ class BulkHandler {
 			return $map;
 		}
 
-		$countries = array();
-		if ( function_exists( 'WC' ) ) {
-			$wc = WC();
-			if ( $wc && isset( $wc->countries ) && method_exists( $wc->countries, 'get_countries' ) ) {
-				$countries = $wc->countries->get_countries();
+			$countries = array();
+			if ( function_exists( 'WC' ) ) {
+				$wc = WC();
+				if ( $wc && isset( $wc->countries ) && is_object( $wc->countries ) && method_exists( $wc->countries, 'get_countries' ) ) {
+					$countries = $wc->countries->get_countries();
+				}
 			}
-		}
 
 		if ( empty( $countries ) && class_exists( 'WC_Countries' ) ) {
 			$wc_countries = new \WC_Countries();

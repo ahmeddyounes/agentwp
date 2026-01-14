@@ -46,12 +46,35 @@ final class EncryptionFunctionOverrides {
 		return \random_bytes( $length );
 	}
 
-	public static function openssl_encrypt( ...$args ) {
+	/**
+	 * Wrapper for openssl_encrypt that preserves the by-reference tag argument.
+	 *
+	 * @param string      $data Plaintext data.
+	 * @param string      $cipher_algo Cipher name.
+	 * @param string      $passphrase Key/passphrase.
+	 * @param int         $options Options.
+	 * @param string      $iv Initialization vector / nonce.
+	 * @param string|null $tag Authentication tag (by reference).
+	 * @param string      $aad Additional authenticated data.
+	 * @param int         $tag_length Tag length.
+	 * @return string|false
+	 */
+	public static function openssl_encrypt(
+		$data,
+		$cipher_algo,
+		$passphrase,
+		$options = 0,
+		$iv = '',
+		&$tag = null,
+		$aad = '',
+		$tag_length = 16
+	) {
 		if ( null !== self::$openssl_encrypt ) {
-			return call_user_func( self::$openssl_encrypt, ...$args );
+			$callable = self::$openssl_encrypt;
+			return $callable( $data, $cipher_algo, $passphrase, $options, $iv, $tag, $aad, $tag_length );
 		}
 
-		return \openssl_encrypt( ...$args );
+		return \openssl_encrypt( $data, $cipher_algo, $passphrase, $options, $iv, $tag, $aad, $tag_length );
 	}
 
 	public static function openssl_decrypt( ...$args ) {

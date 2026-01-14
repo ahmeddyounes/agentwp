@@ -10,6 +10,7 @@ namespace AgentWP\DTO;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
+use Throwable;
 
 /**
  * Immutable date range value object.
@@ -74,11 +75,7 @@ final class DateRange {
 		}
 
 		$now      = new DateTimeImmutable( 'now', $timezone );
-		$modified = $now->modify( sprintf( '-%d days', $days ) );
-		// modify() can return false on failure.
-		if ( false === $modified ) {
-			throw new InvalidArgumentException( 'Failed to calculate start date.' );
-		}
+		$modified = self::safeModify( $now, sprintf( '-%d days', $days ), 'Failed to calculate start date.' );
 		$start = $modified->setTime( 0, 0, 0 );
 		$end   = $now->setTime( 23, 59, 59 );
 
@@ -94,12 +91,8 @@ final class DateRange {
 	 */
 	public static function thisWeek( ?DateTimeZone $timezone = null ): self {
 		$now        = new DateTimeImmutable( 'now', $timezone );
-		$startMod   = $now->modify( 'monday this week' );
-		$endMod     = $now->modify( 'sunday this week' );
-		// modify() can return false on failure.
-		if ( false === $startMod || false === $endMod ) {
-			throw new InvalidArgumentException( 'Failed to calculate week boundaries.' );
-		}
+		$startMod   = self::safeModify( $now, 'monday this week', 'Failed to calculate week boundaries.' );
+		$endMod     = self::safeModify( $now, 'sunday this week', 'Failed to calculate week boundaries.' );
 		$start = $startMod->setTime( 0, 0, 0 );
 		$end   = $endMod->setTime( 23, 59, 59 );
 
@@ -115,12 +108,8 @@ final class DateRange {
 	 */
 	public static function lastWeek( ?DateTimeZone $timezone = null ): self {
 		$now      = new DateTimeImmutable( 'now', $timezone );
-		$startMod = $now->modify( 'monday last week' );
-		$endMod   = $now->modify( 'sunday last week' );
-		// modify() can return false on failure.
-		if ( false === $startMod || false === $endMod ) {
-			throw new InvalidArgumentException( 'Failed to calculate week boundaries.' );
-		}
+		$startMod = self::safeModify( $now, 'monday last week', 'Failed to calculate week boundaries.' );
+		$endMod   = self::safeModify( $now, 'sunday last week', 'Failed to calculate week boundaries.' );
 		$start = $startMod->setTime( 0, 0, 0 );
 		$end   = $endMod->setTime( 23, 59, 59 );
 
@@ -136,12 +125,8 @@ final class DateRange {
 	 */
 	public static function thisMonth( ?DateTimeZone $timezone = null ): self {
 		$now      = new DateTimeImmutable( 'now', $timezone );
-		$startMod = $now->modify( 'first day of this month' );
-		$endMod   = $now->modify( 'last day of this month' );
-		// modify() can return false on failure.
-		if ( false === $startMod || false === $endMod ) {
-			throw new InvalidArgumentException( 'Failed to calculate month boundaries.' );
-		}
+		$startMod = self::safeModify( $now, 'first day of this month', 'Failed to calculate month boundaries.' );
+		$endMod   = self::safeModify( $now, 'last day of this month', 'Failed to calculate month boundaries.' );
 		$start = $startMod->setTime( 0, 0, 0 );
 		$end   = $endMod->setTime( 23, 59, 59 );
 
@@ -157,16 +142,36 @@ final class DateRange {
 	 */
 	public static function lastMonth( ?DateTimeZone $timezone = null ): self {
 		$now      = new DateTimeImmutable( 'now', $timezone );
-		$startMod = $now->modify( 'first day of last month' );
-		$endMod   = $now->modify( 'last day of last month' );
-		// modify() can return false on failure.
-		if ( false === $startMod || false === $endMod ) {
-			throw new InvalidArgumentException( 'Failed to calculate month boundaries.' );
-		}
+		$startMod = self::safeModify( $now, 'first day of last month', 'Failed to calculate month boundaries.' );
+		$endMod   = self::safeModify( $now, 'last day of last month', 'Failed to calculate month boundaries.' );
 		$start = $startMod->setTime( 0, 0, 0 );
 		$end   = $endMod->setTime( 23, 59, 59 );
 
 		return new self( $start, $end );
+	}
+
+	/**
+	 * Safely apply a DateTimeImmutable modifier.
+	 *
+	 * DateTimeImmutable::modify() can throw an exception for invalid modifiers.
+	 *
+	 * @param DateTimeImmutable $date Date instance.
+	 * @param string            $modifier DateTime modifier string.
+	 * @param string            $message Error message on failure.
+	 * @return DateTimeImmutable
+	 */
+	private static function safeModify( DateTimeImmutable $date, string $modifier, string $message ): DateTimeImmutable {
+			try {
+				$result = $date->modify( $modifier );
+			} catch ( Throwable $exception ) {
+				throw new InvalidArgumentException( $message, 0, $exception ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message is not output.
+			}
+
+			if ( false === $result ) {
+				throw new InvalidArgumentException( $message ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message is not output.
+			}
+
+		return $result;
 	}
 
 	/**

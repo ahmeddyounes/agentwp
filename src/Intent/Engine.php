@@ -49,13 +49,13 @@ class Engine {
 	 */
 	private $fallback_handler;
 
-	/**
-	 * @param array|null                        $handlers          Optional handlers.
-	 * @param FunctionRegistry|null             $function_registry Optional registry.
-	 * @param ContextBuilder|null               $context_builder   Optional context builder.
-	 * @param IntentClassifier|null             $classifier        Optional classifier.
-	 * @param MemoryStoreInterface|MemoryStore|null $memory        Optional memory store.
-	 */
+		/**
+		 * @param array                             $handlers          Optional handlers.
+		 * @param FunctionRegistry|null             $function_registry Optional registry.
+		 * @param ContextBuilder|null               $context_builder   Optional context builder.
+		 * @param IntentClassifier|null             $classifier        Optional classifier.
+		 * @param MemoryStoreInterface|MemoryStore|null $memory        Optional memory store.
+		 */
 	public function __construct(
 		array $handlers = array(),
 		?FunctionRegistry $function_registry = null,
@@ -104,7 +104,7 @@ class Engine {
 		$handler  = $this->resolve_handler( $enriched['intent'] );
 		$response = $handler->handle( $enriched );
 
-		$this->memory->add_exchange(
+		$this->memory->addExchange(
 			array(
 				'time'    => gmdate( 'c' ),
 				'input'   => $input,

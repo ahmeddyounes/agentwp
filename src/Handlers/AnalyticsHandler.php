@@ -145,38 +145,44 @@ class AnalyticsHandler {
 	private function query_totals( array $range, array $statuses ) {
 		global $wpdb;
 
-		$table             = $wpdb->prefix . 'wc_order_stats';
-		$has_total_sales   = $this->table_has_column( $table, 'total_sales' );
-		$has_items_sold    = $this->table_has_column( $table, 'num_items_sold' );
-		$total_column      = $has_total_sales ? 'total_sales' : 'net_total';
+		$table           = $wpdb->prefix . 'wc_order_stats';
+		$has_total_sales = $this->table_has_column( $table, 'total_sales' );
+		$has_items_sold  = $this->table_has_column( $table, 'num_items_sold' );
+		$total_column    = $has_total_sales ? 'total_sales' : 'net_total';
+
 		// Validate column against whitelist to prevent SQL injection.
 		if ( ! in_array( $total_column, self::ALLOWED_TOTAL_COLUMNS, true ) ) {
 			$total_column = 'net_total';
 		}
+
 		$items_select      = $has_items_sold ? 'COALESCE(SUM(num_items_sold), 0) AS items_sold' : '0 AS items_sold';
 		$parent_filter_sql = $this->table_has_column( $table, 'parent_id' ) ? ' AND parent_id = 0' : '';
 
-		$params = array( $range['start_mysql'], $range['end_mysql'] );
+		$params        = array( $range['start_mysql'], $range['end_mysql'] );
 		$status_clause = $this->build_status_clause( $statuses, $params );
 
-		// Use %i placeholder for table name (WordPress 6.2+).
-		$sql = $wpdb->prepare(
-			"
-			SELECT
-				COALESCE(SUM({$total_column}), 0) AS total_revenue,
-				COALESCE(SUM(net_total), 0) AS net_revenue,
-				{$items_select},
-				COUNT(order_id) AS order_count
-			FROM %i
-			WHERE date_created >= %%s
-				AND date_created <= %%s
-				{$parent_filter_sql}
-				{$status_clause}
-			",
-			$table
+		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic fragments are whitelisted/controlled and values are prepared.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"
+				SELECT
+					COALESCE(SUM({$total_column}), 0) AS total_revenue,
+					COALESCE(SUM(net_total), 0) AS net_revenue,
+					{$items_select},
+					COUNT(order_id) AS order_count
+				FROM {$table}
+				WHERE date_created >= %s
+					AND date_created <= %s
+					{$parent_filter_sql}
+					{$status_clause}
+				",
+				$params
+			),
+			ARRAY_A
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
-		$row = $wpdb->get_row( $wpdb->prepare( $sql, $params ), ARRAY_A );
 		if ( ! is_array( $row ) ) {
 			$row = array(
 				'total_revenue' => 0,
@@ -201,34 +207,36 @@ class AnalyticsHandler {
 	private function query_items_sold( array $range, array $statuses ) {
 		global $wpdb;
 
-		$stats_table  = $wpdb->prefix . 'wc_order_stats';
-		$items_table  = $wpdb->prefix . 'wc_order_product_lookup';
+		$stats_table       = $wpdb->prefix . 'wc_order_stats';
+		$items_table       = $wpdb->prefix . 'wc_order_product_lookup';
 		$parent_filter_sql = $this->table_has_column( $stats_table, 'parent_id' ) ? ' AND stats.parent_id = 0' : '';
 
 		if ( ! $this->table_exists( $items_table ) ) {
 			return 0;
 		}
 
-		$params = array( $range['start_mysql'], $range['end_mysql'] );
+		$params        = array( $range['start_mysql'], $range['end_mysql'] );
 		$status_clause = $this->build_status_clause( $statuses, $params, 'stats.status' );
 
-		// Use %i placeholder for table names (WordPress 6.2+).
-		$sql = $wpdb->prepare(
-			"
-			SELECT COALESCE(SUM(lookup.product_qty), 0)
-			FROM %i AS lookup
-			INNER JOIN %i AS stats
-				ON lookup.order_id = stats.order_id
-			WHERE stats.date_created >= %%s
-				AND stats.date_created <= %%s
-				{$parent_filter_sql}
-				{$status_clause}
-			",
-			$items_table,
-			$stats_table
+		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic fragments are whitelisted/controlled and values are prepared.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$total = $wpdb->get_var(
+			$wpdb->prepare(
+				"
+				SELECT COALESCE(SUM(lookup.product_qty), 0)
+				FROM {$items_table} AS lookup
+				INNER JOIN {$stats_table} AS stats
+					ON lookup.order_id = stats.order_id
+				WHERE stats.date_created >= %s
+					AND stats.date_created <= %s
+					{$parent_filter_sql}
+					{$status_clause}
+				",
+				$params
+			)
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
-		$total = $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
 		return absint( $total );
 	}
 
@@ -252,61 +260,65 @@ class AnalyticsHandler {
 		if ( null !== $revenue_column && ! in_array( $revenue_column, self::ALLOWED_REVENUE_COLUMNS, true ) ) {
 			$revenue_column = null;
 		}
+
 		$revenue_select = $revenue_column
 			? "COALESCE(SUM(lookup.{$revenue_column}), 0) AS net_revenue"
 			: '0 AS net_revenue';
-		$order_by = $revenue_column ? 'net_revenue' : 'items_sold';
+		$order_by       = $revenue_column ? 'net_revenue' : 'items_sold';
+
 		// Validate order by column against whitelist to prevent SQL injection.
 		if ( ! in_array( $order_by, self::ALLOWED_ORDER_COLUMNS, true ) ) {
 			$order_by = 'items_sold';
 		}
+
 		$parent_filter_sql = $this->table_has_column( $stats_table, 'parent_id' ) ? ' AND stats.parent_id = 0' : '';
 
-		$params = array( $range['start_mysql'], $range['end_mysql'] );
+		$params        = array( $range['start_mysql'], $range['end_mysql'] );
 		$status_clause = $this->build_status_clause( $statuses, $params, 'stats.status' );
+		$params[]      = self::TOP_LIMIT;
 
-		// Use %i placeholder for table names (WordPress 6.2+).
-		$sql = $wpdb->prepare(
-			"
-			SELECT
-				lookup.product_id AS product_id,
-				COALESCE(SUM(lookup.product_qty), 0) AS items_sold,
-				{$revenue_select},
-				COALESCE(posts.post_title, '') AS product_name
-			FROM %i AS lookup
-			INNER JOIN %i AS stats
-				ON lookup.order_id = stats.order_id
-			LEFT JOIN %i AS posts
-				ON posts.ID = lookup.product_id
-			WHERE stats.date_created >= %%s
-				AND stats.date_created <= %%s
-				{$parent_filter_sql}
-				{$status_clause}
-				AND lookup.product_id > 0
-			GROUP BY lookup.product_id
-			ORDER BY {$order_by} DESC
-			LIMIT %%d
-			",
-			$table,
-			$stats_table,
-			$wpdb->posts
+		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic fragments are whitelisted/controlled and values are prepared.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"
+				SELECT
+					lookup.product_id AS product_id,
+					COALESCE(SUM(lookup.product_qty), 0) AS items_sold,
+					{$revenue_select},
+					COALESCE(posts.post_title, '') AS product_name
+				FROM {$table} AS lookup
+				INNER JOIN {$stats_table} AS stats
+					ON lookup.order_id = stats.order_id
+				LEFT JOIN {$wpdb->posts} AS posts
+					ON posts.ID = lookup.product_id
+				WHERE stats.date_created >= %s
+					AND stats.date_created <= %s
+					{$parent_filter_sql}
+					{$status_clause}
+					AND lookup.product_id > 0
+				GROUP BY lookup.product_id
+				ORDER BY {$order_by} DESC
+				LIMIT %d
+				",
+				$params
+			),
+			ARRAY_A
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
-		$params[] = self::TOP_LIMIT;
-
-		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
 		if ( empty( $rows ) ) {
 			return array();
 		}
 
 		$results = array();
 		foreach ( $rows as $row ) {
-			$revenue = $this->normalize_amount( isset( $row['net_revenue'] ) ? $row['net_revenue'] : 0 );
+			$revenue    = $this->normalize_amount( isset( $row['net_revenue'] ) ? $row['net_revenue'] : 0 );
 			$results[] = array(
-				'product_id' => absint( $row['product_id'] ),
-				'name'       => sanitize_text_field( $row['product_name'] ),
-				'items_sold' => absint( $row['items_sold'] ),
-				'net_revenue' => $revenue,
+				'product_id'            => absint( $row['product_id'] ),
+				'name'                  => sanitize_text_field( $row['product_name'] ),
+				'items_sold'            => absint( $row['items_sold'] ),
+				'net_revenue'           => $revenue,
 				'net_revenue_formatted' => $this->format_currency( $revenue ),
 			);
 		}
@@ -334,68 +346,70 @@ class AnalyticsHandler {
 		if ( null !== $revenue_column && ! in_array( $revenue_column, self::ALLOWED_REVENUE_COLUMNS, true ) ) {
 			$revenue_column = null;
 		}
+
 		$revenue_select = $revenue_column
 			? "COALESCE(SUM(lookup.{$revenue_column}), 0) AS net_revenue"
 			: '0 AS net_revenue';
-		$order_by = $revenue_column ? 'net_revenue' : 'items_sold';
+		$order_by       = $revenue_column ? 'net_revenue' : 'items_sold';
+
 		// Validate order by column against whitelist to prevent SQL injection.
 		if ( ! in_array( $order_by, self::ALLOWED_ORDER_COLUMNS, true ) ) {
 			$order_by = 'items_sold';
 		}
+
 		$parent_filter_sql = $this->table_has_column( $stats_table, 'parent_id' ) ? ' AND stats.parent_id = 0' : '';
 
-		$params = array( $range['start_mysql'], $range['end_mysql'] );
+		$params        = array( $range['start_mysql'], $range['end_mysql'] );
 		$status_clause = $this->build_status_clause( $statuses, $params, 'stats.status' );
+		$params[]      = self::TOP_LIMIT;
 
-		// Use %i placeholder for table names (WordPress 6.2+).
-		$sql = $wpdb->prepare(
-			"
-			SELECT
-				terms.term_id AS term_id,
-				terms.name AS category_name,
-				COALESCE(SUM(lookup.product_qty), 0) AS items_sold,
-				{$revenue_select}
-			FROM %i AS lookup
-			INNER JOIN %i AS stats
-				ON lookup.order_id = stats.order_id
-			INNER JOIN %i AS rel
-				ON rel.object_id = lookup.product_id
-			INNER JOIN %i AS tax
-				ON tax.term_taxonomy_id = rel.term_taxonomy_id
-			INNER JOIN %i AS terms
-				ON terms.term_id = tax.term_id
-			WHERE stats.date_created >= %%s
-				AND stats.date_created <= %%s
-				{$parent_filter_sql}
-				{$status_clause}
-				AND lookup.product_id > 0
-				AND tax.taxonomy = 'product_cat'
-			GROUP BY terms.term_id
-			ORDER BY {$order_by} DESC
-			LIMIT %%d
-			",
-			$table,
-			$stats_table,
-			$wpdb->term_relationships,
-			$wpdb->term_taxonomy,
-			$wpdb->terms
+		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dynamic fragments are whitelisted/controlled and values are prepared.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"
+				SELECT
+					terms.term_id AS term_id,
+					terms.name AS category_name,
+					COALESCE(SUM(lookup.product_qty), 0) AS items_sold,
+					{$revenue_select}
+				FROM {$table} AS lookup
+				INNER JOIN {$stats_table} AS stats
+					ON lookup.order_id = stats.order_id
+				INNER JOIN {$wpdb->term_relationships} AS rel
+					ON rel.object_id = lookup.product_id
+				INNER JOIN {$wpdb->term_taxonomy} AS tax
+					ON tax.term_taxonomy_id = rel.term_taxonomy_id
+				INNER JOIN {$wpdb->terms} AS terms
+					ON terms.term_id = tax.term_id
+				WHERE stats.date_created >= %s
+					AND stats.date_created <= %s
+					{$parent_filter_sql}
+					{$status_clause}
+					AND lookup.product_id > 0
+					AND tax.taxonomy = 'product_cat'
+				GROUP BY terms.term_id
+				ORDER BY {$order_by} DESC
+				LIMIT %d
+				",
+				$params
+			),
+			ARRAY_A
 		);
+		// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
-		$params[] = self::TOP_LIMIT;
-
-		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
 		if ( empty( $rows ) ) {
 			return array();
 		}
 
 		$results = array();
 		foreach ( $rows as $row ) {
-			$revenue = $this->normalize_amount( isset( $row['net_revenue'] ) ? $row['net_revenue'] : 0 );
+			$revenue    = $this->normalize_amount( isset( $row['net_revenue'] ) ? $row['net_revenue'] : 0 );
 			$results[] = array(
-				'term_id'    => absint( $row['term_id'] ),
-				'name'       => sanitize_text_field( $row['category_name'] ),
-				'items_sold' => absint( $row['items_sold'] ),
-				'net_revenue' => $revenue,
+				'term_id'              => absint( $row['term_id'] ),
+				'name'                 => sanitize_text_field( $row['category_name'] ),
+				'items_sold'           => absint( $row['items_sold'] ),
+				'net_revenue'          => $revenue,
 				'net_revenue_formatted' => $this->format_currency( $revenue ),
 			);
 		}
@@ -673,14 +687,16 @@ class AnalyticsHandler {
 	 * @param mixed $value Input.
 	 * @return bool
 	 */
-	private function normalize_bool( $value ) {
-		if ( function_exists( 'rest_sanitize_boolean' ) ) {
-			return rest_sanitize_boolean( $value );
-		}
+		private function normalize_bool( $value ) {
+			if ( function_exists( 'rest_sanitize_boolean' ) ) {
+				if ( is_bool( $value ) || is_int( $value ) || is_string( $value ) ) {
+					return rest_sanitize_boolean( $value );
+				}
+			}
 
-		// Handle string representations properly (e.g., "false" should be false).
-		if ( is_string( $value ) ) {
-			$value = strtolower( trim( $value ) );
+			// Handle string representations properly (e.g., "false" should be false).
+			if ( is_string( $value ) ) {
+				$value = strtolower( trim( $value ) );
 			return ! in_array( $value, array( 'false', '0', 'no', 'off', '' ), true );
 		}
 
@@ -733,19 +749,16 @@ class AnalyticsHandler {
 	 * @param array $payload Cache payload.
 	 * @return string
 	 */
-	private function build_cache_key( array $payload ) {
-		$encoded = function_exists( 'wp_json_encode' ) ? wp_json_encode( $payload ) : json_encode( $payload );
+		private function build_cache_key( array $payload ) {
+			$options = defined( 'JSON_INVALID_UTF8_SUBSTITUTE' )
+				? JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR
+				: 0;
+			$encoded = function_exists( 'wp_json_encode' ) ? wp_json_encode( $payload, $options ) : '';
 
-		// Fallback to serialize if JSON encoding fails (e.g., malformed UTF-8).
-		// This prevents cache key collisions when different queries fail to encode.
-		if ( false === $encoded || '' === $encoded ) {
-			$encoded = serialize( $payload );
+			$hash = md5( (string) $encoded );
+
+			return Plugin::TRANSIENT_PREFIX . 'sales_report_' . $hash;
 		}
-
-		$hash = md5( $encoded );
-
-		return Plugin::TRANSIENT_PREFIX . 'sales_report_' . $hash;
-	}
 
 	/**
 	 * @param string $cache_key Cache key.
@@ -849,6 +862,7 @@ class AnalyticsHandler {
 		global $wpdb;
 
 		$like  = $wpdb->esc_like( $table );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $like ) );
 		return $found === $table;
 	}
@@ -867,6 +881,7 @@ class AnalyticsHandler {
 		}
 
 		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$result = $wpdb->get_var(
 			$wpdb->prepare(
 				'SHOW COLUMNS FROM %i LIKE %s',

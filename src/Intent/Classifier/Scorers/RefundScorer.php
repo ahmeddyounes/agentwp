@@ -45,6 +45,7 @@ final class RefundScorer extends AbstractScorer {
 	 * @return int Score.
 	 */
 	public function score( string $text, array $context = array() ): int {
+		unset( $context );
 		return $this->matchScore( $text, self::PHRASES );
 	}
 }

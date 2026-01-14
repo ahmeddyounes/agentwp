@@ -114,7 +114,7 @@ final class OrderSearchParser {
 	 * @return int
 	 */
 	public function extractOrderId( string $query ): int {
-		// Match "order #123" or "order 123".
+			// Match order references like "order 123" (with optional "#").
 		if ( preg_match( '/\border\s*#?\s*(\d+)\b/i', $query, $matches ) ) {
 			return (int) $matches[1];
 		}

@@ -112,18 +112,20 @@ final class RetryExecutor {
 			++$attempt;
 		}
 
-		// All retries exhausted.
-		if ( null !== $lastException ) {
-			throw new RetryExhaustedException(
-				sprintf(
-					'All %d retries exhausted. Last error: %s',
-					$this->policy->getMaxRetries(),
-					$lastException->getMessage()
-				),
-				$attempt,
-				$lastException
-			);
-		}
+			// All retries exhausted.
+			if ( null !== $lastException ) {
+				// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are not output; callers must escape when rendering.
+				throw new RetryExhaustedException(
+					sprintf(
+						'All %d retries exhausted. Last error: %s',
+						$this->policy->getMaxRetries(),
+						$lastException->getMessage()
+					),
+					$attempt,
+					$lastException
+				);
+				// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped
+			}
 
 		// Return last result if no exception.
 		return $lastResult;
@@ -176,21 +178,23 @@ final class RetryExecutor {
 			++$attempt;
 		}
 
-		// All retries exhausted - throw if we have an exception.
-		if ( null !== $lastException ) {
-			throw new RetryExhaustedException(
-				sprintf(
-					'All %d retries exhausted. Last error: %s',
-					$this->policy->getMaxRetries(),
-					$lastException->getMessage()
-				),
-				$attempt,
-				$lastException
-			);
-		}
+			// All retries exhausted - throw if we have an exception.
+			if ( null !== $lastException ) {
+				// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are not output; callers must escape when rendering.
+				throw new RetryExhaustedException(
+					sprintf(
+						'All %d retries exhausted. Last error: %s',
+						$this->policy->getMaxRetries(),
+						$lastException->getMessage()
+					),
+					$attempt,
+					$lastException
+				);
+				// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped
+			}
 
-		return $lastResult;
-	}
+			return $lastResult;
+		}
 
 	/**
 	 * Check if result indicates success.

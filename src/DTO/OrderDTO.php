@@ -52,13 +52,14 @@ final class OrderDTO {
 	) {
 	}
 
-	/**
-	 * Create from a WooCommerce order object.
-	 *
-	 * @param object $order WC_Order instance.
-	 * @return self
-	 */
-	public static function fromWcOrder( object $order ): self {
+		/**
+		 * Create from a WooCommerce order object.
+		 *
+		 * @param object $order WC_Order instance.
+		 * @phpstan-param \WC_Order $order
+		 * @return self
+		 */
+		public static function fromWcOrder( object $order ): self {
 		$billing  = method_exists( $order, 'get_billing_first_name' ) ? array(
 			'first_name' => $order->get_billing_first_name(),
 			'last_name'  => $order->get_billing_last_name(),

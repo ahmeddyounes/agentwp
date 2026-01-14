@@ -34,7 +34,7 @@ class SearchController extends RestController {
 	 *
 	 * @openapi GET /agentwp/v1/search
 	 *
-	 * @param \WP_REST_Request $request Request instance.
+	 * @param \WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return \WP_REST_Response
 	 */
 	public function search( $request ) {

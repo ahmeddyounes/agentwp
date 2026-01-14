@@ -28,7 +28,7 @@ class EmailDraftHandler {
 	/**
 	 * @param EmailContextBuilder|null $context_builder Optional context builder.
 	 */
-	public function __construct( EmailContextBuilder $context_builder = null ) {
+	public function __construct( ?EmailContextBuilder $context_builder = null ) {
 		$this->context_builder = $context_builder ? $context_builder : new EmailContextBuilder();
 	}
 
@@ -1027,6 +1027,8 @@ class EmailDraftHandler {
 	 * @return string
 	 */
 	private function get_intent_guidance( $intent, array $context ) {
+		unset( $context );
+
 		switch ( $intent ) {
 			case 'shipping_update':
 				return 'Share tracking information and estimated delivery. Mention the items when possible.';
@@ -1290,7 +1292,14 @@ class EmailDraftHandler {
 		$text = is_string( $replaced ) ? $replaced : $text;
 		$replaced = preg_replace( '/<\/\s*li\s*>/i', "\n", $text );
 		$text = is_string( $replaced ) ? $replaced : $text;
-		$text = strip_tags( $text );
+		if ( function_exists( 'wp_strip_all_tags' ) ) {
+			$text = wp_strip_all_tags( $text );
+		} else {
+			$text = preg_replace( '@<(script|style)[^>]*?>.*?</\\1>@si', '', $text );
+			$text = is_string( $text ) ? $text : '';
+			$replaced = preg_replace( '/<[^>]*>/', '', $text );
+			$text     = is_string( $replaced ) ? $replaced : '';
+		}
 		$text = html_entity_decode( $text, ENT_QUOTES, 'UTF-8' );
 		$replaced = preg_replace( "/\n{3,}/", "\n\n", $text );
 		$text = is_string( $replaced ) ? $replaced : $text;
@@ -1339,11 +1348,16 @@ class EmailDraftHandler {
 	 * @return string
 	 */
 	private function encode_json( $value ) {
+		$encoded = false;
+
 		if ( function_exists( 'wp_json_encode' ) ) {
-			return wp_json_encode( $value );
+			$encoded = wp_json_encode( $value );
+		} else {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Fallback when WordPress isn't loaded.
+			$encoded = json_encode( $value );
 		}
 
-		return json_encode( $value );
+		return is_string( $encoded ) ? $encoded : '{}';
 	}
 
 	/**
@@ -1432,21 +1446,21 @@ class EmailDraftHandler {
 		// Fallback: use cryptographically secure random bytes.
 		try {
 			return 'draft_' . bin2hex( random_bytes( 16 ) );
-		} catch ( \Exception $e ) {
-			$crypto_strong = false;
-			$bytes = openssl_random_pseudo_bytes( 16, $crypto_strong );
-			if ( false === $bytes || ! $crypto_strong ) {
-				// Last resort: use uniqid with more entropy (less secure, but better than failing).
-				return 'draft_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+			} catch ( \Exception $e ) {
+				$crypto_strong = false;
+				$bytes         = openssl_random_pseudo_bytes( 16, $crypto_strong );
+				if ( ! $crypto_strong ) {
+					// Last resort: use uniqid with more entropy (less secure, but better than failing).
+					return 'draft_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+				}
+				return 'draft_' . bin2hex( $bytes );
 			}
-			return 'draft_' . bin2hex( $bytes );
 		}
-	}
 
-	/**
-	 * @param string $draft_id Draft identifier.
-	 * @return string
-	 */
+		/**
+		 * @param string $draft_id Draft identifier.
+		 * @return string
+		 */
 	private function build_draft_key( $draft_id ) {
 		// Include user ID in the key to prevent cross-user draft access.
 		$user_id = get_current_user_id();

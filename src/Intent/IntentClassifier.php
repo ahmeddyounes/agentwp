@@ -7,13 +7,13 @@
 
 namespace AgentWP\Intent;
 
-class IntentClassifier {
+use AgentWP\Contracts\IntentClassifierInterface;
+
+class IntentClassifier implements IntentClassifierInterface {
 	/**
-	 * @param string $input User input.
-	 * @param array  $context Enriched context.
-	 * @return string
+	 * {@inheritDoc}
 	 */
-	public function classify( $input, array $context = array() ) {
+	public function classify( string $input, array $context = array() ): string {
 		if ( isset( $context['intent'] ) ) {
 			$override = Intent::normalize( $context['intent'] );
 			if ( Intent::UNKNOWN !== $override ) {
@@ -21,7 +21,7 @@ class IntentClassifier {
 			}
 		}
 
-		$text = strtolower( trim( (string) $input ) );
+		$text = strtolower( trim( $input ) );
 		if ( '' === $text ) {
 			return Intent::UNKNOWN;
 		}

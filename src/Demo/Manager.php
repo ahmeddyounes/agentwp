@@ -51,6 +51,8 @@ class Manager {
 	 * @return bool
 	 */
 	public static function disable_payments( $needs_payment, $cart ) {
+		unset( $needs_payment, $cart );
+
 		return false;
 	}
 

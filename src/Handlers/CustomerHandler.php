@@ -134,12 +134,12 @@ class CustomerHandler {
 	 * @param array $query_args Query arguments.
 	 * @return array
 	 */
-	private function query_order_ids( array $query_args, $remaining, &$truncated ) {
-		$ids   = array();
-		$page  = 1;
-		$limit = min( self::ORDER_BATCH, $remaining );
-		if ( $limit <= 0 ) {
-			$truncated = true;
+		private function query_order_ids( array $query_args, int $remaining, bool &$truncated ): array {
+			$ids   = array();
+			$page  = 1;
+			$limit = min( self::ORDER_BATCH, $remaining );
+			if ( $limit <= 0 ) {
+				$truncated = true;
 			return $ids;
 		}
 
@@ -228,20 +228,20 @@ class CustomerHandler {
 		// Batch load orders to avoid N+1 queries.
 		$orders = $this->batch_load_orders( $order_ids );
 
-		foreach ( $orders as $order ) {
-			if ( ! $order || ! method_exists( $order, 'get_total' ) ) {
-				continue;
-			}
+			foreach ( $orders as $order ) {
+				if ( ! is_object( $order ) || ! method_exists( $order, 'get_total' ) ) {
+					continue;
+				}
 
 			$total_spent += $this->normalize_amount( $order->get_total() );
 
-			$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
-			if ( $date_created && method_exists( $date_created, 'getTimestamp' ) ) {
-				$timestamp = $date_created->getTimestamp();
-				if ( null === $first_ts || $timestamp < $first_ts ) {
-					$first_ts   = $timestamp;
-					$first_date = $this->format_datetime( $date_created );
-				}
+				$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
+				if ( is_object( $date_created ) && method_exists( $date_created, 'getTimestamp' ) ) {
+					$timestamp = $date_created->getTimestamp();
+					if ( null === $first_ts || $timestamp < $first_ts ) {
+						$first_ts   = $timestamp;
+						$first_date = $this->format_datetime( $date_created );
+					}
 
 				if ( null === $last_ts || $timestamp > $last_ts ) {
 					$last_ts   = $timestamp;
@@ -249,8 +249,8 @@ class CustomerHandler {
 				}
 			}
 
-			$this->accumulate_item_totals( $order, $product_totals, $category_totals, $category_cache );
-		}
+				$this->accumulate_item_totals( $order, $product_totals, $category_totals, $category_cache );
+			}
 
 		$average_order_value = 0.0;
 		if ( $total_orders > 0 ) {
@@ -345,14 +345,14 @@ class CustomerHandler {
 		}
 
 		$recent = array();
-		foreach ( $order_ids as $order_id ) {
-			$order = wc_get_order( $order_id );
-			if ( ! $order || ! method_exists( $order, 'get_id' ) ) {
-				continue;
-			}
+			foreach ( $order_ids as $order_id ) {
+				$order = wc_get_order( $order_id );
+				if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
+					continue;
+				}
 
-			$recent[] = $this->format_order_summary( $order );
-		}
+				$recent[] = $this->format_order_summary( $order );
+			}
 
 		return $recent;
 	}
@@ -361,22 +361,33 @@ class CustomerHandler {
 	 * @param object $order Order instance.
 	 * @return array
 	 */
-	private function format_order_summary( $order ) {
-		$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
-		$total        = method_exists( $order, 'get_total' ) ? $this->normalize_amount( $order->get_total() ) : 0.0;
+		private function format_order_summary( $order ) {
+			if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
+				return array();
+			}
 
-		return array(
-			'id'              => intval( $order->get_id() ),
-			'status'          => sanitize_text_field( $order->get_status() ),
-			'total'           => $total,
-			'total_formatted' => $this->format_currency( $total ),
-			'currency'        => sanitize_text_field( $order->get_currency() ),
-			'date_created'    => $this->format_datetime( $date_created ),
-			'customer_name'   => $this->get_customer_name( $order ),
-			'customer_email'  => $this->get_customer_email( $order ),
-			'items_summary'   => $this->format_items_summary( $order ),
-		);
-	}
+			$order_id = absint( $order->get_id() );
+			if ( $order_id <= 0 ) {
+				return array();
+			}
+
+			$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
+			$total        = method_exists( $order, 'get_total' ) ? $this->normalize_amount( $order->get_total() ) : 0.0;
+			$status       = method_exists( $order, 'get_status' ) ? sanitize_text_field( $order->get_status() ) : '';
+			$currency     = method_exists( $order, 'get_currency' ) ? sanitize_text_field( $order->get_currency() ) : '';
+
+			return array(
+				'id'              => $order_id,
+				'status'          => $status,
+				'total'           => $total,
+				'total_formatted' => $this->format_currency( $total ),
+				'currency'        => $currency,
+				'date_created'    => $this->format_datetime( $date_created ),
+				'customer_name'   => $this->get_customer_name( $order ),
+				'customer_email'  => $this->get_customer_email( $order ),
+				'items_summary'   => $this->format_items_summary( $order ),
+			);
+		}
 
 	/**
 	 * @param object $order Order instance.
@@ -477,13 +488,14 @@ class CustomerHandler {
 				continue;
 			}
 
-			if ( ! isset( $product_totals[ $product_id ] ) ) {
-				$product_totals[ $product_id ] = array(
-					'product_id' => $product_id,
-					'name'       => sanitize_text_field( $item->get_name() ),
-					'quantity'   => 0,
-				);
-			}
+				if ( ! isset( $product_totals[ $product_id ] ) ) {
+					$name = method_exists( $item, 'get_name' ) ? (string) $item->get_name() : '';
+					$product_totals[ $product_id ] = array(
+						'product_id' => $product_id,
+						'name'       => sanitize_text_field( $name ),
+						'quantity'   => 0,
+					);
+				}
 
 			$product_totals[ $product_id ]['quantity'] += $quantity;
 
@@ -529,19 +541,19 @@ class CustomerHandler {
 		if ( function_exists( 'wc_get_product_terms' ) ) {
 			$terms = wc_get_product_terms( $product_id, 'product_cat', array( 'fields' => 'all' ) );
 			if ( is_array( $terms ) ) {
-				foreach ( $terms as $term ) {
-					if ( ! is_object( $term ) || ! isset( $term->term_id ) ) {
-						continue;
+					foreach ( $terms as $term ) {
+						if ( ! is_object( $term ) || ! isset( $term->term_id, $term->name ) ) {
+							continue;
+						}
+						$categories[ (int) $term->term_id ] = sanitize_text_field( $term->name );
 					}
-					$categories[ (int) $term->term_id ] = sanitize_text_field( $term->name );
 				}
-			}
 		}
 
-		$cache[ $product_id ] = $categories;
-		if ( function_exists( 'wp_cache_set' ) ) {
-			wp_cache_set( $product_id, $categories, self::PRODUCT_CATEGORY_CACHE_GROUP, self::PRODUCT_CATEGORY_CACHE_TTL );
-		}
+			$cache[ $product_id ] = $categories;
+			if ( function_exists( 'wp_cache_set' ) ) {
+				wp_cache_set( $product_id, $categories, self::PRODUCT_CATEGORY_CACHE_GROUP, 3600 );
+			}
 
 		return $categories;
 	}
@@ -756,13 +768,13 @@ class CustomerHandler {
 	 * @param mixed $date Date instance.
 	 * @return string
 	 */
-	private function format_datetime( $date ) {
-		if ( ! $date || ! method_exists( $date, 'format' ) ) {
-			return '';
-		}
+		private function format_datetime( $date ) {
+			if ( ! is_object( $date ) || ! method_exists( $date, 'format' ) ) {
+				return '';
+			}
 
-		return $date->format( 'c' );
-	}
+			return $date->format( 'c' );
+		}
 
 	/**
 	 * @return int

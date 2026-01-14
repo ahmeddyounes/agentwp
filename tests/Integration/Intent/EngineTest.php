@@ -33,13 +33,14 @@ class EngineTest extends TestCase {
 		};
 
 		$classifier = new class() extends IntentClassifier {
-			public function classify( $input, array $context = array() ) {
+			public function classify( string $input, array $context = array() ): string {
+				unset( $input, $context );
 				return Intent::ORDER_STATUS;
 			}
 		};
 
 		$builder = new class() extends ContextBuilder {
-			public function build( array $context = array(), array $metadata = array() ) {
+			public function build( array $context = array(), array $metadata = array() ): array {
 				return array_merge( $context, array( 'source' => 'test' ) );
 			}
 		};

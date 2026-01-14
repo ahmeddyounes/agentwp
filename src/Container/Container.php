@@ -57,13 +57,13 @@ class Container implements ContainerInterface {
 
 		// Check if binding exists.
 		if ( ! isset( $this->bindings[ $id ] ) ) {
-			throw new NotFoundException( $id );
+			throw new NotFoundException( $id ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Safe in exception message context.
 		}
 
 		// Detect circular dependencies.
 		if ( isset( $this->resolving[ $id ] ) ) {
 			throw new ContainerException(
-				sprintf( 'Circular dependency detected while resolving "%s".', $id )
+				sprintf( 'Circular dependency detected while resolving "%s".', $id ) // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Safe in exception message context.
 			);
 		}
 
@@ -178,7 +178,7 @@ class Container implements ContainerInterface {
 		}
 
 		throw new ContainerException(
-			sprintf( 'Cannot resolve binding: %s', is_string( $resolver ) ? $resolver : 'callable' )
+			sprintf( 'Cannot resolve binding: %s', is_string( $resolver ) ? $resolver : 'callable' ) // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Safe in exception message context.
 		);
 	}
 
@@ -193,22 +193,20 @@ class Container implements ContainerInterface {
 		// Detect circular dependencies during auto-wiring.
 		if ( isset( $this->resolving[ $class ] ) ) {
 			throw new ContainerException(
-				sprintf( 'Circular dependency detected while auto-wiring "%s".', $class )
+				sprintf( 'Circular dependency detected while auto-wiring "%s".', $class ) // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Safe in exception message context.
 			);
 		}
 
 		$this->resolving[ $class ] = true;
 
 		try {
-			try {
-				$reflection = new \ReflectionClass( $class );
-			} catch ( \ReflectionException $e ) {
+			if ( ! class_exists( $class ) ) {
 				throw new ContainerException(
-					sprintf( 'Class "%s" does not exist.', $class ),
-					0,
-					$e
+					sprintf( 'Class "%s" does not exist.', $class )
 				);
 			}
+
+			$reflection = new \ReflectionClass( $class );
 
 			if ( ! $reflection->isInstantiable() ) {
 				throw new ContainerException(
@@ -275,13 +273,13 @@ class Container implements ContainerInterface {
 					continue;
 				}
 
-				if ( ! $resolved ) {
-					throw new ContainerException(
-						sprintf( 'Cannot resolve union type parameter "%s".', $parameter->getName() )
-					);
+					if ( ! $resolved ) {
+						throw new ContainerException(
+							sprintf( 'Cannot resolve union type parameter "%s".', $parameter->getName() ) // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Safe in exception message context.
+						);
+					}
+					continue;
 				}
-				continue;
-			}
 
 			// Handle named types.
 			if ( $type instanceof \ReflectionNamedType && ! $type->isBuiltin() ) {
@@ -311,13 +309,13 @@ class Container implements ContainerInterface {
 				continue;
 			}
 
-			throw new ContainerException(
-				sprintf(
-					'Cannot resolve parameter "%s" for auto-wiring.',
-					$parameter->getName()
-				)
-			);
-		}
+				throw new ContainerException(
+					sprintf(
+						'Cannot resolve parameter "%s" for auto-wiring.',
+						$parameter->getName() // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Safe in exception message context.
+					)
+				);
+			}
 
 		return $dependencies;
 	}

@@ -42,10 +42,14 @@ final class WooCommerceOrderRepository implements OrderRepositoryInterface {
 			return array();
 		}
 
-		return array_map(
-			fn( $order ) => OrderDTO::fromWcOrder( $order ),
-			$orders
-		);
+		$results = array();
+		foreach ( $orders as $order ) {
+			if ( $order instanceof \WC_Order ) {
+				$results[] = OrderDTO::fromWcOrder( $order );
+			}
+		}
+
+		return $results;
 	}
 
 	/**
@@ -58,7 +62,26 @@ final class WooCommerceOrderRepository implements OrderRepositoryInterface {
 		$ids = wc_get_orders( $args );
 
 		// wc_get_orders() can return non-array on error.
-		return is_array( $ids ) ? $ids : array();
+		if ( ! is_array( $ids ) ) {
+			return array();
+		}
+
+		$results = array();
+		foreach ( $ids as $id ) {
+			$normalized = 0;
+
+			if ( is_numeric( $id ) ) {
+				$normalized = absint( $id );
+			} elseif ( is_object( $id ) && method_exists( $id, 'get_id' ) ) {
+				$normalized = absint( $id->get_id() );
+			}
+
+			if ( $normalized > 0 ) {
+				$results[] = $normalized;
+			}
+		}
+
+		return array_values( array_unique( $results ) );
 	}
 
 	/**
@@ -132,11 +155,11 @@ final class WooCommerceOrderRepository implements OrderRepositoryInterface {
 			global $wpdb;
 			$escaped_search = '%' . $wpdb->esc_like( $query->search ) . '%';
 
-			$args['meta_query'] = array(
-				'relation' => 'OR',
-				array(
-					'key'     => '_billing_first_name',
-					'value'   => $escaped_search,
+				$args['meta_query'] = array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Needed for search fallback.
+					'relation' => 'OR',
+					array(
+						'key'     => '_billing_first_name',
+						'value'   => $escaped_search,
 					'compare' => 'LIKE',
 				),
 				array(

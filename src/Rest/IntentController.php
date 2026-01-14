@@ -9,6 +9,7 @@ namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
 use AgentWP\Intent\Engine;
+use WP_REST_Request;
 use WP_REST_Server;
 
 class IntentController extends RestController {
@@ -34,7 +35,7 @@ class IntentController extends RestController {
 	 *
 	 * @openapi POST /agentwp/v1/intent
 	 *
-	 * @param WP_REST_Request $request Request instance.
+	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return \WP_REST_Response
 	 */
 	public function create_intent( $request ) {

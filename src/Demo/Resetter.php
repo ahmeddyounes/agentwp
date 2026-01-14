@@ -44,13 +44,13 @@ class Resetter {
 		}
 
 		$batch_size = 100;
-		$page       = 1;
+		$iterations = 0;
 
 		do {
 			$order_ids = wc_get_orders(
 				array(
 					'limit'  => $batch_size,
-					'page'   => $page,
+					'page'   => 1,
 					'return' => 'ids',
 				)
 			);
@@ -60,7 +60,11 @@ class Resetter {
 				break;
 			}
 
-			foreach ( $order_ids as $order_id ) {
+			foreach ( $order_ids as $order_id_raw ) {
+				$order_id = self::normalize_id( $order_id_raw );
+				if ( ! $order_id ) {
+					continue;
+				}
 				if ( function_exists( 'wc_delete_order' ) ) {
 					wc_delete_order( $order_id, true );
 				} else {
@@ -68,11 +72,8 @@ class Resetter {
 				}
 			}
 
-			// Since we're deleting items, we don't increment page -
-			// the next query will get new items at page 1.
-			// But set a safety limit to prevent infinite loops.
-			$page++;
-		} while ( count( $order_ids ) === $batch_size && $page < 1000 );
+			$iterations++;
+		} while ( count( $order_ids ) === $batch_size && $iterations < 1000 );
 	}
 
 	/**
@@ -88,13 +89,13 @@ class Resetter {
 		}
 
 		$batch_size = 100;
-		$page       = 1;
+		$iterations = 0;
 
 		do {
 			$product_ids = wc_get_products(
 				array(
 					'limit'  => $batch_size,
-					'page'   => $page,
+					'page'   => 1,
 					'return' => 'ids',
 				)
 			);
@@ -104,14 +105,16 @@ class Resetter {
 				break;
 			}
 
-			foreach ( $product_ids as $product_id ) {
+			foreach ( $product_ids as $product_id_raw ) {
+				$product_id = self::normalize_id( $product_id_raw );
+				if ( ! $product_id ) {
+					continue;
+				}
 				wp_delete_post( $product_id, true );
 			}
 
-			// Since we're deleting items, next query will get new items.
-			// Safety limit to prevent infinite loops.
-			$page++;
-		} while ( count( $product_ids ) === $batch_size && $page < 1000 );
+			$iterations++;
+		} while ( count( $product_ids ) === $batch_size && $iterations < 1000 );
 
 		$terms = get_terms(
 			array(
@@ -138,30 +141,41 @@ class Resetter {
 	 * @return void
 	 */
 	private static function delete_coupons() {
+		if ( ! class_exists( 'WP_Query' ) ) {
+			return;
+		}
+
 		$batch_size = 100;
-		$page       = 1;
+		$iterations = 0;
 
 		do {
-			$coupons = get_posts(
+			$query = new \WP_Query(
 				array(
-					'post_type'      => 'shop_coupon',
-					'posts_per_page' => $batch_size,
-					'paged'          => $page,
-					'fields'         => 'ids',
+					'post_type'        => 'shop_coupon',
+					'posts_per_page'   => $batch_size,
+					'paged'            => 1,
+					'fields'           => 'ids',
+					'no_found_rows'    => true,
+					'suppress_filters' => false,
 				)
 			);
 
-			if ( empty( $coupons ) ) {
-				break;
-			}
+			$coupons = is_array( $query->posts ) ? $query->posts : array();
 
-			foreach ( $coupons as $coupon_id ) {
-				wp_delete_post( $coupon_id, true );
-			}
+				if ( empty( $coupons ) ) {
+					break;
+				}
 
-			// Safety limit to prevent infinite loops.
-			$page++;
-		} while ( count( $coupons ) === $batch_size && $page < 1000 );
+				foreach ( $coupons as $coupon_id_raw ) {
+					$coupon_id = self::normalize_id( $coupon_id_raw );
+					if ( ! $coupon_id ) {
+						continue;
+					}
+					wp_delete_post( $coupon_id, true );
+				}
+
+			$iterations++;
+		} while ( count( $coupons ) === $batch_size && $iterations < 1000 );
 	}
 
 	/**
@@ -173,7 +187,7 @@ class Resetter {
 	 */
 	private static function delete_customers() {
 		$batch_size = 100;
-		$page       = 1;
+		$iterations = 0;
 
 		do {
 			$users = get_users(
@@ -181,21 +195,26 @@ class Resetter {
 					'role__in' => array( 'customer', 'subscriber' ),
 					'fields'   => array( 'ID' ),
 					'number'   => $batch_size,
-					'paged'    => $page,
+					'paged'    => 1,
 				)
 			);
 
-			if ( empty( $users ) ) {
+			if ( ! is_array( $users ) || empty( $users ) ) {
 				break;
 			}
 
 			foreach ( $users as $user ) {
-				wp_delete_user( $user->ID );
+				$user_id = self::normalize_id( $user );
+
+				if ( ! $user_id ) {
+					continue;
+				}
+
+				wp_delete_user( $user_id );
 			}
 
-			// Safety limit to prevent infinite loops.
-			$page++;
-		} while ( count( $users ) === $batch_size && $page < 1000 );
+			$iterations++;
+		} while ( count( $users ) === $batch_size && $iterations < 1000 );
 	}
 
 	/**
@@ -207,7 +226,7 @@ class Resetter {
 	 */
 	private static function delete_comments() {
 		$batch_size = 100;
-		$page       = 1;
+		$iterations = 0;
 
 		do {
 			$comments = get_comments(
@@ -215,21 +234,52 @@ class Resetter {
 					'status' => 'all',
 					'fields' => 'ids',
 					'number' => $batch_size,
-					'paged'  => $page,
+					'paged'  => 1,
 				)
 			);
 
-			if ( empty( $comments ) ) {
+			if ( ! is_array( $comments ) || empty( $comments ) ) {
 				break;
 			}
 
-			foreach ( $comments as $comment_id ) {
+			foreach ( $comments as $comment_id_raw ) {
+				$comment_id = self::normalize_id( $comment_id_raw );
+				if ( ! $comment_id ) {
+					continue;
+				}
 				wp_delete_comment( $comment_id, true );
 			}
 
-			// Safety limit to prevent infinite loops.
-			$page++;
-		} while ( count( $comments ) === $batch_size && $page < 1000 );
+			$iterations++;
+		} while ( count( $comments ) === $batch_size && $iterations < 1000 );
+	}
+
+	/**
+	 * Normalize mixed ID values returned by WordPress and WooCommerce query APIs.
+	 *
+	 * @param mixed $value Raw ID value (may be scalar or object).
+	 * @return int Normalized ID or 0 when unavailable.
+	 */
+	private static function normalize_id( $value ): int {
+		if ( is_numeric( $value ) ) {
+			return absint( $value );
+		}
+
+		if ( is_object( $value ) ) {
+			if ( method_exists( $value, 'get_id' ) ) {
+				return absint( $value->get_id() );
+			}
+
+			if ( isset( $value->ID ) ) {
+				return absint( $value->ID );
+			}
+
+			if ( isset( $value->comment_ID ) ) {
+				return absint( $value->comment_ID );
+			}
+		}
+
+		return 0;
 	}
 
 	/**

@@ -212,16 +212,17 @@ final class OrderQueryService {
 			$parts['date_end']   = $query->dateRange->end->format( 'Y-m-d H:i:s' );
 		}
 
-		$encoded = wp_json_encode( $parts );
+		$options = defined( 'JSON_INVALID_UTF8_SUBSTITUTE' )
+			? JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR
+			: 0;
+		$encoded = wp_json_encode( $parts, $options );
 
-		// Fallback if JSON encoding fails (e.g., malformed UTF-8).
-		// Log the issue but still generate a unique key to prevent cache collisions.
 		if ( false === $encoded ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'AgentWP OrderQueryService: JSON encoding failed for cache key, using fallback.' );
+			$fallback = '';
+			foreach ( $parts as $key => $value ) {
+				$fallback .= (string) $key . ':' . ( is_scalar( $value ) ? (string) $value : '' ) . ';';
 			}
-			// Use a hash of the object properties as fallback.
-			$encoded = md5( print_r( $parts, true ) );
+			$encoded = $fallback;
 		}
 
 		$hash = md5( $encoded );

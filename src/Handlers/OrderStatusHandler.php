@@ -428,7 +428,7 @@ class OrderStatusHandler {
 	 * @return bool
 	 */
 	private function apply_status_update( $order, $new_status, $note, $notify_customer ) {
-		if ( ! $order || ! method_exists( $order, 'update_status' ) ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'update_status' ) ) {
 			return false;
 		}
 
@@ -468,6 +468,7 @@ class OrderStatusHandler {
 	 * @return bool Always false.
 	 */
 	public function disable_email_notifications( $enabled, $email ) {
+		unset( $enabled, $email );
 		return false;
 	}
 
@@ -537,14 +538,16 @@ class OrderStatusHandler {
 	 * @param mixed $value Input value.
 	 * @return bool
 	 */
-	private function normalize_bool( $value ) {
-		if ( function_exists( 'rest_sanitize_boolean' ) ) {
-			return rest_sanitize_boolean( $value );
-		}
+		private function normalize_bool( $value ) {
+			if ( function_exists( 'rest_sanitize_boolean' ) ) {
+				if ( is_bool( $value ) || is_int( $value ) || is_string( $value ) ) {
+					return rest_sanitize_boolean( $value );
+				}
+			}
 
-		// Handle string representations properly (e.g., "false" should be false).
-		if ( is_string( $value ) ) {
-			$value = strtolower( trim( $value ) );
+			// Handle string representations properly (e.g., "false" should be false).
+			if ( is_string( $value ) ) {
+				$value = strtolower( trim( $value ) );
 			return ! in_array( $value, array( 'false', '0', 'no', 'off', '' ), true );
 		}
 
@@ -647,21 +650,21 @@ class OrderStatusHandler {
 		// Fallback: use cryptographically secure random bytes.
 		try {
 			return 'draft_' . bin2hex( random_bytes( 16 ) );
-		} catch ( \Exception $e ) {
-			$crypto_strong = false;
-			$bytes = openssl_random_pseudo_bytes( 16, $crypto_strong );
-			if ( false === $bytes || ! $crypto_strong ) {
-				// Last resort: use uniqid with more entropy (less secure, but better than failing).
-				return 'draft_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+			} catch ( \Exception $e ) {
+				$crypto_strong = false;
+				$bytes         = openssl_random_pseudo_bytes( 16, $crypto_strong );
+				if ( ! $crypto_strong ) {
+					// Last resort: use uniqid with more entropy (less secure, but better than failing).
+					return 'draft_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+				}
+				return 'draft_' . bin2hex( $bytes );
 			}
-			return 'draft_' . bin2hex( $bytes );
 		}
-	}
 
-	/**
-	 * @param string $draft_id Draft identifier.
-	 * @return string
-	 */
+		/**
+		 * @param string $draft_id Draft identifier.
+		 * @return string
+		 */
 	private function build_draft_key( $draft_id ) {
 		// Include user ID in the key to prevent cross-user draft access.
 		$user_id = get_current_user_id();
@@ -711,27 +714,10 @@ class OrderStatusHandler {
 		return set_transient( $this->build_draft_key( $draft_id ), $draft, $ttl_seconds );
 	}
 
-	/**
-	 * @param string $draft_id Draft identifier.
-	 * @return array|null
-	 */
-	private function load_draft( $draft_id ) {
-		if ( ! function_exists( 'get_transient' ) ) {
-			return null;
-		}
-
-		$draft = get_transient( $this->build_draft_key( $draft_id ) );
-		if ( false === $draft || ! is_array( $draft ) ) {
-			return null;
-		}
-
-		return $draft;
-	}
-
-	/**
-	 * Atomically claim a draft by loading and deleting in one operation.
-	 *
-	 * This prevents race conditions where two concurrent requests could both
+		/**
+		 * Atomically claim a draft by loading and deleting in one operation.
+		 *
+		 * This prevents race conditions where two concurrent requests could both
 	 * claim and execute the same draft (double execution).
 	 *
 	 * @param string $draft_id Draft identifier.
@@ -766,13 +752,4 @@ class OrderStatusHandler {
 		return $draft;
 	}
 
-	/**
-	 * @param string $draft_id Draft identifier.
-	 * @return void
-	 */
-	private function delete_draft( $draft_id ) {
-		if ( function_exists( 'delete_transient' ) ) {
-			delete_transient( $this->build_draft_key( $draft_id ) );
-		}
 	}
-}

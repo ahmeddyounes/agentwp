@@ -45,6 +45,8 @@ class CLI {
 	 * @return void
 	 */
 	public static function seed( $args, $assoc_args ) {
+		unset( $args );
+
 		$counts = array(
 			'products'   => isset( $assoc_args['products'] ) ? (int) $assoc_args['products'] : Seeder::DEFAULT_PRODUCT_COUNT,
 			'categories' => isset( $assoc_args['categories'] ) ? (int) $assoc_args['categories'] : Seeder::DEFAULT_CATEGORY_COUNT,
@@ -64,6 +66,8 @@ class CLI {
 	 * @return void
 	 */
 	public static function reset( $args, $assoc_args ) {
+		unset( $args, $assoc_args );
+
 		$results = Resetter::run( true );
 		WP_CLI::success( 'Demo data reset complete.' );
 		if ( ! empty( $results ) ) {
@@ -87,6 +91,8 @@ class CLI {
 	 * @return void
 	 */
 	public static function enable( $args, $assoc_args ) {
+		unset( $args, $assoc_args );
+
 		$settings              = get_option( Plugin::OPTION_SETTINGS, array() );
 		$settings              = is_array( $settings ) ? $settings : array();
 		$settings              = wp_parse_args( $settings, Plugin::get_default_settings() );

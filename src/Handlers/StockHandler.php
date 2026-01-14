@@ -302,29 +302,36 @@ class StockHandler {
 			}
 		}
 
-		if ( ! function_exists( 'get_posts' ) ) {
+		if ( ! class_exists( 'WP_Query' ) ) {
 			return $products;
 		}
 
-		$matches = get_posts(
+		$product_query = new \WP_Query(
 			array(
-				'post_type'      => array( 'product' ),
-				'post_status'    => array( 'publish', 'private' ),
-				's'              => $query,
-				'posts_per_page' => self::DEFAULT_LIMIT,
-				'fields'         => 'ids',
+				'post_type'        => array( 'product' ),
+				'post_status'      => array( 'publish', 'private' ),
+				's'                => $query,
+				'posts_per_page'   => self::DEFAULT_LIMIT,
+				'fields'           => 'ids',
+				'no_found_rows'    => true,
+				'suppress_filters' => false,
 			)
 		);
 
-		if ( ! is_array( $matches ) ) {
-			return $products;
-		}
+		$matches = is_array( $product_query->posts ) ? $product_query->posts : array();
 
-		foreach ( $matches as $product_id ) {
-			$product_id = absint( $product_id );
-			if ( 0 === $product_id ) {
-				continue;
-			}
+			foreach ( $matches as $product_id_raw ) {
+				$product_id = 0;
+
+				if ( is_numeric( $product_id_raw ) ) {
+					$product_id = absint( $product_id_raw );
+				} elseif ( is_object( $product_id_raw ) && property_exists( $product_id_raw, 'ID' ) ) {
+					$product_id = absint( $product_id_raw->ID );
+				}
+
+				if ( 0 === $product_id ) {
+					continue;
+				}
 
 			$product = wc_get_product( $product_id );
 			if ( ! $product ) {
@@ -343,7 +350,7 @@ class StockHandler {
 	 * @return array
 	 */
 	private function format_product( $product, $include_variations = false ) {
-		if ( ! $product || ! method_exists( $product, 'get_id' ) ) {
+		if ( ! is_object( $product ) || ! method_exists( $product, 'get_id' ) ) {
 			return array();
 		}
 
@@ -377,7 +384,7 @@ class StockHandler {
 	 * @return array
 	 */
 	private function format_variations( $product ) {
-		if ( ! $product || ! method_exists( $product, 'get_children' ) ) {
+		if ( ! is_object( $product ) || ! method_exists( $product, 'get_children' ) ) {
 			return array();
 		}
 
@@ -410,6 +417,9 @@ class StockHandler {
 	 * @return string
 	 */
 	private function get_product_name( $product ) {
+		if ( ! is_object( $product ) ) {
+			return '';
+		}
 		if ( method_exists( $product, 'get_formatted_name' ) ) {
 			return (string) $product->get_formatted_name();
 		}
@@ -516,8 +526,8 @@ class StockHandler {
 			return 'draft_' . bin2hex( random_bytes( 16 ) );
 		} catch ( \Exception $e ) {
 			$crypto_strong = false;
-			$bytes = openssl_random_pseudo_bytes( 16, $crypto_strong );
-			if ( false === $bytes || ! $crypto_strong ) {
+			$bytes         = openssl_random_pseudo_bytes( 16, $crypto_strong );
+			if ( ! $crypto_strong ) {
 				// Last resort: use uniqid with more entropy (less secure, but better than failing).
 				return 'draft_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
 			}
@@ -578,27 +588,10 @@ class StockHandler {
 		return set_transient( $this->build_draft_key( $draft_id ), $draft, $ttl_seconds );
 	}
 
-	/**
-	 * @param string $draft_id Draft identifier.
-	 * @return array|null
-	 */
-	private function load_draft( $draft_id ) {
-		if ( ! function_exists( 'get_transient' ) ) {
-			return null;
-		}
-
-		$draft = get_transient( $this->build_draft_key( $draft_id ) );
-		if ( false === $draft || ! is_array( $draft ) ) {
-			return null;
-		}
-
-		return $draft;
-	}
-
-	/**
-	 * Atomically claim a draft by loading and deleting in one operation.
-	 *
-	 * This prevents race conditions where two concurrent requests could both
+		/**
+		 * Atomically claim a draft by loading and deleting in one operation.
+		 *
+		 * This prevents race conditions where two concurrent requests could both
 	 * claim and execute the same draft (double execution).
 	 *
 	 * @param string $draft_id Draft identifier.
@@ -635,13 +628,4 @@ class StockHandler {
 		return $draft;
 	}
 
-	/**
-	 * @param string $draft_id Draft identifier.
-	 * @return void
-	 */
-	private function delete_draft( $draft_id ) {
-		if ( function_exists( 'delete_transient' ) ) {
-			delete_transient( $this->build_draft_key( $draft_id ) );
-		}
 	}
-}

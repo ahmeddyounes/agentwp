@@ -194,13 +194,16 @@ class RefundHandler {
 					'restock_items'  => false,
 				)
 			);
-		} catch ( Exception $exception ) {
-			// Log the actual exception for debugging but don't expose internal details to users.
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'AgentWP refund error: ' . $exception->getMessage() );
+			} catch ( Exception $exception ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG && function_exists( 'wc_get_logger' ) ) {
+					$logger = wc_get_logger();
+					$logger->error(
+						'Refund creation failed: ' . $exception->getMessage(),
+						array( 'source' => 'agentwp' )
+					);
+				}
+				return Response::error( 'Refund creation failed. Please try again or contact support.', 500 );
 			}
-			return Response::error( 'Refund creation failed. Please try again or contact support.', 500 );
-		}
 
 		if ( is_wp_error( $refund ) ) {
 			// Sanitize error message to prevent potential XSS from untrusted error content.
@@ -236,14 +239,16 @@ class RefundHandler {
 	 * @param mixed $value Input.
 	 * @return bool
 	 */
-	private function normalize_bool( $value ) {
-		if ( function_exists( 'rest_sanitize_boolean' ) ) {
-			return rest_sanitize_boolean( $value );
-		}
+		private function normalize_bool( $value ) {
+			if ( function_exists( 'rest_sanitize_boolean' ) ) {
+				if ( is_bool( $value ) || is_int( $value ) || is_string( $value ) ) {
+					return rest_sanitize_boolean( $value );
+				}
+			}
 
-		// Handle string representations properly (e.g., "false" should be false).
-		if ( is_string( $value ) ) {
-			$value = strtolower( trim( $value ) );
+			// Handle string representations properly (e.g., "false" should be false).
+			if ( is_string( $value ) ) {
+				$value = strtolower( trim( $value ) );
 			return ! in_array( $value, array( 'false', '0', 'no', 'off', '' ), true );
 		}
 
@@ -300,28 +305,32 @@ class RefundHandler {
 	private function build_items_to_restock( $order ) {
 		$items = array();
 
-		if ( ! $order || ! method_exists( $order, 'get_items' ) ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_items' ) ) {
 			return $items;
 		}
 
 		foreach ( $order->get_items() as $item_id => $item ) {
-			if ( ! $item || ! method_exists( $item, 'get_quantity' ) ) {
-				continue;
-			}
+				if ( ! is_object( $item ) || ! method_exists( $item, 'get_quantity' ) ) {
+					continue;
+				}
 
-			$quantity = (int) $item->get_quantity();
-			if ( $quantity <= 0 ) {
-				continue;
-			}
+				$quantity = (int) $item->get_quantity();
+				if ( $quantity <= 0 ) {
+					continue;
+				}
 
-			$items[] = array(
-				'item_id'     => (int) $item_id,
-				'product_id'  => (int) $item->get_product_id(),
-				'variation_id' => (int) $item->get_variation_id(),
-				'name'        => sanitize_text_field( $item->get_name() ),
-				'quantity'    => $quantity,
-			);
-		}
+				if ( ! method_exists( $item, 'get_product_id' ) || ! method_exists( $item, 'get_variation_id' ) || ! method_exists( $item, 'get_name' ) ) {
+					continue;
+				}
+
+				$items[] = array(
+					'item_id'     => (int) $item_id,
+					'product_id'  => (int) $item->get_product_id(),
+					'variation_id' => (int) $item->get_variation_id(),
+					'name'        => sanitize_text_field( $item->get_name() ),
+					'quantity'    => $quantity,
+				);
+			}
 
 		return $items;
 	}
@@ -331,7 +340,7 @@ class RefundHandler {
 	 * @return string
 	 */
 	private function get_customer_email( $order ) {
-		if ( ! $order || ! method_exists( $order, 'get_billing_email' ) ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_billing_email' ) ) {
 			return '';
 		}
 
@@ -343,7 +352,7 @@ class RefundHandler {
 	 * @return string
 	 */
 	private function get_payment_method_label( $order ) {
-		if ( ! $order ) {
+		if ( ! is_object( $order ) ) {
 			return '';
 		}
 
@@ -366,12 +375,12 @@ class RefundHandler {
 			return wc_get_payment_gateway_by_order( $order );
 		}
 
-		if ( ! function_exists( 'WC' ) || ! $order || ! method_exists( $order, 'get_payment_method' ) ) {
+		if ( ! function_exists( 'WC' ) || ! is_object( $order ) || ! method_exists( $order, 'get_payment_method' ) ) {
 			return null;
 		}
 
 		$gateways = WC()->payment_gateways();
-		if ( ! $gateways || ! method_exists( $gateways, 'payment_gateways' ) ) {
+		if ( ! is_object( $gateways ) || ! method_exists( $gateways, 'payment_gateways' ) ) {
 			return null;
 		}
 
@@ -386,7 +395,7 @@ class RefundHandler {
 	 * @return bool
 	 */
 	private function requires_manual_refund( $gateway ) {
-		if ( ! $gateway || ! method_exists( $gateway, 'supports' ) ) {
+		if ( ! is_object( $gateway ) || ! method_exists( $gateway, 'supports' ) ) {
 			return true;
 		}
 
@@ -404,21 +413,21 @@ class RefundHandler {
 		// Fallback: use cryptographically secure random bytes.
 		try {
 			return 'draft_' . bin2hex( random_bytes( 16 ) );
-		} catch ( \Exception $e ) {
-			$crypto_strong = false;
-			$bytes = openssl_random_pseudo_bytes( 16, $crypto_strong );
-			if ( false === $bytes || ! $crypto_strong ) {
-				// Last resort: use uniqid with more entropy (less secure, but better than failing).
-				return 'draft_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+			} catch ( \Exception $e ) {
+				$crypto_strong = false;
+				$bytes         = openssl_random_pseudo_bytes( 16, $crypto_strong );
+				if ( ! $crypto_strong ) {
+					// Last resort: use uniqid with more entropy (less secure, but better than failing).
+					return 'draft_' . uniqid( '', true ) . bin2hex( (string) wp_rand( 0, PHP_INT_MAX ) );
+				}
+				return 'draft_' . bin2hex( $bytes );
 			}
-			return 'draft_' . bin2hex( $bytes );
 		}
-	}
 
-	/**
-	 * @param string $draft_id Draft identifier.
-	 * @return string
-	 */
+		/**
+		 * @param string $draft_id Draft identifier.
+		 * @return string
+		 */
 	private function build_draft_key( $draft_id ) {
 		// Include user ID in the key to prevent cross-user draft access.
 		$user_id = get_current_user_id();
@@ -468,27 +477,10 @@ class RefundHandler {
 		return set_transient( $this->build_draft_key( $draft_id ), $draft, $ttl_seconds );
 	}
 
-	/**
-	 * @param string $draft_id Draft identifier.
-	 * @return array|null
-	 */
-	private function load_draft( $draft_id ) {
-		if ( ! function_exists( 'get_transient' ) ) {
-			return null;
-		}
-
-		$draft = get_transient( $this->build_draft_key( $draft_id ) );
-		if ( false === $draft || ! is_array( $draft ) ) {
-			return null;
-		}
-
-		return $draft;
-	}
-
-	/**
-	 * Atomically claim a draft by loading and immediately deleting it.
-	 *
-	 * This prevents race conditions where two concurrent requests could
+		/**
+		 * Atomically claim a draft by loading and immediately deleting it.
+		 *
+		 * This prevents race conditions where two concurrent requests could
 	 * both load the same draft before either deletes it, causing double-processing.
 	 *
 	 * @param string $draft_id Draft identifier.
@@ -524,25 +516,15 @@ class RefundHandler {
 		return $draft;
 	}
 
-	/**
-	 * @param string $draft_id Draft identifier.
-	 * @return void
-	 */
-	private function delete_draft( $draft_id ) {
-		if ( function_exists( 'delete_transient' ) ) {
-			delete_transient( $this->build_draft_key( $draft_id ) );
-		}
-	}
-
-	/**
-	 * @param mixed $order Order instance.
-	 * @param array $items_to_restock Items to restock.
-	 * @return array
+		/**
+		 * @param mixed $order Order instance.
+		 * @param array $items_to_restock Items to restock.
+		 * @return array
 	 */
 	private function restock_items( $order, array $items_to_restock ) {
 		$restocked = array();
 
-		if ( ! $order || ! function_exists( 'wc_update_product_stock' ) ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_item' ) || ! function_exists( 'wc_update_product_stock' ) ) {
 			return $restocked;
 		}
 
@@ -554,18 +536,18 @@ class RefundHandler {
 			}
 
 			$item = $order->get_item( $item_id );
-			if ( ! $item || ! method_exists( $item, 'get_product' ) ) {
+			if ( ! is_object( $item ) || ! method_exists( $item, 'get_product' ) ) {
 				continue;
 			}
 
 			$product = $item->get_product();
-			if ( ! $product || ! $product->managing_stock() ) {
+			if ( ! is_object( $product ) || ! method_exists( $product, 'managing_stock' ) || ! $product->managing_stock() ) {
 				continue;
 			}
 
 			wc_update_product_stock( $product, $quantity, 'increase' );
 			$restocked[] = array(
-				'product_id' => $product->get_id(),
+				'product_id' => method_exists( $product, 'get_id' ) ? $product->get_id() : 0,
 				'quantity'   => $quantity,
 			);
 		}
@@ -582,7 +564,7 @@ class RefundHandler {
 	 * @return void
 	 */
 	private function add_audit_note( $order, $draft_id, $amount, $reason, $restocked ) {
-		if ( ! $order || ! method_exists( $order, 'add_order_note' ) ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'add_order_note' ) ) {
 			return;
 		}
 
@@ -629,7 +611,7 @@ class RefundHandler {
 	 * @return void
 	 */
 	private function maybe_notify_customer( $order, $refund, array $payload ) {
-		if ( ! $order || ! $refund ) {
+		if ( ! is_object( $order ) || ! is_object( $refund ) ) {
 			return;
 		}
 
@@ -643,8 +625,11 @@ class RefundHandler {
 			return;
 		}
 
-		$order_id  = $order->get_id();
-		$refund_id = $refund->get_id();
+		$order_id  = absint( $order->get_id() );
+		$refund_id = absint( $refund->get_id() );
+		if ( 0 === $order_id || 0 === $refund_id ) {
+			return;
+		}
 
 		if ( function_exists( 'wc_send_order_refund_notification' ) ) {
 			wc_send_order_refund_notification( $order_id, $refund_id );
@@ -658,7 +643,7 @@ class RefundHandler {
 
 		if ( function_exists( 'WC' ) ) {
 			$mailer = WC()->mailer();
-			if ( $mailer && isset( $mailer->emails['WC_Email_Customer_Refunded_Order'] ) ) {
+			if ( $mailer && isset( $mailer->emails['WC_Email_Customer_Refunded_Order'] ) && is_object( $mailer->emails['WC_Email_Customer_Refunded_Order'] ) && method_exists( $mailer->emails['WC_Email_Customer_Refunded_Order'], 'trigger' ) ) {
 				$mailer->emails['WC_Email_Customer_Refunded_Order']->trigger( $order_id, $refund_id );
 			}
 		}

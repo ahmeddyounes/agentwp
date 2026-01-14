@@ -39,6 +39,11 @@ class Encryption {
 			return '';
 		}
 
+		$iv_length = $this->get_iv_length();
+		if ( $iv_length <= 0 ) {
+			return '';
+		}
+
 		try {
 			$nonce = random_bytes( self::NONCE_LENGTH );
 		} catch ( \Exception $exception ) {
@@ -60,9 +65,9 @@ class Encryption {
 			self::TAG_LENGTH
 		);
 
-		if ( false === $ciphertext || '' === $tag ) {
-			return '';
-		}
+			if ( false === $ciphertext || self::TAG_LENGTH !== strlen( $tag ) ) {
+				return '';
+			}
 
 		$fingerprint = $this->get_fingerprint( $material );
 
@@ -113,7 +118,7 @@ class Encryption {
 		}
 
 		// Try awp1 format (AES-256-CTR without authentication).
-		$payload_v1 = $this->parse_payload_v1( $ciphertext );
+			$payload_v1 = $this->parse_payload( $ciphertext );
 		if ( null !== $payload_v1 ) {
 			$materials = $this->get_key_material_candidates();
 			foreach ( $materials as $material ) {
@@ -173,9 +178,9 @@ class Encryption {
 			return true;
 		}
 
-		if ( null !== $this->parse_payload_v1( $data ) ) {
-			return true;
-		}
+			if ( null !== $this->parse_payload( $data ) ) {
+				return true;
+			}
 
 		return null !== $this->parse_legacy_payload( $data );
 	}
@@ -248,7 +253,7 @@ class Encryption {
 	 * @param string $data Payload.
 	 * @return array|null
 	 */
-	private function parse_payload_v1( string $data ) {
+		private function parse_payload_v1( string $data ) {
 		if ( 0 !== strpos( $data, self::VERSION_1 . self::DELIMITER ) ) {
 			return null;
 		}
@@ -273,11 +278,37 @@ class Encryption {
 			return null;
 		}
 
-		return array(
-			'fingerprint' => $fingerprint,
-			'iv'          => substr( $decoded, 0, $iv_length ),
-			'ciphertext'  => substr( $decoded, $iv_length ),
-		);
+			return array(
+				'fingerprint' => $fingerprint,
+				'iv'          => substr( $decoded, 0, $iv_length ),
+				'ciphertext'  => substr( $decoded, $iv_length ),
+			);
+		}
+
+		/**
+		 * Parse legacy awp1 payload format (AES-256-CTR).
+		 *
+		 * Kept for backward compatibility with existing tests.
+		 *
+		 * @param string $data Payload.
+		 * @return array|null
+		 */
+		private function parse_payload( string $data ) {
+			return $this->parse_payload_v1( $data );
+		}
+
+		/**
+		 * Get IV/nonce length for the current cipher.
+		 *
+		 * @return int
+		 */
+	private function get_iv_length(): int {
+		$iv_length = openssl_cipher_iv_length( self::CIPHER );
+		if ( false === $iv_length || $iv_length <= 0 ) {
+			return 0;
+		}
+
+		return (int) $iv_length;
 	}
 
 	/**

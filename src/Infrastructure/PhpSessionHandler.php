@@ -1,6 +1,6 @@
 <?php
 /**
- * PHP session handler adapter.
+ * Session handler adapter backed by WordPress transients.
  *
  * @package AgentWP\Infrastructure
  */
@@ -10,39 +10,77 @@ namespace AgentWP\Infrastructure;
 use AgentWP\Contracts\SessionHandlerInterface;
 
 /**
- * Wraps PHP session functions.
+ * Provides session-like key/value storage without using PHP sessions.
  */
 final class PhpSessionHandler implements SessionHandlerInterface {
+	/**
+	 * Default TTL for stored values (in seconds).
+	 */
+	private const DEFAULT_TTL = 1800;
 
 	/**
-	 * Session key prefix.
+	 * Key prefix.
 	 *
 	 * @var string
 	 */
 	private string $prefix;
 
 	/**
-	 * Create a new PhpSessionHandler.
+	 * TTL in seconds.
 	 *
-	 * @param string $prefix Session key prefix.
+	 * @var int
 	 */
-	public function __construct( string $prefix = 'agentwp_' ) {
+	private int $ttl;
+
+	/**
+	 * Whether storage is ready.
+	 *
+	 * @var bool
+	 */
+	private bool $started = false;
+
+	/**
+	 * Request-local fallback store for non-WordPress contexts.
+	 *
+	 * @var array<string, array<string, mixed>>
+	 */
+	private static array $fallback = array();
+
+	/**
+	 * Create a new handler.
+	 *
+	 * @param string $prefix Key prefix.
+	 * @param int    $ttl    TTL in seconds.
+	 */
+	public function __construct( string $prefix = 'agentwp_', int $ttl = self::DEFAULT_TTL ) {
 		$this->prefix = $prefix;
+		$this->ttl    = max( 60, $ttl );
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
-	public function get( string $key, mixed $default = null ): mixed {
+	public function ensureStarted(): void {
+		$this->started = true;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function isStarted(): bool {
+		return $this->started;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function get( string $key ): mixed {
 		$this->ensureStarted();
 
+		$store       = $this->loadStore();
 		$prefixedKey = $this->prefixKey( $key );
 
-		if ( ! isset( $_SESSION[ $prefixedKey ] ) ) {
-			return $default;
-		}
-
-		return $_SESSION[ $prefixedKey ];
+		return $store[ $prefixedKey ] ?? null;
 	}
 
 	/**
@@ -51,7 +89,9 @@ final class PhpSessionHandler implements SessionHandlerInterface {
 	public function set( string $key, mixed $value ): void {
 		$this->ensureStarted();
 
-		$_SESSION[ $this->prefixKey( $key ) ] = $value;
+		$store = $this->loadStore();
+		$store[ $this->prefixKey( $key ) ] = $value;
+		$this->persistStore( $store );
 	}
 
 	/**
@@ -60,7 +100,8 @@ final class PhpSessionHandler implements SessionHandlerInterface {
 	public function has( string $key ): bool {
 		$this->ensureStarted();
 
-		return isset( $_SESSION[ $this->prefixKey( $key ) ] );
+		$store = $this->loadStore();
+		return array_key_exists( $this->prefixKey( $key ), $store );
 	}
 
 	/**
@@ -69,40 +110,109 @@ final class PhpSessionHandler implements SessionHandlerInterface {
 	public function delete( string $key ): void {
 		$this->ensureStarted();
 
-		unset( $_SESSION[ $this->prefixKey( $key ) ] );
+		$store       = $this->loadStore();
+		$prefixedKey = $this->prefixKey( $key );
+
+		if ( ! array_key_exists( $prefixedKey, $store ) ) {
+			return;
+		}
+
+		unset( $store[ $prefixedKey ] );
+		$this->persistStore( $store );
 	}
 
 	/**
-	 * {@inheritDoc}
+	 * Clear all keys for this prefix.
+	 *
+	 * @return void
 	 */
 	public function clear(): void {
 		$this->ensureStarted();
 
-		foreach ( array_keys( $_SESSION ) as $key ) {
-			if ( str_starts_with( $key, $this->prefix ) ) {
-				unset( $_SESSION[ $key ] );
-			}
-		}
+		$this->persistStore( array() );
 	}
 
 	/**
-	 * {@inheritDoc}
-	 */
-	public function destroy(): void {
-		if ( PHP_SESSION_ACTIVE === session_status() ) {
-			session_destroy();
-		}
-	}
-
-	/**
-	 * Ensure session is started.
+	 * Destroy all stored keys.
 	 *
 	 * @return void
 	 */
-	private function ensureStarted(): void {
-		if ( PHP_SESSION_NONE === session_status() ) {
-			session_start();
+	public function destroy(): void {
+		$storeKey = $this->getStoreKey();
+		if ( '' !== $storeKey && function_exists( 'delete_transient' ) ) {
+			delete_transient( $storeKey );
+			return;
 		}
+
+		unset( self::$fallback[ $this->getFallbackKey() ] );
+	}
+
+	/**
+	 * Load store values.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function loadStore(): array {
+		$storeKey = $this->getStoreKey();
+		if ( '' !== $storeKey && function_exists( 'get_transient' ) ) {
+			$value = get_transient( $storeKey );
+			return is_array( $value ) ? $value : array();
+		}
+
+		$fallbackKey = $this->getFallbackKey();
+		if ( ! isset( self::$fallback[ $fallbackKey ] ) || ! is_array( self::$fallback[ $fallbackKey ] ) ) {
+			self::$fallback[ $fallbackKey ] = array();
+		}
+
+		return self::$fallback[ $fallbackKey ];
+	}
+
+	/**
+	 * Persist store values.
+	 *
+	 * @param array<string, mixed> $store Store values.
+	 * @return void
+	 */
+	private function persistStore( array $store ): void {
+		$storeKey = $this->getStoreKey();
+		if ( '' !== $storeKey && function_exists( 'set_transient' ) ) {
+			set_transient( $storeKey, $store, $this->ttl );
+			return;
+		}
+
+		self::$fallback[ $this->getFallbackKey() ] = $store;
+	}
+
+	/**
+	 * Resolve transient key used for persistence.
+	 *
+	 * @return string Transient key, or empty string when unavailable.
+	 */
+	private function getStoreKey(): string {
+		if ( ! function_exists( 'get_current_user_id' ) ) {
+			return '';
+		}
+
+		$user_id = (int) get_current_user_id();
+		if ( $user_id <= 0 ) {
+			return '';
+		}
+
+		return $this->prefix . 'session_' . $user_id;
+	}
+
+	/**
+	 * Resolve fallback key for non-WordPress contexts.
+	 *
+	 * @return string
+	 */
+	private function getFallbackKey(): string {
+		$storeKey = $this->getStoreKey();
+		if ( '' !== $storeKey ) {
+			return $storeKey;
+		}
+
+		return $this->prefix . 'session_request';
 	}
 
 	/**

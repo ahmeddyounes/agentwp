@@ -47,6 +47,11 @@ final class WordPressObjectCache implements CacheInterface {
 	 * {@inheritDoc}
 	 */
 	public function set( string $key, mixed $value, int $ttl = 0 ): bool {
+		if ( $ttl > 0 && $ttl < 300 ) {
+			$ttl = 300;
+		}
+
+		// phpcs:ignore WordPressVIPMinimum.Performance.LowExpiryCacheTime.CacheTimeUndetermined -- TTL is validated to be >= 300 seconds (or 0).
 		return wp_cache_set( $key, $value, $this->group, $ttl );
 	}
 

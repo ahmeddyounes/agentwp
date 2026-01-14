@@ -41,10 +41,11 @@ class ThemeController extends RestController {
 	 *
 	 * @openapi GET /agentwp/v1/theme
 	 *
-	 * @param \WP_REST_Request $request Request instance.
+	 * @param \WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return \WP_REST_Response
 	 */
 	public function get_theme( $request ) {
+		unset( $request );
 		$user_id = get_current_user_id();
 		$theme   = get_user_meta( $user_id, self::THEME_META_KEY, true );
 
@@ -64,7 +65,7 @@ class ThemeController extends RestController {
 	 *
 	 * @openapi POST /agentwp/v1/theme
 	 *
-	 * @param \WP_REST_Request $request Request instance.
+	 * @param \WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return \WP_REST_Response
 	 */
 	public function update_theme( $request ) {

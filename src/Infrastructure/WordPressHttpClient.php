@@ -49,7 +49,12 @@ final class WordPressHttpClient implements HttpClientInterface {
 	public function get( string $url, array $options = array() ): HttpResponse {
 		$args = $this->buildArgs( $options );
 
-		$response = wp_remote_get( $url, $args );
+		if ( function_exists( 'vip_safe_wp_remote_get' ) ) {
+			$response = vip_safe_wp_remote_get( $url, $args );
+		} else {
+			// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.wp_remote_get_wp_remote_get -- Fallback when VIP helper is unavailable.
+			$response = wp_remote_get( $url, $args );
+		}
 
 		return $this->parseResponse( $response );
 	}
@@ -104,7 +109,7 @@ final class WordPressHttpClient implements HttpClientInterface {
 			);
 		}
 
-		$statusCode = wp_remote_retrieve_response_code( $response );
+		$statusCode = (int) wp_remote_retrieve_response_code( $response );
 		$body       = wp_remote_retrieve_body( $response );
 		$headers    = wp_remote_retrieve_headers( $response );
 

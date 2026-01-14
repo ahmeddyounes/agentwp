@@ -12,6 +12,8 @@ use AgentWP\Billing\UsageTracker;
 use AgentWP\Plugin;
 use AgentWP\Security\Encryption;
 use WP_Error;
+use WP_REST_Request;
+use WP_REST_Response;
 use WP_REST_Server;
 
 class SettingsController extends RestController {
@@ -65,10 +67,12 @@ class SettingsController extends RestController {
 	 *
 	 * @openapi GET /agentwp/v1/settings
 	 *
-	 * @param WP_REST_Request $request Request instance.
+	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return WP_REST_Response
 	 */
 	public function get_settings( $request ) {
+		unset( $request );
+
 		$this->maybe_rotate_api_key();
 
 		$settings = $this->read_settings();
@@ -90,7 +94,7 @@ class SettingsController extends RestController {
 	 *
 	 * @openapi POST /agentwp/v1/settings
 	 *
-	 * @param WP_REST_Request $request Request instance.
+	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return WP_REST_Response
 	 */
 	public function update_settings( $request ) {
@@ -119,7 +123,7 @@ class SettingsController extends RestController {
 	 *
 	 * @openapi POST /agentwp/v1/settings/api-key
 	 *
-	 * @param WP_REST_Request $request Request instance.
+	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return WP_REST_Response
 	 */
 	public function update_api_key( $request ) {
@@ -150,12 +154,12 @@ class SettingsController extends RestController {
 
 		$validation = $this->validate_openai_api_key( $api_key );
 		if ( is_wp_error( $validation ) ) {
-			return $this->response_error( $validation->get_error_code(), $validation->get_error_message(), 400 );
+			return $this->response_error( (string) $validation->get_error_code(), $validation->get_error_message(), 400 );
 		}
 
 		$encrypted = $this->encrypt_api_key( $api_key );
 		if ( is_wp_error( $encrypted ) ) {
-			return $this->response_error( $encrypted->get_error_code(), $encrypted->get_error_message(), 500 );
+			return $this->response_error( (string) $encrypted->get_error_code(), $encrypted->get_error_message(), 500 );
 		}
 
 		update_option( Plugin::OPTION_API_KEY, $encrypted, false );
@@ -176,7 +180,7 @@ class SettingsController extends RestController {
 	 *
 	 * @openapi GET /agentwp/v1/usage
 	 *
-	 * @param WP_REST_Request $request Request instance.
+	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return WP_REST_Response
 	 */
 	public function get_usage( $request ) {
@@ -265,12 +269,18 @@ class SettingsController extends RestController {
 		}
 
 		if ( array_key_exists( 'dark_mode', $payload ) ) {
-			$dark_mode         = rest_sanitize_boolean( $payload['dark_mode'] );
+			$dark_mode_raw = $payload['dark_mode'];
+			$dark_mode     = ( is_bool( $dark_mode_raw ) || is_int( $dark_mode_raw ) || is_string( $dark_mode_raw ) )
+				? rest_sanitize_boolean( $dark_mode_raw )
+				: false;
 			$settings['theme'] = $dark_mode ? 'dark' : 'light';
 		}
 
 		if ( array_key_exists( 'demo_mode', $payload ) ) {
-			$settings['demo_mode'] = rest_sanitize_boolean( $payload['demo_mode'] );
+			$demo_mode_raw       = $payload['demo_mode'];
+			$settings['demo_mode'] = ( is_bool( $demo_mode_raw ) || is_int( $demo_mode_raw ) || is_string( $demo_mode_raw ) )
+				? rest_sanitize_boolean( $demo_mode_raw )
+				: false;
 		}
 
 		return $settings;
@@ -283,17 +293,21 @@ class SettingsController extends RestController {
 	 * @return true|WP_Error
 	 */
 	private function validate_openai_api_key( $api_key ) {
-		$response = wp_remote_get(
-			'https://api.openai.com/v1/models',
-			array(
-				'timeout'     => 3,
-				'redirection' => 0,
-				'sslverify'   => true,
-				'headers'     => array(
-					'Authorization' => 'Bearer ' . $api_key,
-				),
-			)
+		$args = array(
+			'timeout'     => 3,
+			'redirection' => 0,
+			'sslverify'   => true,
+			'headers'     => array(
+				'Authorization' => 'Bearer ' . $api_key,
+			),
 		);
+
+		if ( function_exists( 'vip_safe_wp_remote_get' ) ) {
+			$response = vip_safe_wp_remote_get( 'https://api.openai.com/v1/models', $args );
+		} else {
+			// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.wp_remote_get_wp_remote_get -- Fallback outside VIP.
+			$response = wp_remote_get( 'https://api.openai.com/v1/models', $args );
+		}
 
 		if ( is_wp_error( $response ) ) {
 			return new WP_Error( 'agentwp_openai_unreachable', __( 'OpenAI API is unreachable.', 'agentwp' ) );

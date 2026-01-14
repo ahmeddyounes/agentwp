@@ -11,6 +11,7 @@ use AgentWP\Error\Handler as ErrorHandler;
 use AgentWP\Plugin;
 use WP_Error;
 use WP_REST_Controller;
+use WP_REST_Request;
 use WP_REST_Response;
 
 abstract class RestController extends WP_REST_Controller {
@@ -31,7 +32,7 @@ abstract class RestController extends WP_REST_Controller {
 	/**
 	 * Permissions check for REST endpoints.
 	 *
-	 * @param WP_REST_Request $request Request instance.
+	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return true|WP_Error
 	 */
 	public function permissions_check( $request ) {
@@ -59,7 +60,7 @@ abstract class RestController extends WP_REST_Controller {
 	/**
 	 * Validate request payload against a JSON schema.
 	 *
-	 * @param WP_REST_Request $request Request instance.
+	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @param array           $schema JSON schema.
 	 * @param string          $source Payload source ("json" or "query").
 	 * @return array|WP_Error
@@ -81,7 +82,7 @@ abstract class RestController extends WP_REST_Controller {
 	/**
 	 * Verify REST nonce for state-changing requests.
 	 *
-	 * @param WP_REST_Request $request Request instance.
+	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return true|WP_Error
 	 */
 	protected function verify_nonce( $request ) {
@@ -181,10 +182,11 @@ abstract class RestController extends WP_REST_Controller {
 	/**
 	 * Rate limiter using per-user transients.
 	 *
-	 * @param WP_REST_Request $request Request instance.
+	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return true|WP_Error
 	 */
 	public static function check_rate_limit( $request ) {
+		unset( $request );
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			return true;
 		}
@@ -235,9 +237,9 @@ abstract class RestController extends WP_REST_Controller {
 	/**
 	 * Log REST request metadata for debugging.
 	 *
-	 * @param WP_REST_Request $request Request instance.
-	 * @param int             $status HTTP status.
-	 * @param string          $error_code Optional error code.
+	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
+	 * @param int                                  $status HTTP status.
+	 * @param string                               $error_code Optional error code.
 	 * @return void
 	 */
 	public static function log_request( $request, $status, $error_code = '' ) {
@@ -246,18 +248,18 @@ abstract class RestController extends WP_REST_Controller {
 		$logs    = get_transient( $key );
 		$logs    = is_array( $logs ) ? $logs : array();
 
-		$body      = $request->get_json_params();
-		$body_keys = is_array( $body ) ? array_keys( $body ) : array();
-		$query     = $request->get_query_params();
+		$body       = $request->get_json_params();
+		$body_keys  = is_array( $body ) ? array_keys( $body ) : array();
+		$query      = $request->get_query_params();
 		$query_keys = is_array( $query ) ? array_keys( $query ) : array();
 
 		$entry = array(
-			'time'      => gmdate( 'c' ),
-			'route'     => $request->get_route(),
-			'method'    => $request->get_method(),
-			'status'    => intval( $status ),
-			'error'     => $error_code,
-			'user_id'   => intval( $user_id ),
+			'time'       => gmdate( 'c' ),
+			'route'      => $request->get_route(),
+			'method'     => $request->get_method(),
+			'status'     => intval( $status ),
+			'error'      => $error_code,
+			'user_id'    => intval( $user_id ),
 			'query_keys' => $query_keys,
 			'body_keys'  => $body_keys,
 		);

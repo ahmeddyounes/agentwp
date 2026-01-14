@@ -44,9 +44,9 @@ class Plugin {
 	private ContainerInterface $container;
 
 	/**
-	 * @var string
+	 * @var string|false
 	 */
-	private $menu_hook = '';
+	private string|false $menu_hook = false;
 
 	/**
 	 * Registered service providers.
@@ -123,42 +123,13 @@ class Plugin {
 	}
 
 	/**
-	 * Clean up export files created by BulkHandler.
+	 * Clean up export data created by BulkHandler.
 	 *
 	 * @return void
 	 */
 	private static function cleanup_export_files() {
-		if ( ! function_exists( 'wp_upload_dir' ) ) {
-			return;
-		}
-
-		$upload = wp_upload_dir();
-		// wp_upload_dir() returns an 'error' key on failure.
-		if ( ! empty( $upload['error'] ) ) {
-			return;
-		}
-		$basedir = isset( $upload['basedir'] ) ? $upload['basedir'] : '';
-		if ( '' === $basedir ) {
-			return;
-		}
-
-		$export_dir = trailingslashit( $basedir ) . 'agentwp-exports';
-		if ( ! is_dir( $export_dir ) ) {
-			return;
-		}
-
-		// Delete all CSV files in the export directory.
-		$files = glob( $export_dir . '/*.csv' );
-		if ( is_array( $files ) ) {
-			foreach ( $files as $file ) {
-				if ( is_file( $file ) ) {
-					@unlink( $file );
-				}
-			}
-		}
-
-		// Try to remove the directory if empty.
-		@rmdir( $export_dir );
+		// Bulk exports are returned inline and not written to disk.
+		return;
 	}
 
 	/**
@@ -324,6 +295,9 @@ class Plugin {
 		$style_path  = AGENTWP_PLUGIN_DIR . 'assets/agentwp-admin.css';
 
 		if ( file_exists( $script_path ) ) {
+			$script_ver = filemtime( $script_path );
+			$script_ver = is_int( $script_ver ) ? (string) $script_ver : null;
+
 			$settings = get_option( self::OPTION_SETTINGS, array() );
 			$settings = is_array( $settings ) ? $settings : array();
 			$settings = wp_parse_args( $settings, self::get_default_settings() );
@@ -333,7 +307,7 @@ class Plugin {
 				'agentwp-admin',
 				AGENTWP_PLUGIN_URL . 'assets/agentwp-admin.js',
 				array( 'wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n' ),
-				filemtime( $script_path ),
+				$script_ver,
 				true
 			);
 
@@ -359,11 +333,14 @@ class Plugin {
 		}
 
 		if ( file_exists( $style_path ) ) {
+			$style_ver = filemtime( $style_path );
+			$style_ver = is_int( $style_ver ) ? (string) $style_ver : null;
+
 			wp_enqueue_style(
 				'agentwp-admin',
 				AGENTWP_PLUGIN_URL . 'assets/agentwp-admin.css',
 				array(),
-				filemtime( $style_path )
+				$style_ver
 			);
 		}
 	}
@@ -469,7 +446,7 @@ class Plugin {
 	 *
 	 * @param mixed           $result Response value.
 	 * @param \WP_REST_Server $server REST server instance.
-	 * @param \WP_REST_Request $request Request instance.
+	 * @param \WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return mixed
 	 */
 	public function format_rest_response( $result, $server, $request ) {
@@ -481,16 +458,15 @@ class Plugin {
 		if ( $this->container->has( ResponseFormatter::class ) ) {
 			/** @var ResponseFormatter $formatter */
 			$formatter = $this->container->get( ResponseFormatter::class );
-			return $formatter->format( $result, $request );
+			return $formatter->formatResponse( $result, $server, $request );
 		}
 
 		// Fallback to inline formatting for backward compatibility.
-
 		$status     = 200;
 		$error_code = '';
 
 		if ( is_wp_error( $result ) ) {
-			$error_code = $result->get_error_code();
+			$error_code = (string) $result->get_error_code();
 			$message    = $result->get_error_message();
 			$data       = $result->get_error_data();
 			$status     = ( is_array( $data ) && isset( $data['status'] ) ) ? intval( $data['status'] ) : 500;
@@ -591,7 +567,7 @@ class Plugin {
 	/**
 	 * Check whether request targets AgentWP REST routes.
 	 *
-	 * @param \WP_REST_Request $request Request instance.
+	 * @param \WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return bool
 	 */
 	private function is_agentwp_route( $request ) {
@@ -670,6 +646,7 @@ class Plugin {
 
 		$transient_like = $wpdb->esc_like( self::TRANSIENT_PREFIX ) . '%';
 
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Cleanup on deactivation; caching is not applicable.
 		$wpdb->query(
 			$wpdb->prepare(
 				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
@@ -687,5 +664,6 @@ class Plugin {
 				)
 			);
 		}
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	}
 }

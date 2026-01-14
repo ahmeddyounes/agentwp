@@ -86,14 +86,14 @@ class EmailContextBuilder {
 
 			$product    = method_exists( $item, 'get_product' ) ? $item->get_product() : null;
 			$quantity   = method_exists( $item, 'get_quantity' ) ? (int) $item->get_quantity() : 0;
-			$sku        = ( $product && method_exists( $product, 'get_sku' ) ) ? (string) $product->get_sku() : '';
-			$backorder  = false;
+				$sku        = ( is_object( $product ) && method_exists( $product, 'get_sku' ) ) ? (string) $product->get_sku() : '';
+				$backorder  = false;
 
-			if ( $product && method_exists( $product, 'is_on_backorder' ) ) {
-				$backorder = (bool) $product->is_on_backorder( $quantity );
-			} elseif ( method_exists( $item, 'is_on_backorder' ) ) {
-				$backorder = (bool) $item->is_on_backorder( $quantity );
-			}
+				if ( is_object( $product ) && method_exists( $product, 'is_on_backorder' ) ) {
+					$backorder = (bool) $product->is_on_backorder( $quantity );
+				} elseif ( method_exists( $item, 'is_on_backorder' ) ) {
+					$backorder = (bool) $item->is_on_backorder( $quantity );
+				}
 
 			$items[] = array(
 				'item_id'      => intval( $item_id ),
@@ -351,6 +351,8 @@ class EmailContextBuilder {
 	 * @return string
 	 */
 	private function get_estimated_delivery( $order, array $shipping_methods ) {
+		unset( $shipping_methods );
+
 		if ( ! $order || ! method_exists( $order, 'get_meta' ) ) {
 			return '';
 		}
@@ -452,12 +454,12 @@ class EmailContextBuilder {
 	private function is_delayed_shipping( $order, array $tracking ) {
 		if ( ! $order || ! method_exists( $order, 'get_date_created' ) ) {
 			return false;
-		}
+			}
 
-		$created = $order->get_date_created();
-		if ( ! $created || ! method_exists( $created, 'getTimestamp' ) ) {
-			return false;
-		}
+			$created = $order->get_date_created();
+			if ( ! is_object( $created ) || ! method_exists( $created, 'getTimestamp' ) ) {
+				return false;
+			}
 
 		$age_seconds = time() - $created->getTimestamp();
 		$cutoff      = self::DELAYED_SHIPPING_DAYS * ( defined( 'DAY_IN_SECONDS' ) ? DAY_IN_SECONDS : 86400 );
@@ -1007,11 +1009,15 @@ class EmailContextBuilder {
 	 * @param string $content Note content.
 	 * @return string
 	 */
-	private function strip_note_content( $content ) {
-		if ( function_exists( 'wp_strip_all_tags' ) ) {
-			return wp_strip_all_tags( $content );
-		}
+		private function strip_note_content( $content ) {
+			if ( function_exists( 'wp_strip_all_tags' ) ) {
+				return wp_strip_all_tags( $content );
+			}
 
-		return strip_tags( (string) $content );
+			$content = (string) $content;
+			$content = preg_replace( '@<(script|style)[^>]*?>.*?</\\1>@si', '', $content );
+			$content = preg_replace( '/<[^>]*>/', '', $content );
+
+			return trim( $content );
+		}
 	}
-}

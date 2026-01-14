@@ -38,13 +38,13 @@ final class IntentServiceProvider extends ServiceProvider {
 	private function registerMemoryStore(): void {
 		// Only register if class exists.
 		// Don't register null - let has() return false and get() throw NotFoundException.
-		if ( ! class_exists( 'AgentWP\\Context\\MemoryStore' ) ) {
+		if ( ! class_exists( 'AgentWP\\Intent\\MemoryStore' ) ) {
 			return;
 		}
 
 		$this->container->singleton(
 			MemoryStoreInterface::class,
-			fn() => new \AgentWP\Context\MemoryStore()
+			fn() => new \AgentWP\Intent\MemoryStore()
 		);
 	}
 
@@ -56,13 +56,13 @@ final class IntentServiceProvider extends ServiceProvider {
 	private function registerContextBuilder(): void {
 		// Only register if class exists.
 		// Don't register null - let has() return false and get() throw NotFoundException.
-		if ( ! class_exists( 'AgentWP\\Context\\ContextBuilder' ) ) {
+		if ( ! class_exists( 'AgentWP\\Intent\\ContextBuilder' ) ) {
 			return;
 		}
 
 		$this->container->singleton(
 			ContextBuilderInterface::class,
-			fn() => new \AgentWP\Context\ContextBuilder()
+			fn() => new \AgentWP\Intent\ContextBuilder()
 		);
 	}
 
@@ -114,11 +114,11 @@ final class IntentServiceProvider extends ServiceProvider {
 				return function ( string $intent ) {
 					$handlers = $this->container->tagged( 'intent.handler' );
 
-					foreach ( $handlers as $handler ) {
-						if ( method_exists( $handler, 'supports' ) && $handler->supports( $intent ) ) {
-							return $handler;
+						foreach ( $handlers as $handler ) {
+							if ( is_object( $handler ) && method_exists( $handler, 'supports' ) && $handler->supports( $intent ) ) {
+								return $handler;
+							}
 						}
-					}
 
 					return null;
 				};

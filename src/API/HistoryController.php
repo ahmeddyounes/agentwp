@@ -44,10 +44,11 @@ class HistoryController extends RestController {
 	 *
 	 * @openapi GET /agentwp/v1/history
 	 *
-	 * @param \WP_REST_Request $request Request instance.
+	 * @param \WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return \WP_REST_Response
 	 */
 	public function get_history( $request ) {
+		unset( $request );
 		$user_id  = get_current_user_id();
 		$history  = get_user_meta( $user_id, self::HISTORY_META_KEY, true );
 		$favorites = get_user_meta( $user_id, self::FAVORITES_META_KEY, true );
@@ -68,7 +69,7 @@ class HistoryController extends RestController {
 	 *
 	 * @openapi POST /agentwp/v1/history
 	 *
-	 * @param \WP_REST_Request $request Request instance.
+	 * @param \WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return \WP_REST_Response
 	 */
 	public function update_history( $request ) {

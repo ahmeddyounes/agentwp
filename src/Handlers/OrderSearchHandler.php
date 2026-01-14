@@ -245,45 +245,56 @@ class OrderSearchHandler {
 			$query_args['status'] = $normalized['status'];
 		}
 
-		if ( is_array( $normalized['date_range'] ) ) {
-			$query_args['date_created'] = $normalized['date_range']['start'] . '...' . $normalized['date_range']['end'];
-		}
+			if ( is_array( $normalized['date_range'] ) ) {
+				$query_args['date_created'] = $normalized['date_range']['start'] . '...' . $normalized['date_range']['end'];
+			}
 
-		if ( '' !== $normalized['email'] ) {
-			$query_args['meta_query'] = array(
-				'relation' => 'OR',
-				array(
-					'key'     => '_billing_email',
-					'value'   => $normalized['email'],
-					'compare' => '=',
-				),
-				array(
-					'key'     => '_shipping_email',
-					'value'   => $normalized['email'],
-					'compare' => '=',
-				),
-			);
-		}
+			if ( '' !== $normalized['email'] ) {
+				$query_args['meta_query'] = array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Needed for email matching.
+					'relation' => 'OR',
+					array(
+						'key'     => '_billing_email',
+						'value'   => $normalized['email'],
+						'compare' => '=',
+					),
+					array(
+						'key'     => '_shipping_email',
+						'value'   => $normalized['email'],
+						'compare' => '=',
+					),
+				);
+			}
 
 		$order_ids = wc_get_orders( $query_args );
 		if ( ! is_array( $order_ids ) ) {
 			return array();
 		}
 
-		$results = array();
-		foreach ( $order_ids as $order_id ) {
-			$cached = $this->read_order_cache( $order_id );
-			if ( $cached ) {
-				$results[] = $cached;
-				continue;
-			}
+			$results = array();
+			foreach ( $order_ids as $order_id_raw ) {
+				$order_id = 0;
+				if ( is_numeric( $order_id_raw ) ) {
+					$order_id = absint( $order_id_raw );
+				} elseif ( is_object( $order_id_raw ) && method_exists( $order_id_raw, 'get_id' ) ) {
+					$order_id = absint( $order_id_raw->get_id() );
+				}
 
-			$order = wc_get_order( $order_id );
-			if ( ! $order || ! method_exists( $order, 'get_id' ) ) {
-				continue;
+				if ( $order_id <= 0 ) {
+					continue;
+				}
+
+				$cached = $this->read_order_cache( $order_id );
+				if ( $cached ) {
+					$results[] = $cached;
+					continue;
+				}
+
+				$order = wc_get_order( $order_id );
+				if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
+					continue;
+				}
+				$results[] = $this->format_order( $order );
 			}
-			$results[] = $this->format_order( $order );
-		}
 
 		return $results;
 	}
@@ -306,29 +317,32 @@ class OrderSearchHandler {
 	 * @param object $order Order instance.
 	 * @return array
 	 */
-	private function format_order( $order ) {
-		$order_id = $order && method_exists( $order, 'get_id' ) ? intval( $order->get_id() ) : 0;
-		if ( $order_id > 0 ) {
-			$cached = $this->read_order_cache( $order_id );
-			if ( $cached ) {
-				return $cached;
+		private function format_order( $order ) {
+			$order_id = ( is_object( $order ) && method_exists( $order, 'get_id' ) ) ? absint( $order->get_id() ) : 0;
+			if ( $order_id <= 0 ) {
+				return array();
 			}
-		}
+			if ( $order_id > 0 ) {
+				$cached = $this->read_order_cache( $order_id );
+				if ( $cached ) {
+					return $cached;
+				}
+			}
 
 		$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
 		$email        = $this->get_customer_email( $order );
 		$customer     = $this->get_customer_name( $order );
 
-		$summary = array(
-			'id'               => intval( $order->get_id() ),
-			'status'           => sanitize_text_field( $order->get_status() ),
-			'total'            => $order->get_total(),
-			'customer_name'    => sanitize_text_field( $customer ),
-			'customer_email'   => sanitize_email( $email ),
-			'date_created'     => $date_created ? $date_created->date( 'c' ) : '',
-			'items_summary'    => $this->format_items_summary( $order ),
-			'shipping_address' => $this->format_shipping_address( $order ),
-		);
+			$summary = array(
+				'id'               => $order_id,
+				'status'           => method_exists( $order, 'get_status' ) ? sanitize_text_field( $order->get_status() ) : '',
+				'total'            => method_exists( $order, 'get_total' ) ? $order->get_total() : 0,
+				'customer_name'    => sanitize_text_field( $customer ),
+				'customer_email'   => sanitize_email( $email ),
+				'date_created'     => ( is_object( $date_created ) && method_exists( $date_created, 'date' ) ) ? $date_created->date( 'c' ) : '',
+				'items_summary'    => $this->format_items_summary( $order ),
+				'shipping_address' => $this->format_shipping_address( $order ),
+			);
 
 		if ( $order_id > 0 ) {
 			$this->write_order_cache( $order_id, $summary );
@@ -359,13 +373,13 @@ class OrderSearchHandler {
 	 * @param array $summary Summary payload.
 	 * @return void
 	 */
-	private function write_order_cache( $order_id, array $summary ) {
-		if ( ! function_exists( 'wp_cache_set' ) ) {
-			return;
-		}
+		private function write_order_cache( $order_id, array $summary ) {
+			if ( ! function_exists( 'wp_cache_set' ) ) {
+				return;
+			}
 
-		wp_cache_set( $order_id, $summary, self::OBJECT_CACHE_GROUP, self::OBJECT_CACHE_TTL );
-	}
+			wp_cache_set( $order_id, $summary, self::OBJECT_CACHE_GROUP, 300 );
+		}
 
 	/**
 	 * @param object $order Order instance.

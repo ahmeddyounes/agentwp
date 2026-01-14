@@ -38,12 +38,12 @@ abstract class AbstractScorer implements IntentScorerInterface {
 	 * @param string $phrase The phrase to find.
 	 * @return bool True if phrase is found.
 	 */
-	protected function containsPhrase( string $text, string $phrase ): bool {
-		$phrase = trim( $phrase );
+		protected function containsPhrase( string $text, string $phrase ): bool {
+			$phrase = trim( $phrase );
 
-		if ( '' === $phrase ) {
-			return false;
-		}
+			if ( '' === $phrase ) {
+				return false;
+			}
 
 		// Normalize multiple consecutive spaces to single space before matching.
 		$normalized = preg_replace( '/\s+/', ' ', $phrase );
@@ -51,19 +51,19 @@ abstract class AbstractScorer implements IntentScorerInterface {
 
 		// Use word boundary regex to avoid partial matches.
 		// For example, "refund" should not match "refunding" or "nonrefundable".
-		// Convert escaped spaces to flexible whitespace for multi-word phrases.
-		$escaped = preg_quote( $phrase, '/' );
-		$pattern = '/\b' . str_replace( '\\ ', '\\s+', $escaped ) . '\b/i';
+			// Convert escaped spaces to flexible whitespace for multi-word phrases.
+			$escaped = preg_quote( $phrase, '/' );
+			$pattern = '/\b' . str_replace( '\\ ', '\\s+', $escaped ) . '\b/i';
 
-		$result = @preg_match( $pattern, $text );
+			$result = preg_match( $pattern, $text );
 
-		// Handle regex error (e.g., malformed pattern).
-		if ( false === $result ) {
-			return false;
+			// Handle regex error (e.g., malformed pattern).
+			if ( false === $result ) {
+				return false;
+			}
+
+			return (bool) $result;
 		}
-
-		return (bool) $result;
-	}
 
 	/**
 	 * Check if text contains any of the given phrases.
@@ -111,14 +111,14 @@ abstract class AbstractScorer implements IntentScorerInterface {
 	 * @param string $pattern The regex pattern.
 	 * @return bool True if pattern matches.
 	 */
-	protected function matchesPattern( string $text, string $pattern ): bool {
-		$result = @preg_match( $pattern, $text );
+		protected function matchesPattern( string $text, string $pattern ): bool {
+			$result = preg_match( $pattern, $text );
 
-		// Handle regex error (e.g., malformed pattern).
-		if ( false === $result ) {
-			return false;
+			// Handle regex error (e.g., malformed pattern).
+			if ( false === $result ) {
+				return false;
+			}
+
+			return (bool) $result;
 		}
-
-		return (bool) $result;
 	}
-}

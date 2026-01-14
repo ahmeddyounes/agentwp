@@ -58,15 +58,14 @@ final class DateRangeParser {
 
 		foreach ( $relativePhrases as $phrase ) {
 			if ( false !== strpos( $query, $phrase ) ) {
-				$result = match ( $phrase ) {
-					'today'      => $this->today(),
-					'yesterday'  => $this->yesterday(),
-					'last week'  => $this->lastWeek(),
-					'this week'  => $this->thisWeek(),
-					'this month' => $this->thisMonth(),
-					'last month' => $this->lastMonth(),
-					default      => null,
-				};
+					$result = match ( $phrase ) {
+						'today'      => $this->today(),
+						'yesterday'  => $this->yesterday(),
+						'last week'  => $this->lastWeek(),
+						'this week'  => $this->thisWeek(),
+						'this month' => $this->thisMonth(),
+						'last month' => $this->lastMonth(),
+					};
 
 				if ( null !== $result ) {
 					return $result;

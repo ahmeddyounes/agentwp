@@ -75,7 +75,7 @@ final class ResponseFormatter {
 	 *
 	 * @param mixed           $result  Response value.
 	 * @param WP_REST_Server  $server  REST server instance.
-	 * @param WP_REST_Request $request Request instance.
+	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
 	 * @return mixed
 	 */
 	public function formatResponse( mixed $result, WP_REST_Server $server, WP_REST_Request $request ): mixed {
@@ -124,7 +124,7 @@ final class ResponseFormatter {
 	 * @return array{response: WP_REST_Response, status: int, error_code: string}
 	 */
 	private function formatWpError( WP_Error $error ): array {
-		$errorCode = $error->get_error_code();
+		$errorCode = (string) $error->get_error_code();
 		$message   = $error->get_error_message();
 		$data      = $error->get_error_data();
 		$status    = ( is_array( $data ) && isset( $data['status'] ) ) ? intval( $data['status'] ) : 500;
@@ -245,7 +245,7 @@ final class ResponseFormatter {
 	/**
 	 * Check if request is for an AgentWP route.
 	 *
-	 * @param WP_REST_Request $request The request.
+	 * @param WP_REST_Request<array<string, mixed>> $request The request.
 	 * @return bool
 	 */
 	private function isAgentWPRoute( WP_REST_Request $request ): bool {

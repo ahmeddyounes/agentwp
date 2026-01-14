@@ -7,6 +7,8 @@
 
 namespace AgentWP\Search;
 
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom search index relies on direct SQL; caching/invalidation is managed by the index lifecycle.
+
 class Index {
 	const TABLE           = 'agentwp_search_index';
 	const VERSION         = '1.0';
@@ -132,6 +134,7 @@ class Index {
 	 * @return void
 	 */
 	public static function handle_product_save( $post_id, $post, $update ) {
+		unset( $update );
 		if ( ! self::should_handle_post_save( $post_id, $post ) ) {
 			return;
 		}
@@ -149,6 +152,7 @@ class Index {
 	 * @deprecated Use handle_order_created/handle_order_updated for HPOS compatibility.
 	 */
 	public static function handle_order_save( $post_id, $post, $update ) {
+		unset( $update );
 		if ( ! self::should_handle_post_save( $post_id, $post ) ) {
 			return;
 		}
@@ -164,6 +168,7 @@ class Index {
 	 * @return void
 	 */
 	public static function handle_order_created( $order_id, $order = null ) {
+		unset( $order );
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
 			return;
 		}
@@ -179,6 +184,7 @@ class Index {
 	 * @return void
 	 */
 	public static function handle_order_updated( $order_id, $order = null ) {
+		unset( $order );
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
 			return;
 		}
@@ -240,6 +246,7 @@ class Index {
 	 * @return void
 	 */
 	public static function handle_user_update( $user_id, $old_user_data ) {
+		unset( $old_user_data );
 		self::index_customer( $user_id );
 	}
 
@@ -255,7 +262,7 @@ class Index {
 		}
 
 		$product = wc_get_product( $product_id );
-		if ( ! $product || ! method_exists( $product, 'get_id' ) ) {
+		if ( ! is_object( $product ) || ! method_exists( $product, 'get_id' ) ) {
 			return;
 		}
 
@@ -293,14 +300,14 @@ class Index {
 		}
 
 		$order = wc_get_order( $order_id );
-		if ( ! $order || ! method_exists( $order, 'get_id' ) ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
 			return;
 		}
 
 		$order_id     = $order->get_id();
-		$customer     = trim( $order->get_formatted_billing_full_name() );
-		$email        = (string) $order->get_billing_email();
-		$status       = (string) $order->get_status();
+		$customer     = method_exists( $order, 'get_formatted_billing_full_name' ) ? trim( (string) $order->get_formatted_billing_full_name() ) : '';
+		$email        = method_exists( $order, 'get_billing_email' ) ? (string) $order->get_billing_email() : '';
+		$status       = method_exists( $order, 'get_status' ) ? (string) $order->get_status() : '';
 		$status_label = function_exists( 'wc_get_order_status_name' ) ? wc_get_order_status_name( $status ) : $status;
 
 		$primary   = sprintf( 'Order #%d', $order_id );
@@ -385,34 +392,36 @@ class Index {
 
 		if ( self::supports_fulltext() && strlen( $normalized ) >= 3 ) {
 			$against = self::build_fulltext_query( $normalized );
-			// Use %i placeholder for table identifier to prevent SQL injection.
-			$sql     = $wpdb->prepare(
-				'SELECT type, object_id, primary_text, secondary_text FROM %i
-				WHERE type = %s AND MATCH(search_text, primary_text, secondary_text) AGAINST (%s IN BOOLEAN MODE)
-				LIMIT %d',
-				$table,
-				$type,
-				$against,
-				$limit
+			$rows    = $wpdb->get_results(
+				$wpdb->prepare(
+					'SELECT type, object_id, primary_text, secondary_text FROM %i
+					WHERE type = %s AND MATCH(search_text, primary_text, secondary_text) AGAINST (%s IN BOOLEAN MODE)
+					LIMIT %d',
+					$table,
+					$type,
+					$against,
+					$limit
+				),
+				ARRAY_A
 			);
-			$rows = $wpdb->get_results( $sql, ARRAY_A );
 			// $wpdb->get_results() can return null on database errors.
 			if ( ! is_array( $rows ) ) {
 				$rows = array();
 			}
 		} else {
 			$like = '%' . $wpdb->esc_like( $normalized ) . '%';
-			// Use %i placeholder for table identifier to prevent SQL injection.
-			$sql  = $wpdb->prepare(
-				'SELECT type, object_id, primary_text, secondary_text FROM %i
-				WHERE type = %s AND search_text LIKE %s
-				LIMIT %d',
-				$table,
-				$type,
-				$like,
-				$limit
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					'SELECT type, object_id, primary_text, secondary_text FROM %i
+					WHERE type = %s AND search_text LIKE %s
+					LIMIT %d',
+					$table,
+					$type,
+					$like,
+					$limit
+				),
+				ARRAY_A
 			);
-			$rows = $wpdb->get_results( $sql, ARRAY_A );
 			// $wpdb->get_results() can return null on database errors.
 			if ( ! is_array( $rows ) ) {
 				$rows = array();
@@ -447,16 +456,19 @@ class Index {
 			$products = wc_get_products( $args );
 			if ( is_array( $products ) ) {
 				foreach ( $products as $product ) {
-					if ( ! $product || ! method_exists( $product, 'get_id' ) ) {
+					if ( ! is_object( $product ) || ! method_exists( $product, 'get_id' ) ) {
 						continue;
 					}
-					$results[] = array(
+
+					$product_id = $product->get_id();
+					$results[]  = array(
 						'type'           => 'products',
-						'object_id'      => $product->get_id(),
+						'object_id'      => $product_id,
 						'primary_text'   => (string) $product->get_name(),
 						'secondary_text' => (string) $product->get_sku(),
 					);
-					self::index_product( $product->get_id() );
+
+					self::index_product( $product_id );
 				}
 			}
 
@@ -478,13 +490,16 @@ class Index {
 			$order_id = absint( $query );
 			if ( $order_id ) {
 				$order = wc_get_order( $order_id );
-				if ( $order ) {
+				if ( is_object( $order ) ) {
+					$status       = method_exists( $order, 'get_status' ) ? (string) $order->get_status() : '';
+					$status_label = function_exists( 'wc_get_order_status_name' ) ? wc_get_order_status_name( $status ) : $status;
+
 					self::index_order( $order_id );
 					$results[] = array(
 						'type'           => 'orders',
 						'object_id'      => $order_id,
 						'primary_text'   => sprintf( 'Order #%d', $order_id ),
-						'secondary_text' => function_exists( 'wc_get_order_status_name' ) ? wc_get_order_status_name( $order->get_status() ) : (string) $order->get_status(),
+						'secondary_text' => $status_label,
 					);
 				}
 			}
@@ -638,7 +653,7 @@ class Index {
 	 * @return bool
 	 */
 	private static function should_handle_post_save( $post_id, $post ) {
-		if ( ! $post || ! is_object( $post ) ) {
+		if ( ! is_object( $post ) ) {
 			return false;
 		}
 
@@ -857,18 +872,20 @@ class Index {
 			);
 		}
 
-		if ( 'customers' === $type ) {
-			return $wpdb->get_col(
-				$wpdb->prepare(
-					"SELECT ID FROM {$wpdb->users}
-					WHERE ID > %d
-					ORDER BY ID ASC
-					LIMIT %d",
-					$after_id,
-					$limit
-				)
-			);
-		}
+			if ( 'customers' === $type ) {
+				$users_table = $wpdb->base_prefix . 'users';
+				return $wpdb->get_col(
+					$wpdb->prepare(
+						'SELECT ID FROM %i
+						WHERE ID > %d
+						ORDER BY ID ASC
+						LIMIT %d',
+						$users_table,
+						$after_id,
+						$limit
+					)
+				);
+			}
 
 		return array();
 	}
@@ -950,3 +967,5 @@ class Index {
 		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $like ) );
 	}
 }
+
+// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

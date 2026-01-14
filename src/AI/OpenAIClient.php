@@ -228,16 +228,20 @@ class OpenAIClient {
 			return false;
 		}
 
-		$response = wp_remote_get(
-			$this->base_url . '/models',
-			array(
+			$args = array(
 				'timeout'     => 3,
 				'redirection' => 0,
 				'headers'     => array(
 					'Authorization' => 'Bearer ' . $key,
 				),
-			)
-		);
+			);
+
+			if ( function_exists( 'vip_safe_wp_remote_get' ) ) {
+				$response = vip_safe_wp_remote_get( $this->base_url . '/models', $args );
+			} else {
+				// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.wp_remote_get_wp_remote_get -- Fallback when VIP helper is unavailable.
+				$response = wp_remote_get( $this->base_url . '/models', $args );
+			}
 
 		if ( is_wp_error( $response ) ) {
 			return false;
@@ -332,17 +336,13 @@ class OpenAIClient {
 			);
 		}
 
-		$status  = (int) wp_remote_retrieve_response_code( $response );
-		$body    = wp_remote_retrieve_body( $response );
-		$headers = wp_remote_retrieve_headers( $response );
-		$error       = '';
-		$error_code  = '';
-		$error_type  = '';
-		$header_retry = 0;
-
-		if ( $headers && isset( $headers['retry-after'] ) ) {
-			$header_retry = $this->parse_retry_after( $headers['retry-after'] );
-		}
+			$status  = (int) wp_remote_retrieve_response_code( $response );
+			$body    = wp_remote_retrieve_body( $response );
+			$headers = $this->normalize_response_headers( wp_remote_retrieve_headers( $response ) );
+			$error       = '';
+			$error_code  = '';
+			$error_type  = '';
+			$header_retry = isset( $headers['retry-after'] ) ? $this->parse_retry_after( $headers['retry-after'] ) : 0;
 
 		if ( $status < 200 || $status >= 300 ) {
 			$error   = 'OpenAI API request failed.';
@@ -359,23 +359,51 @@ class OpenAIClient {
 			}
 		}
 
-		return array(
-			'success'     => $status >= 200 && $status < 300,
-			'status'      => $status,
-			'body'        => is_string( $body ) ? $body : '',
-			'headers'     => is_array( $headers ) ? $headers : array(),
-			'error'       => $error,
-			'error_code'  => $error_code,
-			'error_type'  => $error_type,
-			'retryable'   => $this->is_retryable_status( $status ),
-			'retry_after' => $header_retry,
-		);
-	}
+			return array(
+				'success'     => $status >= 200 && $status < 300,
+				'status'      => $status,
+				'body'        => is_string( $body ) ? $body : '',
+				'headers'     => $headers,
+				'error'       => $error,
+				'error_code'  => $error_code,
+				'error_type'  => $error_type,
+				'retryable'   => $this->is_retryable_status( $status ),
+				'retry_after' => $header_retry,
+			);
+		}
 
-	/**
-	 * @param array $functions Function definitions.
-	 * @return array
-	 */
+		/**
+		 * Normalize WordPress response headers to a plain array.
+		 *
+		 * @param mixed $headers Header data from wp_remote_retrieve_headers().
+		 * @return array<string, mixed>
+		 */
+		private function normalize_response_headers( $headers ): array {
+			if ( $headers instanceof \Requests_Utility_CaseInsensitiveDictionary ) {
+				$headers = $headers->getAll();
+			}
+
+			if ( is_object( $headers ) && method_exists( $headers, 'getAll' ) ) {
+				$headers = $headers->getAll();
+			}
+
+			if ( ! is_array( $headers ) ) {
+				return array();
+			}
+
+			$normalized = array();
+			foreach ( $headers as $key => $value ) {
+				$header_key = is_string( $key ) ? strtolower( $key ) : (string) $key;
+				$normalized[ $header_key ] = $value;
+			}
+
+			return $normalized;
+		}
+
+		/**
+		 * @param array $functions Function definitions.
+		 * @return array
+		 */
 	private function normalize_tools( array $functions ) {
 		$tools = array();
 

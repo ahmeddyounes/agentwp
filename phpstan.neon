@@ -3,6 +3,16 @@ includes:
 
 parameters:
   level: 6
+  treatPhpDocTypesAsCertain: false
+  ignoreErrors:
+    - identifier: missingType.iterableValue
+  parallel:
+    maximumNumberOfProcesses: 0
+  scanFiles:
+    - stubs/woocommerce.php
+    - stubs/wp-cli.php
+    - stubs/requests.php
+    - stubs/agentwp-constants.php
   paths:
     - agentwp.php
     - src

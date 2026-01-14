@@ -25,7 +25,16 @@ class UsageTracker {
 	 * @return void
 	 */
 	public static function init() {
-		add_action( 'init', array( __CLASS__, 'ensure_table' ) );
+		add_action( 'init', array( __CLASS__, 'ensure_table_action' ) );
+	}
+
+	/**
+	 * WordPress action callback wrapper for ensure_table().
+	 *
+	 * @return void
+	 */
+	public static function ensure_table_action() {
+		self::ensure_table();
 	}
 
 	/**
@@ -48,13 +57,15 @@ class UsageTracker {
 	 * @param string $timestamp Optional timestamp (UTC).
 	 * @return bool True if logged successfully, false otherwise.
 	 */
-	public static function log_usage( $model, $input_tokens, $output_tokens, $intent_type, $timestamp = '' ) {
-		global $wpdb;
-		if ( ! $wpdb ) {
-			return false;
-		}
+		public static function log_usage( $model, $input_tokens, $output_tokens, $intent_type, $timestamp = '' ) {
+			global $wpdb;
+			if ( ! $wpdb ) {
+				return false;
+			}
 
-		self::ensure_table();
+			if ( ! self::ensure_table() ) {
+				return false;
+			}
 
 		$input_tokens  = max( 0, (int) $input_tokens );
 		$output_tokens = max( 0, (int) $output_tokens );
@@ -69,6 +80,7 @@ class UsageTracker {
 		self::purge_old_rows();
 
 		$table  = self::get_table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Custom table write.
 		$result = $wpdb->insert(
 			$table,
 			array(
@@ -84,9 +96,12 @@ class UsageTracker {
 
 		// Check for insert failure (returns false on error, number of rows on success).
 		if ( false === $result ) {
-			// Log error for debugging but don't expose to user.
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && ! empty( $wpdb->last_error ) ) {
-				error_log( 'AgentWP UsageTracker: Insert failed - ' . $wpdb->last_error );
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && ! empty( $wpdb->last_error ) && function_exists( 'wc_get_logger' ) ) {
+				$logger = wc_get_logger();
+				$logger->error(
+					'UsageTracker insert failed: ' . $wpdb->last_error,
+					array( 'source' => 'agentwp' )
+				);
 			}
 			return false;
 		}
@@ -100,16 +115,13 @@ class UsageTracker {
 	 * @param string $period day|week|month.
 	 * @return array
 	 */
-	public static function get_usage_summary( $period ) {
-		global $wpdb;
+		public static function get_usage_summary( $period ) {
+			global $wpdb;
 
-		self::ensure_table();
-		self::purge_old_rows();
+			list( $start, $end ) = self::get_period_range( $period );
 
-		list( $start, $end ) = self::get_period_range( $period );
-
-		$summary = array(
-			'period'              => $period,
+			$summary = array(
+				'period'              => $period,
 			'period_start'        => $start->format( 'Y-m-d H:i:s' ),
 			'period_end'          => $end->format( 'Y-m-d H:i:s' ),
 			'total_tokens'        => 0,
@@ -118,23 +130,32 @@ class UsageTracker {
 			'daily_trend'         => array(),
 		);
 
-		if ( ! $wpdb ) {
-			return $summary;
-		}
+			if ( ! $wpdb ) {
+				return $summary;
+			}
 
-		$table = self::get_table_name();
+			if ( ! self::ensure_table() ) {
+				return $summary;
+			}
+
+			self::purge_old_rows();
+
+			$table = self::get_table_name();
 		// Limit results to prevent memory exhaustion from large datasets.
 		// 50,000 rows covers ~500 requests/day for 90 days with headroom.
 		$max_rows = 50000;
-		$rows  = $wpdb->get_results(
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- On-demand reporting query with a hard row limit.
+			$rows     = $wpdb->get_results(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is from $wpdb->prefix and a plugin constant.
 				"SELECT intent_type, model, input_tokens, output_tokens, created_at FROM {$table} WHERE created_at >= %s AND created_at <= %s ORDER BY created_at ASC LIMIT %d",
 				$summary['period_start'],
 				$summary['period_end'],
 				$max_rows
 			),
-			ARRAY_A
-		);
+				ARRAY_A
+			);
+			$rows = is_array( $rows ) ? $rows : array();
 
 		$daily = array();
 		$cursor = $start;
@@ -199,7 +220,7 @@ class UsageTracker {
 		usort(
 			$breakdown_list,
 			function ( $a, $b ) {
-				return ( $b['total_tokens'] ?? 0 ) <=> ( $a['total_tokens'] ?? 0 );
+				return $b['total_tokens'] <=> $a['total_tokens'];
 			}
 		);
 
@@ -236,14 +257,19 @@ class UsageTracker {
 		if ( ! function_exists( 'dbDelta' ) ) {
 			$upgrade_file = defined( 'ABSPATH' ) ? ABSPATH . 'wp-admin/includes/upgrade.php' : '';
 			if ( '' !== $upgrade_file && file_exists( $upgrade_file ) ) {
+				// phpcs:ignore WordPressVIPMinimum.Files.IncludingFile.UsingVariable -- upgrade.php path is derived from ABSPATH.
 				require_once $upgrade_file;
 			}
 		}
 
 		// Verify dbDelta is available after loading.
 		if ( ! function_exists( 'dbDelta' ) ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'AgentWP UsageTracker: dbDelta function not available.' );
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && function_exists( 'wc_get_logger' ) ) {
+				$logger = wc_get_logger();
+				$logger->warning(
+					'UsageTracker could not load dbDelta().',
+					array( 'source' => 'agentwp' )
+				);
 			}
 			return false;
 		}
@@ -267,8 +293,12 @@ class UsageTracker {
 
 		// Verify table was created.
 		if ( ! self::table_exists( $table ) ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'AgentWP UsageTracker: Failed to create table.' );
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && function_exists( 'wc_get_logger' ) ) {
+				$logger = wc_get_logger();
+				$logger->error(
+					'UsageTracker failed to create database table.',
+					array( 'source' => 'agentwp' )
+				);
 			}
 			return false;
 		}
@@ -293,6 +323,7 @@ class UsageTracker {
 		global $wpdb;
 
 		$like = $wpdb->esc_like( $table );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Schema check.
 		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $like ) );
 	}
 
@@ -365,12 +396,7 @@ class UsageTracker {
 	private static function get_period_range( $period ) {
 		$period = is_string( $period ) ? strtolower( $period ) : 'month';
 
-		try {
-			$now = new DateTimeImmutable( 'now', new DateTimeZone( 'UTC' ) );
-		} catch ( \Exception $e ) {
-			// Fallback to timestamp-based approach.
-			$now = DateTimeImmutable::createFromFormat( 'U', (string) time() );
-		}
+		$now = new DateTimeImmutable( 'now', new DateTimeZone( 'UTC' ) );
 
 		try {
 			switch ( $period ) {
@@ -419,8 +445,10 @@ class UsageTracker {
 		}
 
 		$table = self::get_table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Retention cleanup for the plugin table.
 		$wpdb->query(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is from $wpdb->prefix and a plugin constant.
 				"DELETE FROM {$table} WHERE created_at < %s",
 				$cutoff
 			)
