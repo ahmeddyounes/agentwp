@@ -1,15 +1,13 @@
 <?php
 /**
- * Handle customer profile requests.
+ * Customer profile service.
  *
- * @package AgentWP
+ * @package AgentWP\Services
  */
 
-namespace AgentWP\Handlers;
+namespace AgentWP\Services;
 
-use AgentWP\AI\Response;
-
-class CustomerHandler {
+class CustomerService {
 	const RECENT_LIMIT = 5;
 	const TOP_LIMIT    = 5;
 	const ORDER_BATCH  = 200;
@@ -21,16 +19,16 @@ class CustomerHandler {
 	 * Handle a customer profile request.
 	 *
 	 * @param array $args Request arguments.
-	 * @return Response
+	 * @return array
 	 */
-	public function handle( array $args ): Response {
+	public function handle( array $args ) {
 		if ( ! function_exists( 'wc_get_orders' ) ) {
-			return Response::error( 'WooCommerce is required to fetch customer profiles.', 400 );
+			return array( 'error' => 'WooCommerce is required.', 'code' => 400 );
 		}
 
 		$normalized = $this->normalize_args( $args );
 		if ( 0 === $normalized['customer_id'] && '' === $normalized['email'] ) {
-			return Response::error( 'Provide a customer ID or email address.', 400 );
+			return array( 'error' => 'Provide a customer ID or email.', 'code' => 400 );
 		}
 
 		$paid_statuses = $this->get_paid_statuses();
@@ -39,7 +37,7 @@ class CustomerHandler {
 		$metrics       = $this->build_metrics( $order_ids );
 		$recent_orders = $this->get_recent_orders( $normalized, $paid_statuses );
 
-		$payload = array_merge(
+		return array_merge(
 			$metrics,
 			array(
 				'customer'          => $this->build_customer_summary( $normalized, $recent_orders ),
@@ -51,8 +49,6 @@ class CustomerHandler {
 				'orders_limit'      => self::MAX_ORDER_IDS,
 			)
 		);
-
-		return Response::success( $payload );
 	}
 
 	/**
@@ -229,11 +225,13 @@ class CustomerHandler {
 		$orders = $this->batch_load_orders( $order_ids );
 
 			foreach ( $orders as $order ) {
-				if ( ! is_object( $order ) || ! method_exists( $order, 'get_total' ) ) {
+				if ( ! is_object( $order ) ) {
 					continue;
 				}
 
-			$total_spent += $this->normalize_amount( $order->get_total() );
+				if ( is_callable( array( $order, 'get_total' ) ) ) {
+					$total_spent += $this->normalize_amount( $order->get_total() );
+				}
 
 				$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
 				if ( is_object( $date_created ) && method_exists( $date_created, 'getTimestamp' ) ) {

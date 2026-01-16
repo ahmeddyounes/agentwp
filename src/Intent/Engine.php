@@ -134,15 +134,7 @@ class Engine {
 	 * @return array
 	 */
 	private function default_handlers() {
-		return array(
-			new OrderSearchHandler(),
-			new OrderRefundHandler(),
-			new OrderStatusHandler(),
-			new ProductStockHandler(),
-			new EmailDraftHandler(),
-			new AnalyticsQueryHandler(),
-			new CustomerLookupHandler(),
-		);
+		return array();
 	}
 
 	/**

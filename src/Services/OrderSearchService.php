@@ -1,19 +1,18 @@
 <?php
 /**
- * Handle order search requests.
+ * Order search service.
  *
- * @package AgentWP
+ * @package AgentWP\Services
  */
 
-namespace AgentWP\Handlers;
+namespace AgentWP\Services;
 
-use AgentWP\AI\Response;
 use AgentWP\Plugin;
 use DateTimeImmutable;
 use DateTimeZone;
 use Exception;
 
-class OrderSearchHandler {
+class OrderSearchService {
 	const DEFAULT_LIMIT = 10;
 	const CACHE_TTL     = 3600;
 	const MAX_LIMIT     = 50;
@@ -24,11 +23,11 @@ class OrderSearchHandler {
 	 * Handle an order search request.
 	 *
 	 * @param array $args Search parameters.
-	 * @return Response
+	 * @return array
 	 */
-	public function handle( array $args ): Response {
+	public function handle( array $args ) {
 		if ( ! function_exists( 'wc_get_orders' ) ) {
-			return Response::error( 'WooCommerce is required to search orders.', 400 );
+			return array( 'error' => 'WooCommerce is required.', 'code' => 400 );
 		}
 
 		$normalized = $this->normalize_args( $args );
@@ -36,26 +35,22 @@ class OrderSearchHandler {
 		$cached     = $this->read_cache( $cache_key );
 
 		if ( null !== $cached ) {
-			return Response::success(
-				array(
-					'orders' => $cached,
-					'count'  => count( $cached ),
-					'cached' => true,
-					'query'  => $this->public_query_summary( $normalized ),
-				)
+			return array(
+				'orders' => $cached,
+				'count'  => count( $cached ),
+				'cached' => true,
+				'query'  => $this->public_query_summary( $normalized ),
 			);
 		}
 
 		$orders = $this->run_query( $normalized );
 		$this->write_cache( $cache_key, $orders );
 
-		return Response::success(
-			array(
-				'orders' => $orders,
-				'count'  => count( $orders ),
-				'cached' => false,
-				'query'  => $this->public_query_summary( $normalized ),
-			)
+		return array(
+			'orders' => $orders,
+			'count'  => count( $orders ),
+			'cached' => false,
+			'query'  => $this->public_query_summary( $normalized ),
 		);
 	}
 

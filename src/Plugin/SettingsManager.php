@@ -12,7 +12,7 @@ use AgentWP\Contracts\OptionsInterface;
 /**
  * Manages plugin settings and defaults.
  */
-final class SettingsManager {
+class SettingsManager {
 
 	/**
 	 * Option keys.

@@ -94,12 +94,45 @@ final class IntentServiceProvider extends ServiceProvider {
 			return;
 		}
 
+		$this->registerHandlers();
+
 		$this->container->singleton(
 			'AgentWP\\Intent\\Engine',
 			function () {
-				return new \AgentWP\Intent\Engine();
+				$handlers = $this->container->tagged( 'intent.handler' );
+				return new \AgentWP\Intent\Engine(
+					$handlers,
+					null, // registry
+					$this->container->get( ContextBuilderInterface::class ),
+					$this->container->get( IntentClassifierInterface::class ),
+					$this->container->get( MemoryStoreInterface::class )
+				);
 			}
 		);
+	}
+
+	/**
+	 * Register intent handlers.
+	 *
+	 * @return void
+	 */
+	private function registerHandlers(): void {
+		$handlers = array(
+			\AgentWP\Intent\Handlers\OrderSearchHandler::class,
+			\AgentWP\Intent\Handlers\OrderRefundHandler::class,
+			\AgentWP\Intent\Handlers\OrderStatusHandler::class,
+			\AgentWP\Intent\Handlers\ProductStockHandler::class,
+			\AgentWP\Intent\Handlers\EmailDraftHandler::class,
+			\AgentWP\Intent\Handlers\AnalyticsQueryHandler::class,
+			\AgentWP\Intent\Handlers\CustomerLookupHandler::class,
+		);
+
+		foreach ( $handlers as $handler ) {
+			if ( class_exists( $handler ) ) {
+				$this->container->singleton( $handler, fn() => new $handler() );
+				$this->container->tag( $handler, 'intent.handler' );
+			}
+		}
 	}
 
 	/**

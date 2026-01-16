@@ -46,6 +46,7 @@ const SEARCH_PATH = '/agentwp/v1/search';
 const USAGE_PATH = '/agentwp/v1/usage';
 const SETTINGS_PATH = '/agentwp/v1/settings';
 const THEME_PATH = '/agentwp/v1/theme';
+const ANALYTICS_PATH = '/agentwp/v1/analytics';
 const HEALTH_PATH = '/agentwp/v1/health';
 const HEALTH_CHECK_INTERVAL_MS = 5000;
 const HEALTH_TIMEOUT_MS = 4000;
@@ -497,6 +498,17 @@ const getThemeEndpoint = () => {
     return THEME_PATH;
   }
   return `${root.replace(/\/$/, '')}${THEME_PATH}`;
+};
+
+const getAnalyticsEndpoint = () => {
+  if (typeof window === 'undefined') {
+    return ANALYTICS_PATH;
+  }
+  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
+  if (!root) {
+    return ANALYTICS_PATH;
+  }
+  return `${root.replace(/\/$/, '')}${ANALYTICS_PATH}`;
 };
 
 const getHealthEndpoint = () => {
@@ -1005,6 +1017,8 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
   const [lastCommandEntry, setLastCommandEntry] = useState(null);
   const [exportStatus, setExportStatus] = useState('idle');
   const [selectedPeriod, setSelectedPeriod] = useState('7d');
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [themePreference, setThemePreference] = useState(getInitialThemePreference);
   const inputRef = useRef(null);
   const modalRef = useRef(null);
@@ -1289,6 +1303,38 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
       }
     });
   }, [persistThemePreference, themePreference]);
+
+  const fetchAnalytics = useCallback(async () => {
+    const endpoint = getAnalyticsEndpoint();
+    if (!endpoint) {
+      return;
+    }
+    setIsAnalyticsLoading(true);
+    const restNonce = getRestNonce();
+    try {
+      const headers = {};
+      if (restNonce) {
+        headers['X-WP-Nonce'] = restNonce;
+      }
+      const response = await fetch(`${endpoint}?period=${selectedPeriod}`, {
+        method: 'GET',
+        headers,
+        credentials: 'same-origin',
+      });
+      const payload = await response.json();
+      if (response.ok && payload.success) {
+        setAnalyticsData(payload.data);
+      }
+    } catch (e) {
+      // Fail silently
+    } finally {
+      setIsAnalyticsLoading(false);
+    }
+  }, [selectedPeriod]);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
 
   const refreshUsage = useCallback(async () => {
     const endpoint = getUsageEndpoint();
@@ -2504,8 +2550,8 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
   const isDarkTheme = resolvedTheme === 'dark';
   const themeToggleLabel = isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode';
   const periodData = useMemo(
-    () => ANALYTICS_DATA[selectedPeriod] || ANALYTICS_DATA['7d'],
-    [selectedPeriod]
+    () => analyticsData || ANALYTICS_DATA[selectedPeriod] || ANALYTICS_DATA['7d'],
+    [analyticsData, selectedPeriod]
   );
   const chartPalette = useMemo(
     () =>

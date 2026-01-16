@@ -21,6 +21,7 @@ use AgentWP\Providers\HandlerServiceProvider;
 use AgentWP\Providers\InfrastructureServiceProvider;
 use AgentWP\Providers\IntentServiceProvider;
 use AgentWP\Providers\RestServiceProvider;
+use AgentWP\Providers\ServicesServiceProvider;
 
 class Plugin {
 	const OPTION_SETTINGS     = 'agentwp_settings';
@@ -172,9 +173,9 @@ class Plugin {
 		$this->providers = array(
 			new CoreServiceProvider( $this->container ),
 			new InfrastructureServiceProvider( $this->container ),
+			new ServicesServiceProvider( $this->container ),
 			new RestServiceProvider( $this->container ),
 			new IntentServiceProvider( $this->container ),
-			new HandlerServiceProvider( $this->container ),
 		);
 
 		foreach ( $this->providers as $provider ) {
