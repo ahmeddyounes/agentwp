@@ -59,6 +59,39 @@ final class ServiceResult {
 	}
 
 	/**
+	 * Alias for failure() for better semantic clarity.
+	 *
+	 * Use this method when you want to explicitly indicate an error condition.
+	 * The method is semantically equivalent to failure() but can make code more readable.
+	 *
+	 * Usage examples:
+	 * ```php
+	 * // Validation errors
+	 * return ServiceResult::error('Invalid email address', 422);
+	 *
+	 * // Not found errors
+	 * return ServiceResult::error('Resource not found', 404);
+	 *
+	 * // Server errors
+	 * return ServiceResult::error('Database connection failed', 500);
+	 *
+	 * // With additional context
+	 * return ServiceResult::error('Payment failed', 402, [
+	 *     'transaction_id' => $txn->id,
+	 *     'reason' => 'insufficient_funds'
+	 * ]);
+	 * ```
+	 *
+	 * @param string $message Error message.
+	 * @param int    $code    HTTP-style error code (default: 400).
+	 * @param array  $data    Additional error context (default: empty array).
+	 * @return self Service result instance.
+	 */
+	public static function error( string $message, int $code = 400, array $data = array() ): self {
+		return self::failure( $message, $code, $data );
+	}
+
+	/**
 	 * Create a not found result.
 	 *
 	 * @param string $message Not found message.

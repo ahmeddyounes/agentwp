@@ -30,6 +30,15 @@ abstract class BaseHandler implements Handler {
 	}
 
 	/**
+	 * Get the intent this handler can process.
+	 *
+	 * @return string The intent identifier.
+	 */
+	public function getIntent(): string {
+		return $this->intent;
+	}
+
+	/**
 	 * @param array  $context Context data.
 	 * @param string $message Response message.
 	 * @param array  $data Additional payload data.

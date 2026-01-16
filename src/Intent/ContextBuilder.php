@@ -8,8 +8,30 @@
 namespace AgentWP\Intent;
 
 use AgentWP\Contracts\ContextBuilderInterface;
+use AgentWP\Intent\ContextProviders\ContextProviderInterface;
+use AgentWP\Intent\ContextProviders\UserContextProvider;
+use AgentWP\Intent\ContextProviders\OrderContextProvider;
+use AgentWP\Intent\ContextProviders\StoreContextProvider;
 
 class ContextBuilder implements ContextBuilderInterface {
+	/**
+	 * @var ContextProviderInterface[]
+	 */
+	private array $providers = array();
+
+	/**
+	 * Create a new ContextBuilder.
+	 *
+	 * @param ContextProviderInterface[] $providers Optional context providers.
+	 */
+	public function __construct( array $providers = array() ) {
+		if ( empty( $providers ) ) {
+			$providers = $this->default_providers();
+		}
+
+		$this->providers = $providers;
+	}
+
 	/**
 	 * Build context with store and user data.
 	 *
@@ -18,120 +40,68 @@ class ContextBuilder implements ContextBuilderInterface {
 	 * @return array
 	 */
 	public function build( array $context = array(), array $metadata = array() ): array {
-		return array(
-			'request'       => $context,
-			'metadata'      => $metadata,
-			'user'          => $this->get_user_context(),
-			'recent_orders' => $this->get_recent_orders(),
-			'store'         => $this->get_store_context(),
+		$enriched = array(
+			'request'  => $context,
+			'metadata' => $metadata,
 		);
-	}
 
-	/**
-	 * @return array
-	 */
-	private function get_user_context(): array {
-		if ( ! function_exists( 'wp_get_current_user' ) ) {
-			return array();
-		}
+		// Apply all context providers.
+		foreach ( $this->providers as $key => $provider ) {
+			if ( $provider instanceof ContextProviderInterface ) {
+				$provider_context = $provider->provide( $context, $metadata );
 
-			$user = wp_get_current_user();
-			if ( 0 === intval( $user->ID ) ) {
-				return array();
+				// Use provider's class name as key if not set, or use specified key.
+				$context_key = is_string( $key ) ? $key : $this->get_provider_key( $provider );
+				$enriched[ $context_key ] = $provider_context;
 			}
+		}
 
+		return $enriched;
+	}
+
+	/**
+	 * Add a context provider.
+	 *
+	 * @param string                    $key Provider key.
+	 * @param ContextProviderInterface $provider Provider instance.
+	 * @return void
+	 * @throws \InvalidArgumentException If key is empty.
+	 */
+	public function add_provider( string $key, ContextProviderInterface $provider ): void {
+		if ( empty( $key ) ) {
+			throw new \InvalidArgumentException( 'Provider key cannot be empty' );
+		}
+
+		$this->providers[ $key ] = $provider;
+	}
+
+	/**
+	 * Get the default context providers.
+	 *
+	 * @return ContextProviderInterface[]
+	 */
+	private function default_providers(): array {
 		return array(
-			'id'           => intval( $user->ID ),
-			'display_name' => sanitize_text_field( $user->display_name ),
-			'email'        => sanitize_email( $user->user_email ),
-			'roles'        => is_array( $user->roles ) ? array_values( $user->roles ) : array(),
+			'user'          => new UserContextProvider(),
+			'recent_orders' => new OrderContextProvider(),
+			'store'         => new StoreContextProvider(),
 		);
 	}
 
 	/**
-	 * @return array
+	 * Get the context key for a provider based on its class name.
+	 *
+	 * @param ContextProviderInterface $provider Provider instance.
+	 * @return string Context key.
 	 */
-	private function get_recent_orders(): array {
-		if ( ! function_exists( 'wc_get_orders' ) || ! function_exists( 'wc_get_order' ) ) {
-			return array();
-		}
+	private function get_provider_key( ContextProviderInterface $provider ): string {
+		$class_name = get_class( $provider );
 
-		$orders = wc_get_orders(
-			array(
-				'limit'   => 5,
-				'orderby' => 'date',
-				'order'   => 'DESC',
-				'return'  => 'ids',
-			)
-		);
+		// Convert class name to key (e.g., UserContextProvider -> user).
+		$short_name = basename( str_replace( '\\', '/', $class_name ) );
+		$key        = strtolower( preg_replace( '/([a-z])([A-Z])/', '$1_$2', $short_name ) );
+		$key        = str_replace( '_context_provider', '', $key );
 
-		if ( ! is_array( $orders ) ) {
-			return array();
-		}
-
-			$summary = array();
-			foreach ( $orders as $order_id ) {
-				$order = wc_get_order( $order_id );
-				if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
-					continue;
-				}
-
-				$status   = method_exists( $order, 'get_status' ) ? $order->get_status() : '';
-				$currency = method_exists( $order, 'get_currency' ) ? $order->get_currency() : '';
-
-				$total_raw = method_exists( $order, 'get_total' ) ? $order->get_total() : 0;
-				$total     = is_numeric( $total_raw ) ? (float) $total_raw : 0.0;
-
-				$date_created     = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
-				$date_created_iso = '';
-				if ( is_object( $date_created ) && method_exists( $date_created, 'date' ) ) {
-					$date_created_iso = $date_created->date( 'c' );
-				}
-
-				$summary[] = array(
-					'id'           => intval( $order->get_id() ),
-					'status'       => sanitize_text_field( (string) $status ),
-					'total'        => $total,
-					'currency'     => sanitize_text_field( (string) $currency ),
-					'date_created' => $date_created_iso,
-					'customer_id'  => method_exists( $order, 'get_customer_id' ) ? intval( $order->get_customer_id() ) : 0,
-					'email'        => method_exists( $order, 'get_billing_email' ) ? sanitize_email( $order->get_billing_email() ) : '',
-				);
-			}
-
-		return $summary;
-	}
-
-	/**
-	 * @return array
-	 */
-	private function get_store_context(): array {
-		$timezone = '';
-
-		if ( function_exists( 'wp_timezone_string' ) ) {
-			$timezone = wp_timezone_string();
-		}
-
-		if ( '' === $timezone && function_exists( 'get_option' ) ) {
-			$timezone = (string) get_option( 'timezone_string' );
-		}
-
-		if ( '' === $timezone && function_exists( 'get_option' ) ) {
-			$offset   = (float) get_option( 'gmt_offset' );
-			$sign     = $offset >= 0 ? '+' : '-';
-			$timezone = sprintf( 'UTC%s%s', $sign, abs( $offset ) );
-		}
-
-		$currency = '';
-		if ( function_exists( 'get_woocommerce_currency' ) ) {
-			$currency = get_woocommerce_currency();
-		} elseif ( function_exists( 'get_option' ) ) {
-			$currency = (string) get_option( 'woocommerce_currency' );
-		}
-
-		return array(
-			'timezone' => sanitize_text_field( $timezone ),
-			'currency' => sanitize_text_field( $currency ),
-		);
+		return $key;
 	}
 }

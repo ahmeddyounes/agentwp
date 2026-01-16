@@ -91,13 +91,26 @@ class Intent {
 	}
 
 	/**
+	 * Normalize an intent value.
+	 *
 	 * @param string $intent Intent value.
-	 * @return string
+	 * @return string Normalized intent or UNKNOWN.
 	 */
 	public static function normalize( $intent ) {
 		$intent = is_string( $intent ) ? strtoupper( trim( $intent ) ) : '';
+
 		if ( in_array( $intent, self::all(), true ) ) {
 			return $intent;
+		}
+
+		// Log warning for non-empty, non-UNKNOWN intents that failed normalization.
+		// This helps catch typos during development (e.g., 'ODER_SEARCH' instead of 'ORDER_SEARCH').
+		if ( $intent !== '' && $intent !== self::UNKNOWN ) {
+			error_log( sprintf(
+				'Intent Normalization: Unknown intent "%s" detected, normalizing to UNKNOWN. Valid intents: %s',
+				$intent,
+				implode( ', ', self::all() )
+			) );
 		}
 
 		return self::UNKNOWN;

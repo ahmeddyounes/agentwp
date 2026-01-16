@@ -1,4 +1,4 @@
-7<?php
+<?php
 /**
  * Centralized configuration for AgentWP.
  *
@@ -19,6 +19,42 @@ final class AgentWPConfig {
 	 * Agentic loop settings.
 	 */
 	public const AGENTIC_MAX_TURNS = 5;
+
+	/**
+	 * Intent classification weights.
+	 * These weights determine how strongly different intents are scored
+	 * during intent classification. Higher values mean stronger bias.
+	 */
+	public const INTENT_WEIGHT_ORDER_SEARCH    = 1.0;
+	public const INTENT_WEIGHT_ORDER_REFUND    = 1.0;
+	public const INTENT_WEIGHT_ORDER_STATUS    = 1.0;
+	public const INTENT_WEIGHT_PRODUCT_STOCK   = 1.0;
+	public const INTENT_WEIGHT_EMAIL_DRAFT     = 1.0;
+	public const INTENT_WEIGHT_ANALYTICS_QUERY = 1.0;
+	public const INTENT_WEIGHT_CUSTOMER_LOOKUP = 1.0;
+
+	/**
+	 * Customer health score weights.
+	 * These weights determine the importance of different factors
+	 * when calculating customer health scores.
+	 */
+	public const HEALTH_WEIGHT_RECENCY   = 0.5;  // Order recency influence
+	public const HEALTH_WEIGHT_FREQUENCY = 0.3;  // Order frequency influence
+	public const HEALTH_WEIGHT_VALUE     = 0.2;  // Order value influence
+
+	/**
+	 * Intent classification thresholds.
+	 * Minimum confidence scores for automatic intent classification.
+	 */
+	public const CONFIDENCE_THRESHOLD_HIGH   = 0.85; // High confidence threshold
+	public const CONFIDENCE_THRESHOLD_MEDIUM = 0.70; // Medium confidence threshold
+	public const CONFIDENCE_THRESHOLD_LOW    = 0.55; // Low confidence threshold
+
+	/**
+	 * Intent similarity threshold.
+	 * Minimum similarity score for intent matching.
+	 */
+	public const INTENT_SIMILARITY_THRESHOLD = 0.6;
 
 	/**
 	 * Cache TTL settings (in seconds).
@@ -84,25 +120,42 @@ final class AgentWPConfig {
 	 */
 	public static function get( string $key, $default = null ) {
 		$map = array(
-			'agentic.max_turns'            => self::AGENTIC_MAX_TURNS,
-			'cache.ttl.default'            => self::CACHE_TTL_DEFAULT,
-			'cache.ttl.short'              => self::CACHE_TTL_SHORT,
-			'cache.ttl.draft'              => self::CACHE_TTL_DRAFT,
-			'order_search.default_limit'   => self::ORDER_SEARCH_DEFAULT_LIMIT,
-			'order_search.max_limit'       => self::ORDER_SEARCH_MAX_LIMIT,
-			'customer.recent_limit'        => self::CUSTOMER_RECENT_LIMIT,
-			'customer.top_limit'           => self::CUSTOMER_TOP_LIMIT,
-			'customer.order_batch'         => self::CUSTOMER_ORDER_BATCH,
-			'customer.max_order_ids'       => self::CUSTOMER_MAX_ORDER_IDS,
-			'health.active_days'           => self::HEALTH_ACTIVE_DAYS,
-			'health.at_risk_days'          => self::HEALTH_AT_RISK_DAYS,
-			'api.timeout.default'          => self::API_TIMEOUT_DEFAULT,
-			'api.timeout.min'              => self::API_TIMEOUT_MIN,
-			'api.timeout.max'              => self::API_TIMEOUT_MAX,
-			'api.max_retries'              => self::API_MAX_RETRIES,
-			'api.initial_delay'            => self::API_INITIAL_DELAY,
-			'api.max_delay'                => self::API_MAX_DELAY,
-			'order_status.max_bulk'        => self::ORDER_STATUS_MAX_BULK,
+			'agentic.max_turns'              => self::AGENTIC_MAX_TURNS,
+			'cache.ttl.default'              => self::CACHE_TTL_DEFAULT,
+			'cache.ttl.short'                => self::CACHE_TTL_SHORT,
+			'cache.ttl.draft'                => self::CACHE_TTL_DRAFT,
+			'order_search.default_limit'     => self::ORDER_SEARCH_DEFAULT_LIMIT,
+			'order_search.max_limit'         => self::ORDER_SEARCH_MAX_LIMIT,
+			'customer.recent_limit'          => self::CUSTOMER_RECENT_LIMIT,
+			'customer.top_limit'             => self::CUSTOMER_TOP_LIMIT,
+			'customer.order_batch'           => self::CUSTOMER_ORDER_BATCH,
+			'customer.max_order_ids'         => self::CUSTOMER_MAX_ORDER_IDS,
+			'health.active_days'             => self::HEALTH_ACTIVE_DAYS,
+			'health.at_risk_days'            => self::HEALTH_AT_RISK_DAYS,
+			'api.timeout.default'            => self::API_TIMEOUT_DEFAULT,
+			'api.timeout.min'                => self::API_TIMEOUT_MIN,
+			'api.timeout.max'                => self::API_TIMEOUT_MAX,
+			'api.max_retries'                => self::API_MAX_RETRIES,
+			'api.initial_delay'              => self::API_INITIAL_DELAY,
+			'api.max_delay'                  => self::API_MAX_DELAY,
+			'order_status.max_bulk'          => self::ORDER_STATUS_MAX_BULK,
+			// Intent classification weights.
+			'intent.weight.order_search'     => self::INTENT_WEIGHT_ORDER_SEARCH,
+			'intent.weight.order_refund'     => self::INTENT_WEIGHT_ORDER_REFUND,
+			'intent.weight.order_status'     => self::INTENT_WEIGHT_ORDER_STATUS,
+			'intent.weight.product_stock'    => self::INTENT_WEIGHT_PRODUCT_STOCK,
+			'intent.weight.email_draft'      => self::INTENT_WEIGHT_EMAIL_DRAFT,
+			'intent.weight.analytics_query'  => self::INTENT_WEIGHT_ANALYTICS_QUERY,
+			'intent.weight.customer_lookup'  => self::INTENT_WEIGHT_CUSTOMER_LOOKUP,
+			// Customer health weights.
+			'health.weight.recency'          => self::HEALTH_WEIGHT_RECENCY,
+			'health.weight.frequency'        => self::HEALTH_WEIGHT_FREQUENCY,
+			'health.weight.value'            => self::HEALTH_WEIGHT_VALUE,
+			// Classification thresholds.
+			'confidence.threshold.high'      => self::CONFIDENCE_THRESHOLD_HIGH,
+			'confidence.threshold.medium'    => self::CONFIDENCE_THRESHOLD_MEDIUM,
+			'confidence.threshold.low'       => self::CONFIDENCE_THRESHOLD_LOW,
+			'intent.similarity_threshold'    => self::INTENT_SIMILARITY_THRESHOLD,
 		);
 
 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;

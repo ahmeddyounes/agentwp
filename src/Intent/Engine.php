@@ -9,6 +9,7 @@ namespace AgentWP\Intent;
 
 use AgentWP\AI\Response;
 use AgentWP\Contracts\MemoryStoreInterface;
+use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Handlers\AnalyticsQueryHandler;
 use AgentWP\Intent\Handlers\CustomerLookupHandler;
 use AgentWP\Intent\Handlers\EmailDraftHandler;
@@ -40,6 +41,11 @@ class Engine {
 	private $function_registry;
 
 	/**
+	 * @var HandlerRegistry
+	 */
+	private $handler_registry;
+
+	/**
 	 * @var Handler[]
 	 */
 	private $handlers = array();
@@ -49,35 +55,116 @@ class Engine {
 	 */
 	private $fallback_handler;
 
-		/**
-		 * @param array                             $handlers          Optional handlers.
-		 * @param FunctionRegistry|null             $function_registry Optional registry.
-		 * @param ContextBuilder|null               $context_builder   Optional context builder.
-		 * @param IntentClassifier|null             $classifier        Optional classifier.
-		 * @param MemoryStoreInterface|MemoryStore|null $memory        Optional memory store.
-		 */
+	/**
+	 * Flag to track if we need fallback lookup.
+	 * Set to true when any handler lacks explicit intent registration.
+	 *
+	 * @var bool
+	 */
+	private $needs_fallback_lookup = false;
+
+	/**
+	 * @param array                             $handlers          Optional handlers.
+	 * @param FunctionRegistry|null             $function_registry Optional registry.
+	 * @param ContextBuilder|null               $context_builder   Optional context builder.
+	 * @param IntentClassifier|null             $classifier        Optional classifier.
+	 * @param MemoryStoreInterface|MemoryStore|null $memory        Optional memory store.
+	 * @param HandlerRegistry|null              $handler_registry  Optional handler registry.
+	 */
 	public function __construct(
 		array $handlers = array(),
 		?FunctionRegistry $function_registry = null,
 		?ContextBuilder $context_builder = null,
 		?IntentClassifier $classifier = null,
-		MemoryStoreInterface|MemoryStore|null $memory = null
+		MemoryStoreInterface|MemoryStore|null $memory = null,
+		?HandlerRegistry $handler_registry = null
 	) {
-		$this->classifier      = $classifier ? $classifier : new IntentClassifier();
-		$this->context_builder = $context_builder ? $context_builder : new ContextBuilder();
-		$this->memory          = $memory ? $memory : new MemoryStore( 5 );
+		$this->classifier        = $classifier ? $classifier : new IntentClassifier();
+		$this->context_builder   = $context_builder ? $context_builder : new ContextBuilder();
+		$this->memory            = $memory ? $memory : new MemoryStore( 5 );
 		$this->function_registry = $function_registry ? $function_registry : new FunctionRegistry();
+		$this->handler_registry  = $handler_registry ? $handler_registry : new HandlerRegistry();
 		$this->fallback_handler  = new FallbackHandler();
 
 		$resolved_handlers = ! empty( $handlers ) ? $handlers : $this->default_handlers();
 		if ( function_exists( 'apply_filters' ) ) {
 			$resolved_handlers = apply_filters( 'agentwp_intent_handlers', $resolved_handlers, $this );
 		}
-		$this->handlers = is_array( $resolved_handlers ) ? $resolved_handlers : array();
+
+		$this->register_handlers( is_array( $resolved_handlers ) ? $resolved_handlers : array() );
 		$this->register_default_functions();
+
 		if ( function_exists( 'do_action' ) ) {
 			do_action( 'agentwp_register_intent_functions', $this->function_registry, $this );
 		}
+	}
+
+	/**
+	 * Register handlers with the registry.
+	 *
+	 * For backward compatibility, this also maintains a list of handlers
+	 * for fallback O(n) lookup when HandlerRegistry doesn't have the intent.
+	 *
+	 * @param Handler[] $handlers Array of handlers to register.
+	 * @return void
+	 */
+	private function register_handlers( array $handlers ): void {
+		foreach ( $handlers as $handler ) {
+			if ( $handler instanceof Handler ) {
+				// Store handler for potential fallback lookup.
+				$this->handlers[] = $handler;
+
+				// Get supported intents from the handler.
+				$intents = $this->get_handler_intents( $handler );
+
+				if ( ! empty( $intents ) ) {
+					// Register with explicit intents from attribute or method.
+					$this->handler_registry->register( $intents, $handler );
+				} else {
+					// Handler has no explicit intent registration - need fallback.
+					$this->needs_fallback_lookup = true;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Get intents supported by a handler.
+	 *
+	 * @param Handler $handler Handler instance.
+	 * @return string[] Array of intent identifiers.
+	 */
+	private function get_handler_intents( Handler $handler ): array {
+		try {
+			// Try to get intents from HandlesIntent attribute.
+			$reflection = new \ReflectionClass( $handler );
+
+			$attributes = $reflection->getAttributes( HandlesIntent::class );
+			if ( ! empty( $attributes ) ) {
+				$attribute = $attributes[0]->newInstance();
+				return $attribute->getIntents();
+			}
+		} catch ( \ReflectionException $e ) {
+			// Reflection failed - fall through to other detection methods.
+			error_log( sprintf(
+				'Engine: Reflection failed for handler %s: %s',
+				get_class( $handler ),
+				$e->getMessage()
+			) );
+		}
+
+		// Fallback 1: Try to get intents from getSupportedIntents() method.
+		if ( method_exists( $handler, 'getSupportedIntents' ) ) {
+			return $handler->getSupportedIntents();
+		}
+
+		// Fallback 2: Try to get intent from BaseHandler using public getter.
+		// This maintains backward compatibility with existing handlers.
+		if ( method_exists( $handler, 'getIntent' ) ) {
+			return array( $handler->getIntent() );
+		}
+
+		return array();
 	}
 
 	/**
@@ -142,13 +229,35 @@ class Engine {
 	 * @return Handler
 	 */
 	private function resolve_handler( $intent ) {
-		foreach ( $this->handlers as $handler ) {
-			if ( $handler instanceof Handler && $handler->canHandle( $intent ) ) {
-				return $handler;
+		// Try O(1) lookup using HandlerRegistry first.
+		$handler = $this->handler_registry->get( $intent );
+
+		if ( null !== $handler ) {
+			return $handler;
+		}
+
+		// Fallback: O(n) linear search for backward compatibility.
+		// Only runs if we have handlers that weren't registered with explicit intents.
+		if ( $this->needs_fallback_lookup ) {
+			foreach ( $this->handlers as $handler ) {
+				if ( $handler instanceof Handler && $handler->canHandle( $intent ) ) {
+					return $handler;
+				}
 			}
 		}
 
 		return $this->fallback_handler;
+	}
+
+	/**
+	 * Get the handler registry.
+	 *
+	 * Allows external code to inspect and modify registered handlers.
+	 *
+	 * @return HandlerRegistry The handler registry.
+	 */
+	public function get_handler_registry(): HandlerRegistry {
+		return $this->handler_registry;
 	}
 
 	/**
