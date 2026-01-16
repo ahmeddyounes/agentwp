@@ -7,173 +7,89 @@
 
 namespace AgentWP\Intent\Handlers;
 
-use AgentWP\AI\OpenAIClient;
-use AgentWP\AI\Response;
 use AgentWP\AI\Functions\PrepareStatusUpdate;
 use AgentWP\AI\Functions\PrepareBulkStatusUpdate;
 use AgentWP\AI\Functions\ConfirmStatusUpdate;
-use AgentWP\Contracts\ToolExecutorInterface;
+use AgentWP\Contracts\AIClientFactoryInterface;
+use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Intent\Intent;
-use AgentWP\Plugin;
-use AgentWP\Plugin\SettingsManager;
-use AgentWP\Services\OrderStatusService;
 
-class OrderStatusHandler extends BaseHandler implements ToolExecutorInterface {
-	/**
-	 * @var OrderStatusService|null
-	 */
-	private $service;
+/**
+ * Handles order status intents using the agentic loop.
+ */
+class OrderStatusHandler extends AbstractAgenticHandler {
 
 	/**
-	 * @var SettingsManager|null
+	 * @var OrderStatusServiceInterface
 	 */
-	private $settings;
+	private OrderStatusServiceInterface $service;
 
 	/**
 	 * Initialize order status intent handler.
 	 *
-	 * @return void
+	 * @param OrderStatusServiceInterface $service       Status service.
+	 * @param AIClientFactoryInterface    $clientFactory AI client factory.
 	 */
-	public function __construct() {
-		parent::__construct( Intent::ORDER_STATUS );
+	public function __construct(
+		OrderStatusServiceInterface $service,
+		AIClientFactoryInterface $clientFactory
+	) {
+		parent::__construct( Intent::ORDER_STATUS, $clientFactory );
+		$this->service = $service;
 	}
 
 	/**
-	 * Get order status service (lazy-loaded).
+	 * Get the system prompt for status handling.
 	 *
-	 * @return OrderStatusService
+	 * @return string
 	 */
-	protected function get_service() {
-		if ( ! $this->service ) {
-			$container = Plugin::container();
-			if ( $container && $container->has( OrderStatusService::class ) ) {
-				$this->service = $container->get( OrderStatusService::class );
-			} else {
-				$this->service = new OrderStatusService();
-			}
-		}
-		return $this->service;
+	protected function getSystemPrompt(): string {
+		return 'You are an expert WooCommerce assistant. You can check and update order statuses (single or bulk). Always prepare updates first.';
 	}
 
 	/**
-	 * Get settings manager (lazy-loaded).
+	 * Get the tools available for status handling.
 	 *
-	 * @return SettingsManager|null
+	 * @return array
 	 */
-	protected function get_settings() {
-		if ( ! $this->settings ) {
-			$container = Plugin::container();
-			if ( $container && $container->has( SettingsManager::class ) ) {
-				$this->settings = $container->get( SettingsManager::class );
-			}
-		}
-		return $this->settings;
+	protected function getTools(): array {
+		return array( new PrepareStatusUpdate(), new PrepareBulkStatusUpdate(), new ConfirmStatusUpdate() );
 	}
 
 	/**
-	 * Create OpenAI client.
+	 * Get the default input for status operations.
 	 *
-	 * @param string $api_key API key.
-	 * @return OpenAIClient
+	 * @return string
 	 */
-	protected function create_client( string $api_key ): OpenAIClient {
-		return new OpenAIClient( $api_key );
+	protected function getDefaultInput(): string {
+		return 'Check order status';
 	}
 
 	/**
-	 * @param array $context Context data.
-	 * @return Response
-	 */
-	public function handle( array $context ): Response {
-		$settings = $this->get_settings();
-		$api_key  = $settings ? $settings->getApiKey() : '';
-
-		if ( empty( $api_key ) ) {
-			return Response::error( 'OpenAI API key is missing.', 401 );
-		}
-
-		$client = $this->create_client( $api_key );
-		$tools  = array( new PrepareStatusUpdate(), new PrepareBulkStatusUpdate(), new ConfirmStatusUpdate() );
-
-		$messages = array();
-		$messages[] = array(
-			'role'    => 'system',
-			'content' => 'You are an expert WooCommerce assistant. You can check and update order statuses (single or bulk). Always prepare updates first.',
-		);
-		$messages[] = array(
-			'role'    => 'user',
-			'content' => isset( $context['input'] ) ? $context['input'] : 'Update order status',
-		);
-
-		for ( $i = 0; $i < 5; $i++ ) {
-			$response = $client->chat( $messages, $tools );
-
-			if ( ! $response->is_success() ) {
-				return $response;
-			}
-
-			$data       = $response->get_data();
-			$content    = isset( $data['content'] ) ? $data['content'] : '';
-			$tool_calls = isset( $data['tool_calls'] ) ? $data['tool_calls'] : array();
-
-			$assistant_msg = array(
-				'role'    => 'assistant',
-				'content' => $content,
-			);
-			if ( ! empty( $tool_calls ) ) {
-				$assistant_msg['tool_calls'] = $tool_calls;
-			}
-			$messages[] = $assistant_msg;
-
-			if ( empty( $tool_calls ) ) {
-				return $this->build_response( $context, $content );
-			}
-
-			foreach ( $tool_calls as $call ) {
-				$name      = isset( $call['function']['name'] ) ? $call['function']['name'] : '';
-				$args_json = isset( $call['function']['arguments'] ) ? $call['function']['arguments'] : '{}';
-				$args      = json_decode( $args_json, true );
-
-				$result = $this->execute_tool( $name, $args );
-
-				$messages[] = array(
-					'role'         => 'tool',
-					'tool_call_id' => $call['id'],
-					'content'      => wp_json_encode( $result ),
-				);
-			}
-		}
-
-		return Response::error( 'I got stuck.', 500 );
-	}
-
-	/**
-	 * Execute tool.
+	 * Execute a named tool with arguments.
 	 *
-	 * @param string $name Tool name.
-	 * @param array  $arguments Arguments.
-	 * @return mixed
+	 * @param string $name      Tool name.
+	 * @param array  $arguments Tool arguments.
+	 * @return mixed Tool execution result.
 	 */
 	public function execute_tool( string $name, array $arguments ) {
-		$service = $this->get_service();
-
 		switch ( $name ) {
 			case 'prepare_status_update':
-				$order_id = $arguments['order_id'] ?? 0;
-				$status   = $arguments['new_status'] ?? '';
-				$note     = $arguments['note'] ?? '';
-				$notify   = $arguments['notify_customer'] ?? false;
-				return $service->prepare_update( $order_id, $status, $note, $notify );
+				$order_id = isset( $arguments['order_id'] ) ? (int) $arguments['order_id'] : 0;
+				$status   = isset( $arguments['new_status'] ) ? (string) $arguments['new_status'] : '';
+				$note     = isset( $arguments['note'] ) ? (string) $arguments['note'] : '';
+				$notify   = isset( $arguments['notify_customer'] ) ? (bool) $arguments['notify_customer'] : false;
+				return $this->service->prepare_update( $order_id, $status, $note, $notify );
 
 			case 'prepare_bulk_status_update':
-				$order_ids = $arguments['order_ids'] ?? array();
-				$status    = $arguments['new_status'] ?? '';
-				$notify    = $arguments['notify_customer'] ?? false;
-				return $service->prepare_bulk_update( $order_ids, $status, $notify );
+				$order_ids = isset( $arguments['order_ids'] ) ? array_map( 'intval', (array) $arguments['order_ids'] ) : array();
+				$status    = isset( $arguments['new_status'] ) ? (string) $arguments['new_status'] : '';
+				$notify    = isset( $arguments['notify_customer'] ) ? (bool) $arguments['notify_customer'] : false;
+				return $this->service->prepare_bulk_update( $order_ids, $status, $notify );
 
 			case 'confirm_status_update':
-				$draft_id = $arguments['draft_id'] ?? '';
-				return $service->confirm_update( $draft_id );
+				$draft_id = isset( $arguments['draft_id'] ) ? (string) $arguments['draft_id'] : '';
+				return $this->service->confirm_update( $draft_id );
 
 			default:
 				return array( 'error' => "Unknown tool: {$name}" );

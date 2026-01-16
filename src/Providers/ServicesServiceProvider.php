@@ -8,8 +8,17 @@
 namespace AgentWP\Providers;
 
 use AgentWP\Container\ServiceProvider;
-use AgentWP\Infrastructure\WooCommerceOrderRepository;
+use AgentWP\Contracts\AnalyticsServiceInterface;
+use AgentWP\Contracts\CustomerServiceInterface;
+use AgentWP\Contracts\DraftStorageInterface;
+use AgentWP\Contracts\EmailDraftServiceInterface;
+use AgentWP\Contracts\OrderRefundServiceInterface;
+use AgentWP\Contracts\OrderRepositoryInterface;
+use AgentWP\Contracts\OrderSearchServiceInterface;
+use AgentWP\Contracts\OrderStatusServiceInterface;
+use AgentWP\Contracts\ProductStockServiceInterface;
 use AgentWP\Services\AnalyticsService;
+use AgentWP\Services\EmailDraftService;
 use AgentWP\Services\OrderRefundService;
 use AgentWP\Services\OrderStatusService;
 use AgentWP\Services\ProductStockService;
@@ -33,6 +42,7 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->registerProductStockService();
 		$this->registerCustomerService();
 		$this->registerOrderSearchService();
+		$this->registerEmailDraftService();
 	}
 
 	/**
@@ -41,7 +51,10 @@ final class ServicesServiceProvider extends ServiceProvider {
 	 * @return void
 	 */
 	private function registerOrderSearchService(): void {
-		$this->container->singleton( OrderSearchService::class, fn() => new OrderSearchService() );
+		$this->container->singleton(
+			OrderSearchServiceInterface::class,
+			fn() => new OrderSearchService()
+		);
 	}
 
 	/**
@@ -50,7 +63,10 @@ final class ServicesServiceProvider extends ServiceProvider {
 	 * @return void
 	 */
 	private function registerCustomerService(): void {
-		$this->container->singleton( CustomerService::class, fn() => new CustomerService() );
+		$this->container->singleton(
+			CustomerServiceInterface::class,
+			fn() => new CustomerService()
+		);
 	}
 
 	/**
@@ -59,7 +75,12 @@ final class ServicesServiceProvider extends ServiceProvider {
 	 * @return void
 	 */
 	private function registerProductStockService(): void {
-		$this->container->singleton( ProductStockService::class, fn() => new ProductStockService() );
+		$this->container->singleton(
+			ProductStockServiceInterface::class,
+			fn( $c ) => new ProductStockService(
+				$c->has( DraftStorageInterface::class ) ? $c->get( DraftStorageInterface::class ) : null
+			)
+		);
 	}
 
 	/**
@@ -68,7 +89,12 @@ final class ServicesServiceProvider extends ServiceProvider {
 	 * @return void
 	 */
 	private function registerOrderStatusService(): void {
-		$this->container->singleton( OrderStatusService::class, fn() => new OrderStatusService() );
+		$this->container->singleton(
+			OrderStatusServiceInterface::class,
+			fn( $c ) => new OrderStatusService(
+				$c->has( DraftStorageInterface::class ) ? $c->get( DraftStorageInterface::class ) : null
+			)
+		);
 	}
 
 	/**
@@ -77,7 +103,10 @@ final class ServicesServiceProvider extends ServiceProvider {
 	 * @return void
 	 */
 	private function registerAnalyticsService(): void {
-		$this->container->singleton( AnalyticsService::class, fn() => new AnalyticsService() );
+		$this->container->singleton(
+			AnalyticsServiceInterface::class,
+			fn() => new AnalyticsService()
+		);
 	}
 
 	/**
@@ -87,15 +116,24 @@ final class ServicesServiceProvider extends ServiceProvider {
 	 */
 	private function registerOrderRefundService(): void {
 		$this->container->singleton(
-			OrderRefundService::class,
-			function () {
-				$repo = null;
-				// If Repo is registered, use it, otherwise new one (which falls back to global WC functions)
-				if ( $this->container->has( WooCommerceOrderRepository::class ) ) {
-					$repo = $this->container->get( WooCommerceOrderRepository::class );
-				}
-				return new OrderRefundService( $repo );
-			}
+			OrderRefundServiceInterface::class,
+			fn( $c ) => new OrderRefundService(
+				$c->has( DraftStorageInterface::class ) ? $c->get( DraftStorageInterface::class ) : null
+			)
+		);
+	}
+
+	/**
+	 * Register email draft service.
+	 *
+	 * @return void
+	 */
+	private function registerEmailDraftService(): void {
+		$this->container->singleton(
+			EmailDraftServiceInterface::class,
+			fn( $c ) => new EmailDraftService(
+				$c->has( OrderRepositoryInterface::class ) ? $c->get( OrderRepositoryInterface::class ) : null
+			)
 		);
 	}
 }

@@ -7,151 +7,60 @@
 
 namespace AgentWP\Intent\Handlers;
 
-use AgentWP\AI\OpenAIClient;
-use AgentWP\AI\Response;
 use AgentWP\AI\Functions\DraftEmail;
-use AgentWP\Contracts\ToolExecutorInterface;
-use AgentWP\Contracts\OrderRepositoryInterface;
+use AgentWP\Contracts\AIClientFactoryInterface;
+use AgentWP\Contracts\EmailDraftServiceInterface;
 use AgentWP\Intent\Intent;
-use AgentWP\Plugin;
-use AgentWP\Plugin\SettingsManager;
 
-class EmailDraftHandler extends BaseHandler implements ToolExecutorInterface {
-	/**
-	 * @var OrderRepositoryInterface|null
-	 */
-	private $repository;
+/**
+ * Handles email draft intents using the agentic loop.
+ */
+class EmailDraftHandler extends AbstractAgenticHandler {
 
 	/**
-	 * @var SettingsManager|null
+	 * @var EmailDraftServiceInterface
 	 */
-	private $settings;
+	private EmailDraftServiceInterface $service;
 
 	/**
 	 * Initialize email draft intent handler.
 	 *
-	 * @return void
+	 * @param EmailDraftServiceInterface $service       Email draft service.
+	 * @param AIClientFactoryInterface   $clientFactory AI client factory.
 	 */
-	public function __construct() {
-		parent::__construct( Intent::EMAIL_DRAFT );
+	public function __construct(
+		EmailDraftServiceInterface $service,
+		AIClientFactoryInterface $clientFactory
+	) {
+		parent::__construct( Intent::EMAIL_DRAFT, $clientFactory );
+		$this->service = $service;
 	}
 
 	/**
-	 * Get order repository (lazy-loaded).
+	 * Get the system prompt for email drafting.
 	 *
-	 * @return OrderRepositoryInterface|null
+	 * @return string
 	 */
-	protected function get_repository() {
-		if ( ! $this->repository ) {
-			$container = Plugin::container();
-			if ( $container && $container->has( OrderRepositoryInterface::class ) ) {
-				$this->repository = $container->get( OrderRepositoryInterface::class );
-			}
-		}
-		return $this->repository;
+	protected function getSystemPrompt(): string {
+		return 'You are an expert customer support agent. Use the draft_email tool to get order context, then write the email content for the user to review. Do not send it.';
 	}
 
 	/**
-	 * Get settings manager (lazy-loaded).
+	 * Get the tools available for email drafting.
 	 *
-	 * @return SettingsManager|null
+	 * @return array
 	 */
-	protected function get_settings() {
-		if ( ! $this->settings ) {
-			$container = Plugin::container();
-			if ( $container && $container->has( SettingsManager::class ) ) {
-				$this->settings = $container->get( SettingsManager::class );
-			}
-		}
-		return $this->settings;
+	protected function getTools(): array {
+		return array( new DraftEmail() );
 	}
 
 	/**
-	 * Create OpenAI client.
+	 * Get the default input for email drafting.
 	 *
-	 * @param string $api_key API key.
-	 * @return OpenAIClient
+	 * @return string
 	 */
-	protected function create_client( string $api_key ): OpenAIClient {
-		return new OpenAIClient( $api_key );
-	}
-
-	/**
-	 * @param array $context Context data.
-	 * @return Response
-	 */
-	public function handle( array $context ): Response {
-		$settings = $this->get_settings();
-		$api_key  = $settings ? $settings->getApiKey() : '';
-
-		if ( empty( $api_key ) ) {
-			return Response::error( 'OpenAI API key is missing. Please configure it in AgentWP settings.', 401 );
-		}
-
-		$client = $this->create_client( $api_key );
-		$tools  = array( new DraftEmail() );
-
-		$messages = array();
-
-		// System Prompt
-		$messages[] = array(
-			'role'    => 'system',
-			'content' => 'You are an expert customer support agent. Use the draft_email tool to get order context, then write the email content for the user to review. Do not send it.',
-		);
-
-		$messages[] = array(
-			'role'    => 'user',
-			'content' => isset( $context['input'] ) ? $context['input'] : 'Draft email',
-		);
-
-		// Interaction loop (max 5 turns)
-		for ( $i = 0; $i < 5; $i++ ) {
-			$response = $client->chat( $messages, $tools );
-
-			if ( ! $response->is_success() ) {
-				return $response;
-			}
-
-			$data       = $response->get_data();
-			$content    = isset( $data['content'] ) ? $data['content'] : '';
-			$tool_calls = isset( $data['tool_calls'] ) ? $data['tool_calls'] : array();
-
-			// Add assistant message to history
-			$assistant_msg = array(
-				'role'    => 'assistant',
-				'content' => $content,
-			);
-			if ( ! empty( $tool_calls ) ) {
-				$assistant_msg['tool_calls'] = $tool_calls;
-			}
-			$messages[] = $assistant_msg;
-
-			// If no tool calls, we are done
-			if ( empty( $tool_calls ) ) {
-				return $this->build_response( $context, $content );
-			}
-
-			// Execute tools
-			foreach ( $tool_calls as $call ) {
-				$name      = isset( $call['function']['name'] ) ? $call['function']['name'] : '';
-				$args_json = isset( $call['function']['arguments'] ) ? $call['function']['arguments'] : '{}';
-				$args      = json_decode( $args_json, true );
-
-				if ( ! is_array( $args ) ) {
-					$args = array();
-				}
-
-				$result = $this->execute_tool( $name, $args );
-
-				$messages[] = array(
-					'role'         => 'tool',
-					'tool_call_id' => $call['id'],
-					'content'      => wp_json_encode( $result ),
-				);
-			}
-		}
-
-		return Response::error( 'I got stuck in a loop while processing your request. Please try again.', 500 );
+	protected function getDefaultInput(): string {
+		return 'Draft an email';
 	}
 
 	/**
@@ -164,35 +73,7 @@ class EmailDraftHandler extends BaseHandler implements ToolExecutorInterface {
 	public function execute_tool( string $name, array $arguments ) {
 		if ( 'draft_email' === $name ) {
 			$order_id = isset( $arguments['order_id'] ) ? (int) $arguments['order_id'] : 0;
-			$repo     = $this->get_repository();
-
-			if ( ! $repo ) {
-				return array( 'error' => 'WooCommerce is not available to fetch order details.' );
-			}
-
-			$order = $repo->find( $order_id );
-			if ( ! $order ) {
-				return array( 'error' => "Order #{$order_id} not found." );
-			}
-
-			// Return simplified order context
-			$items = array();
-			if ( is_array( $order->items ) ) {
-				foreach ( $order->items as $item ) {
-					$name = isset( $item['name'] ) ? $item['name'] : 'Item';
-					$qty  = isset( $item['quantity'] ) ? $item['quantity'] : 1;
-					$items[] = $name . ' x' . $qty;
-				}
-			}
-
-			return array(
-				'order_id' => $order->id,
-				'customer' => $order->customerName,
-				'total'    => $order->total,
-				'status'   => $order->status,
-				'items'    => $items,
-				'date'     => $order->dateCreated ? $order->dateCreated->format( 'Y-m-d' ) : '',
-			);
+			return $this->service->get_order_context( $order_id );
 		}
 
 		return array( 'error' => "Unknown tool: {$name}" );

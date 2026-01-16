@@ -12,15 +12,12 @@ use AgentWP\Intent\Handler;
 use AgentWP\Intent\Intent;
 
 abstract class BaseHandler implements Handler {
-	/**
-	 * @var string
-	 */
-	protected $intent;
+	protected string $intent;
 
 	/**
 	 * @param string $intent Intent identifier.
 	 */
-	public function __construct( $intent ) {
+	public function __construct( string $intent ) {
 		$this->intent = Intent::normalize( $intent );
 	}
 

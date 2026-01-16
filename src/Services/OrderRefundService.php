@@ -7,20 +7,20 @@
 
 namespace AgentWP\Services;
 
-use AgentWP\Infrastructure\WooCommerceOrderRepository;
-use AgentWP\Plugin;
+use AgentWP\Contracts\DraftStorageInterface;
+use AgentWP\Contracts\OrderRefundServiceInterface;
+use AgentWP\Infrastructure\TransientDraftStorage;
 
-class OrderRefundService {
-	/**
-	 * @var WooCommerceOrderRepository
-	 */
-	private $repository;
+class OrderRefundService implements OrderRefundServiceInterface {
+	private const DRAFT_TYPE = 'refund';
+
+	private DraftStorageInterface $draftStorage;
 
 	/**
-	 * @param WooCommerceOrderRepository|null $repository Order repository.
+	 * @param DraftStorageInterface|null $draftStorage Draft storage implementation.
 	 */
-	public function __construct( ?WooCommerceOrderRepository $repository = null ) {
-		$this->repository = $repository ? $repository : new WooCommerceOrderRepository();
+	public function __construct( ?DraftStorageInterface $draftStorage = null ) {
+		$this->draftStorage = $draftStorage ?? new TransientDraftStorage();
 	}
 
 	/**
@@ -32,7 +32,21 @@ class OrderRefundService {
 	 * @param bool   $restock_items Whether to restock items.
 	 * @return array Result with draft_id or error.
 	 */
-	public function prepare_refund( $order_id, $amount = null, $reason = '', $restock_items = true ) {
+	public function prepare_refund( int $order_id, ?float $amount = null, string $reason = '', bool $restock_items = true ): array {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return array(
+				'success' => false,
+				'message' => 'Permission denied.',
+			);
+		}
+
+		if ( $order_id <= 0 ) {
+			return array(
+				'success' => false,
+				'message' => 'Invalid order ID.',
+			);
+		}
+
 		$order = wc_get_order( $order_id );
 		if ( ! $order ) {
 			return array(
@@ -58,7 +72,7 @@ class OrderRefundService {
 			);
 		}
 
-		$draft_id   = 'refund_' . wp_generate_password( 12, false );
+		$draft_id   = $this->draftStorage->generate_id( self::DRAFT_TYPE );
 		$draft_data = array(
 			'order_id'       => $order_id,
 			'amount'         => $refund_amount,
@@ -69,7 +83,7 @@ class OrderRefundService {
 			'customer_name'  => $order->get_formatted_billing_full_name(),
 		);
 
-		$this->store_draft( $draft_id, $draft_data );
+		$this->draftStorage->store( self::DRAFT_TYPE, $draft_id, $draft_data );
 
 		return array(
 			'success'  => true,
@@ -92,7 +106,7 @@ class OrderRefundService {
 	 * @param string $draft_id Draft identifier.
 	 * @return array Result.
 	 */
-	public function confirm_refund( $draft_id ) {
+	public function confirm_refund( string $draft_id ): array {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			return array(
 				'success' => false,
@@ -100,7 +114,7 @@ class OrderRefundService {
 			);
 		}
 
-		$data = $this->claim_draft( $draft_id );
+		$data = $this->draftStorage->claim( self::DRAFT_TYPE, $draft_id );
 		if ( ! $data ) {
 			return array(
 				'success' => false,
@@ -134,33 +148,5 @@ class OrderRefundService {
 			'refund_id' => $result->get_id(),
 			'message'   => "Refund #{$result->get_id()} processed successfully for Order #{$order_id}.",
 		);
-	}
-
-	/**
-	 * Store a draft in a transient.
-	 *
-	 * @param string $id Draft ID.
-	 * @param array  $data Draft data.
-	 * @return void
-	 */
-	private function store_draft( $id, $data ) {
-		$key = Plugin::TRANSIENT_PREFIX . 'refund_' . get_current_user_id() . '_' . $id;
-		set_transient( $key, $data, 3600 );
-	}
-
-	/**
-	 * Claim and delete a draft.
-	 *
-	 * @param string $id Draft ID.
-	 * @return array|false
-	 */
-	private function claim_draft( $id ) {
-		$key = Plugin::TRANSIENT_PREFIX . 'refund_' . get_current_user_id() . '_' . $id;
-		$data = get_transient( $key );
-		if ( $data ) {
-			delete_transient( $key );
-			return $data;
-		}
-		return false;
 	}
 }

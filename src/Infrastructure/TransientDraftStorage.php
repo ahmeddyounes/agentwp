@@ -1,0 +1,102 @@
+<?php
+/**
+ * Transient-based draft storage implementation.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Contracts\DraftStorageInterface;
+use AgentWP\Plugin;
+
+/**
+ * Stores drafts using WordPress transients.
+ */
+class TransientDraftStorage implements DraftStorageInterface {
+
+	/**
+	 * Default TTL in seconds (1 hour).
+	 */
+	private const DEFAULT_TTL = 3600;
+
+	/**
+	 * Generate a unique draft ID.
+	 *
+	 * @param string $prefix Prefix for the draft ID.
+	 * @return string Generated draft ID.
+	 */
+	public function generate_id( string $prefix = 'draft' ): string {
+		return $prefix . '_' . wp_generate_password( 12, false );
+	}
+
+	/**
+	 * Store a draft.
+	 *
+	 * @param string $type Draft type identifier.
+	 * @param string $id   Draft ID.
+	 * @param array  $data Draft data.
+	 * @param int    $ttl  Time to live in seconds.
+	 * @return bool True on success.
+	 */
+	public function store( string $type, string $id, array $data, int $ttl = self::DEFAULT_TTL ): bool {
+		$key = $this->build_key( $type, $id );
+		return set_transient( $key, $data, $ttl );
+	}
+
+	/**
+	 * Retrieve a draft without deleting it.
+	 *
+	 * @param string $type Draft type identifier.
+	 * @param string $id   Draft ID.
+	 * @return array|null Draft data or null if not found.
+	 */
+	public function get( string $type, string $id ): ?array {
+		$key  = $this->build_key( $type, $id );
+		$data = get_transient( $key );
+		return is_array( $data ) ? $data : null;
+	}
+
+	/**
+	 * Claim and delete a draft.
+	 *
+	 * @param string $type Draft type identifier.
+	 * @param string $id   Draft ID.
+	 * @return array|null Draft data or null if not found.
+	 */
+	public function claim( string $type, string $id ): ?array {
+		$key  = $this->build_key( $type, $id );
+		$data = get_transient( $key );
+
+		if ( is_array( $data ) ) {
+			delete_transient( $key );
+			return $data;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Delete a draft.
+	 *
+	 * @param string $type Draft type identifier.
+	 * @param string $id   Draft ID.
+	 * @return bool True on success.
+	 */
+	public function delete( string $type, string $id ): bool {
+		$key = $this->build_key( $type, $id );
+		return delete_transient( $key );
+	}
+
+	/**
+	 * Build the transient key.
+	 *
+	 * @param string $type Draft type.
+	 * @param string $id   Draft ID.
+	 * @return string Transient key.
+	 */
+	private function build_key( string $type, string $id ): string {
+		$user_id = get_current_user_id();
+		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
+	}
+}

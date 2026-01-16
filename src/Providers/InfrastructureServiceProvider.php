@@ -7,18 +7,23 @@
 
 namespace AgentWP\Providers;
 
+use AgentWP\AI\AIClientFactory;
 use AgentWP\Container\ServiceProvider;
+use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\CacheInterface;
 use AgentWP\Contracts\ClockInterface;
+use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\HttpClientInterface;
 use AgentWP\Contracts\OrderRepositoryInterface;
 use AgentWP\Contracts\RetryPolicyInterface;
 use AgentWP\Contracts\SessionHandlerInterface;
 use AgentWP\Contracts\SleeperInterface;
 use AgentWP\Contracts\TransientCacheInterface;
+use AgentWP\Plugin\SettingsManager;
 use AgentWP\Infrastructure\PhpSessionHandler;
 use AgentWP\Infrastructure\RealSleeper;
 use AgentWP\Infrastructure\SystemClock;
+use AgentWP\Infrastructure\TransientDraftStorage;
 use AgentWP\Infrastructure\WooCommerceOrderRepository;
 use AgentWP\Infrastructure\WordPressHttpClient;
 use AgentWP\Infrastructure\WordPressObjectCache;
@@ -45,6 +50,8 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->registerSession();
 		$this->registerRetry();
 		$this->registerOrderRepository();
+		$this->registerAIClientFactory();
+		$this->registerDraftStorage();
 	}
 
 	/**
@@ -154,6 +161,34 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			OrderRepositoryInterface::class,
 			fn() => new WooCommerceOrderRepository()
+		);
+	}
+
+	/**
+	 * Register AI client factory.
+	 *
+	 * @return void
+	 */
+	private function registerAIClientFactory(): void {
+		$this->container->singleton(
+			AIClientFactory::class,
+			fn( $c ) => new AIClientFactory( $c->get( SettingsManager::class ) )
+		);
+		$this->container->singleton(
+			AIClientFactoryInterface::class,
+			fn( $c ) => $c->get( AIClientFactory::class )
+		);
+	}
+
+	/**
+	 * Register draft storage.
+	 *
+	 * @return void
+	 */
+	private function registerDraftStorage(): void {
+		$this->container->singleton(
+			DraftStorageInterface::class,
+			fn() => new TransientDraftStorage()
 		);
 	}
 }

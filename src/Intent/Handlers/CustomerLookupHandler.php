@@ -7,155 +7,72 @@
 
 namespace AgentWP\Intent\Handlers;
 
-use AgentWP\AI\OpenAIClient;
-use AgentWP\AI\Response;
 use AgentWP\AI\Functions\GetCustomerProfile;
-use AgentWP\Contracts\ToolExecutorInterface;
-use AgentWP\Handlers\CustomerHandler;
+use AgentWP\Contracts\AIClientFactoryInterface;
+use AgentWP\Contracts\CustomerServiceInterface;
 use AgentWP\Intent\Intent;
-use AgentWP\Plugin;
-use AgentWP\Plugin\SettingsManager;
 
-class CustomerLookupHandler extends BaseHandler implements ToolExecutorInterface {
-	/**
-	 * @var CustomerHandler|null
-	 */
-	private $handler;
+/**
+ * Handles customer lookup intents using the agentic loop.
+ */
+class CustomerLookupHandler extends AbstractAgenticHandler {
 
 	/**
-	 * @var SettingsManager|null
+	 * @var CustomerServiceInterface
 	 */
-	private $settings;
+	private CustomerServiceInterface $service;
 
 	/**
 	 * Initialize customer lookup intent handler.
 	 *
-	 * @return void
+	 * @param CustomerServiceInterface $service       Customer service.
+	 * @param AIClientFactoryInterface $clientFactory AI client factory.
 	 */
-	public function __construct() {
-		parent::__construct( Intent::CUSTOMER_LOOKUP );
+	public function __construct(
+		CustomerServiceInterface $service,
+		AIClientFactoryInterface $clientFactory
+	) {
+		parent::__construct( Intent::CUSTOMER_LOOKUP, $clientFactory );
+		$this->service = $service;
 	}
 
 	/**
-	 * Get customer handler (lazy-loaded).
+	 * Get the system prompt for customer lookup.
 	 *
-	 * @return CustomerHandler
+	 * @return string
 	 */
-	protected function get_handler() {
-		if ( ! $this->handler ) {
-			$container = Plugin::container();
-			if ( $container && $container->has( CustomerHandler::class ) ) {
-				$this->handler = $container->get( CustomerHandler::class );
-			} else {
-				$this->handler = new CustomerHandler();
-			}
-		}
-		return $this->handler;
+	protected function getSystemPrompt(): string {
+		return 'You are a customer success manager. Look up customer profiles and summarize key metrics (LTV, last order, health).';
 	}
 
 	/**
-	 * Get settings manager (lazy-loaded).
+	 * Get the tools available for customer lookup.
 	 *
-	 * @return SettingsManager|null
+	 * @return array
 	 */
-	protected function get_settings() {
-		if ( ! $this->settings ) {
-			$container = Plugin::container();
-			if ( $container && $container->has( SettingsManager::class ) ) {
-				$this->settings = $container->get( SettingsManager::class );
-			}
-		}
-		return $this->settings;
+	protected function getTools(): array {
+		return array( new GetCustomerProfile() );
 	}
 
 	/**
-	 * Create OpenAI client.
+	 * Get the default input for customer lookup.
 	 *
-	 * @param string $api_key API key.
-	 * @return OpenAIClient
+	 * @return string
 	 */
-	protected function create_client( string $api_key ): OpenAIClient {
-		return new OpenAIClient( $api_key );
+	protected function getDefaultInput(): string {
+		return 'Look up customer';
 	}
 
 	/**
-	 * @param array $context Context data.
-	 * @return Response
-	 */
-	public function handle( array $context ): Response {
-		$settings = $this->get_settings();
-		$api_key  = $settings ? $settings->getApiKey() : '';
-
-		if ( empty( $api_key ) ) {
-			return Response::error( 'OpenAI API key is missing.', 401 );
-		}
-
-		$client = $this->create_client( $api_key );
-		$tools  = array( new GetCustomerProfile() );
-
-		$messages = array();
-		$messages[] = array(
-			'role'    => 'system',
-			'content' => 'You are a customer success manager. Look up customer profiles and summarize key metrics (LTV, last order, health).',
-		);
-		$messages[] = array(
-			'role'    => 'user',
-			'content' => isset( $context['input'] ) ? $context['input'] : 'Lookup customer',
-		);
-
-		for ( $i = 0; $i < 5; $i++ ) {
-			$response = $client->chat( $messages, $tools );
-
-			if ( ! $response->is_success() ) {
-				return $response;
-			}
-
-			$data       = $response->get_data();
-			$content    = isset( $data['content'] ) ? $data['content'] : '';
-			$tool_calls = isset( $data['tool_calls'] ) ? $data['tool_calls'] : array();
-
-			$assistant_msg = array(
-				'role'    => 'assistant',
-				'content' => $content,
-			);
-			if ( ! empty( $tool_calls ) ) {
-				$assistant_msg['tool_calls'] = $tool_calls;
-			}
-			$messages[] = $assistant_msg;
-
-			if ( empty( $tool_calls ) ) {
-				return $this->build_response( $context, $content );
-			}
-
-			foreach ( $tool_calls as $call ) {
-				$name      = isset( $call['function']['name'] ) ? $call['function']['name'] : '';
-				$args_json = isset( $call['function']['arguments'] ) ? $call['function']['arguments'] : '{}';
-				$args      = json_decode( $args_json, true );
-
-				$result = $this->execute_tool( $name, $args );
-
-				$messages[] = array(
-					'role'         => 'tool',
-					'tool_call_id' => $call['id'],
-					'content'      => wp_json_encode( $result ),
-				);
-			}
-		}
-
-		return Response::error( 'Loop limit exceeded.', 500 );
-	}
-
-	/**
-	 * Execute tool.
+	 * Execute a named tool with arguments.
 	 *
-	 * @param string $name Tool name.
-	 * @param array  $arguments Arguments.
-	 * @return mixed
+	 * @param string $name      Tool name.
+	 * @param array  $arguments Tool arguments.
+	 * @return mixed Tool execution result.
 	 */
 	public function execute_tool( string $name, array $arguments ) {
 		if ( 'get_customer_profile' === $name ) {
-			$service = $this->get_handler();
-			return $service->handle( $arguments );
+			return $this->service->handle( $arguments );
 		}
 
 		return array( 'error' => "Unknown tool: {$name}" );

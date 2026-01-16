@@ -7,12 +7,25 @@
 
 namespace AgentWP\Services;
 
-use AgentWP\Plugin;
+use AgentWP\Contracts\DraftStorageInterface;
+use AgentWP\Contracts\OrderStatusServiceInterface;
+use AgentWP\Infrastructure\TransientDraftStorage;
 use Exception;
 
-class OrderStatusService {
-	const DRAFT_TYPE = 'status_update';
+class OrderStatusService implements OrderStatusServiceInterface {
+	const DRAFT_TYPE = 'status';
 	const MAX_BULK   = 50;
+
+	private DraftStorageInterface $draftStorage;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param DraftStorageInterface|null $draftStorage Draft storage implementation.
+	 */
+	public function __construct( ?DraftStorageInterface $draftStorage = null ) {
+		$this->draftStorage = $draftStorage ?? new TransientDraftStorage();
+	}
 
 	/**
 	 * Prepare a draft order status update.
@@ -23,7 +36,11 @@ class OrderStatusService {
 	 * @param bool   $notify_customer Whether to notify.
 	 * @return array Result.
 	 */
-	public function prepare_update( $order_id, $new_status, $note = '', $notify_customer = false ) {
+	public function prepare_update( int $order_id, string $new_status, string $note = '', bool $notify_customer = false ): array {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return array( 'error' => 'Permission denied.', 'code' => 403 );
+		}
+
 		$order = wc_get_order( $order_id );
 		if ( ! $order ) {
 			return array( 'error' => 'Order not found.', 'code' => 404 );
@@ -59,9 +76,8 @@ class OrderStatusService {
 			),
 		);
 
-		$draft_id   = $this->generate_draft_id();
-		$ttl        = 3600; // 1 hour
-		$stored     = $this->store_draft( $draft_id, $draft_payload, $ttl );
+		$draft_id = $this->draftStorage->generate_id( self::DRAFT_TYPE );
+		$stored   = $this->draftStorage->store( self::DRAFT_TYPE, $draft_id, $draft_payload );
 
 		if ( ! $stored ) {
 			return array( 'error' => 'Failed to save draft.', 'code' => 500 );
@@ -82,7 +98,11 @@ class OrderStatusService {
 	 * @param bool   $notify_customer Whether to notify.
 	 * @return array Result.
 	 */
-	public function prepare_bulk_update( array $order_ids, $new_status, $notify_customer = false ) {
+	public function prepare_bulk_update( array $order_ids, string $new_status, bool $notify_customer = false ): array {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return array( 'error' => 'Permission denied.', 'code' => 403 );
+		}
+
 		if ( empty( $order_ids ) ) {
 			return array( 'error' => 'No orders specified.', 'code' => 400 );
 		}
@@ -122,8 +142,8 @@ class OrderStatusService {
 			),
 		);
 
-		$draft_id = $this->generate_draft_id();
-		$this->store_draft( $draft_id, $draft_payload, 3600 );
+		$draft_id = $this->draftStorage->generate_id( self::DRAFT_TYPE );
+		$this->draftStorage->store( self::DRAFT_TYPE, $draft_id, $draft_payload );
 
 		return array(
 			'success'  => true,
@@ -138,12 +158,12 @@ class OrderStatusService {
 	 * @param string $draft_id Draft ID.
 	 * @return array Result.
 	 */
-	public function confirm_update( $draft_id ) {
+	public function confirm_update( string $draft_id ): array {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			return array( 'error' => 'Permission denied.', 'code' => 403 );
 		}
 
-		$draft = $this->claim_draft( $draft_id );
+		$draft = $this->draftStorage->claim( self::DRAFT_TYPE, $draft_id );
 		if ( ! $draft ) {
 			return array( 'error' => 'Draft not found or expired.', 'code' => 404 );
 		}
@@ -252,26 +272,20 @@ class OrderStatusService {
 	}
 
 	private function get_valid_statuses() {
-		return function_exists( 'wc_get_order_statuses' ) ? array_keys( wc_get_order_statuses() ) : array();
+		if ( ! function_exists( 'wc_get_order_statuses' ) ) {
+			return array();
+		}
+		// Strip 'wc-' prefix to match normalize_status() output.
+		$statuses = array_keys( wc_get_order_statuses() );
+		return array_map(
+			function ( $status ) {
+				return 0 === strpos( $status, 'wc-' ) ? substr( $status, 3 ) : $status;
+			},
+			$statuses
+		);
 	}
 
 	private function get_irreversible_warning( $status ) {
-		return in_array( $status, array( 'cancelled', 'refunded' ) ) ? 'Irreversible.' : '';
-	}
-
-	private function generate_draft_id() {
-		return 'status_' . wp_generate_password( 12, false );
-	}
-
-	private function store_draft( $id, $data, $ttl ) {
-		$key = Plugin::TRANSIENT_PREFIX . 'status_draft_' . get_current_user_id() . '_' . $id;
-		return set_transient( $key, $data, $ttl );
-	}
-
-	private function claim_draft( $id ) {
-		$key = Plugin::TRANSIENT_PREFIX . 'status_draft_' . get_current_user_id() . '_' . $id;
-		$data = get_transient( $key );
-		if ( $data ) delete_transient( $key );
-		return $data;
+		return in_array( $status, array( 'cancelled', 'refunded' ), true ) ? 'Irreversible.' : '';
 	}
 }

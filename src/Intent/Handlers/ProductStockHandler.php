@@ -7,170 +7,86 @@
 
 namespace AgentWP\Intent\Handlers;
 
-use AgentWP\AI\OpenAIClient;
-use AgentWP\AI\Response;
 use AgentWP\AI\Functions\PrepareStockUpdate;
 use AgentWP\AI\Functions\ConfirmStockUpdate;
 use AgentWP\AI\Functions\SearchProduct;
-use AgentWP\Contracts\ToolExecutorInterface;
+use AgentWP\Contracts\AIClientFactoryInterface;
+use AgentWP\Contracts\ProductStockServiceInterface;
 use AgentWP\Intent\Intent;
-use AgentWP\Plugin;
-use AgentWP\Plugin\SettingsManager;
-use AgentWP\Services\ProductStockService;
 
-class ProductStockHandler extends BaseHandler implements ToolExecutorInterface {
-	/**
-	 * @var ProductStockService|null
-	 */
-	private $service;
+/**
+ * Handles product stock intents using the agentic loop.
+ */
+class ProductStockHandler extends AbstractAgenticHandler {
 
 	/**
-	 * @var SettingsManager|null
+	 * @var ProductStockServiceInterface
 	 */
-	private $settings;
+	private ProductStockServiceInterface $service;
 
 	/**
 	 * Initialize product stock intent handler.
 	 *
-	 * @return void
+	 * @param ProductStockServiceInterface $service       Stock service.
+	 * @param AIClientFactoryInterface     $clientFactory AI client factory.
 	 */
-	public function __construct() {
-		parent::__construct( Intent::PRODUCT_STOCK );
+	public function __construct(
+		ProductStockServiceInterface $service,
+		AIClientFactoryInterface $clientFactory
+	) {
+		parent::__construct( Intent::PRODUCT_STOCK, $clientFactory );
+		$this->service = $service;
 	}
 
 	/**
-	 * Get stock service (lazy-loaded).
+	 * Get the system prompt for stock handling.
 	 *
-	 * @return ProductStockService
+	 * @return string
 	 */
-	protected function get_service() {
-		if ( ! $this->service ) {
-			$container = Plugin::container();
-			if ( $container && $container->has( ProductStockService::class ) ) {
-				$this->service = $container->get( ProductStockService::class );
-			} else {
-				$this->service = new ProductStockService();
-			}
-		}
-		return $this->service;
+	protected function getSystemPrompt(): string {
+		return 'You are an expert inventory manager. Help the user check stock or update it. Always search for products first to get IDs.';
 	}
 
 	/**
-	 * Get settings manager (lazy-loaded).
+	 * Get the tools available for stock handling.
 	 *
-	 * @return SettingsManager|null
+	 * @return array
 	 */
-	protected function get_settings() {
-		if ( ! $this->settings ) {
-			$container = Plugin::container();
-			if ( $container && $container->has( SettingsManager::class ) ) {
-				$this->settings = $container->get( SettingsManager::class );
-			}
-		}
-		return $this->settings;
+	protected function getTools(): array {
+		return array( new SearchProduct(), new PrepareStockUpdate(), new ConfirmStockUpdate() );
 	}
 
 	/**
-	 * Create OpenAI client.
+	 * Get the default input for stock operations.
 	 *
-	 * @param string $api_key API key.
-	 * @return OpenAIClient
+	 * @return string
 	 */
-	protected function create_client( string $api_key ): OpenAIClient {
-		return new OpenAIClient( $api_key );
+	protected function getDefaultInput(): string {
+		return 'Check stock levels';
 	}
 
 	/**
-	 * @param array $context Context data.
-	 * @return Response
-	 */
-	public function handle( array $context ): Response {
-		$settings = $this->get_settings();
-		$api_key  = $settings ? $settings->getApiKey() : '';
-
-		if ( empty( $api_key ) ) {
-			return Response::error( 'OpenAI API key is missing.', 401 );
-		}
-
-		$client = $this->create_client( $api_key );
-		$tools  = array( new SearchProduct(), new PrepareStockUpdate(), new ConfirmStockUpdate() );
-
-		$messages = array();
-		$messages[] = array(
-			'role'    => 'system',
-			'content' => 'You are an expert inventory manager. Help the user check stock or update it. Always search for products first to get IDs.',
-		);
-		$messages[] = array(
-			'role'    => 'user',
-			'content' => isset( $context['input'] ) ? $context['input'] : 'Check stock',
-		);
-
-		for ( $i = 0; $i < 5; $i++ ) {
-			$response = $client->chat( $messages, $tools );
-
-			if ( ! $response->is_success() ) {
-				return $response;
-			}
-
-			$data       = $response->get_data();
-			$content    = isset( $data['content'] ) ? $data['content'] : '';
-			$tool_calls = isset( $data['tool_calls'] ) ? $data['tool_calls'] : array();
-
-			$assistant_msg = array(
-				'role'    => 'assistant',
-				'content' => $content,
-			);
-			if ( ! empty( $tool_calls ) ) {
-				$assistant_msg['tool_calls'] = $tool_calls;
-			}
-			$messages[] = $assistant_msg;
-
-			if ( empty( $tool_calls ) ) {
-				return $this->build_response( $context, $content );
-			}
-
-			foreach ( $tool_calls as $call ) {
-				$name      = isset( $call['function']['name'] ) ? $call['function']['name'] : '';
-				$args_json = isset( $call['function']['arguments'] ) ? $call['function']['arguments'] : '{}';
-				$args      = json_decode( $args_json, true );
-
-				$result = $this->execute_tool( $name, $args );
-
-				$messages[] = array(
-					'role'         => 'tool',
-					'tool_call_id' => $call['id'],
-					'content'      => wp_json_encode( $result ),
-				);
-			}
-		}
-
-		return Response::error( 'Loop limit exceeded.', 500 );
-	}
-
-	/**
-	 * Execute tool.
+	 * Execute a named tool with arguments.
 	 *
-	 * @param string $name Tool name.
-	 * @param array  $arguments Arguments.
-	 * @return mixed
+	 * @param string $name      Tool name.
+	 * @param array  $arguments Tool arguments.
+	 * @return mixed Tool execution result.
 	 */
 	public function execute_tool( string $name, array $arguments ) {
-		$service = $this->get_service();
-
 		switch ( $name ) {
 			case 'search_product':
-				$query = $arguments['query'] ?? '';
-				return $service->search_products( $query );
+				$query = isset( $arguments['query'] ) ? (string) $arguments['query'] : '';
+				return $this->service->search_products( $query );
 
 			case 'prepare_stock_update':
-				$product_id = $arguments['product_id'] ?? 0;
-				$quantity   = $arguments['quantity'] ?? 0;
-				$operation  = $arguments['operation'] ?? 'set';
-				return $service->prepare_update( $product_id, $quantity, $operation );
+				$product_id = isset( $arguments['product_id'] ) ? (int) $arguments['product_id'] : 0;
+				$quantity   = isset( $arguments['quantity'] ) ? (int) $arguments['quantity'] : 0;
+				$operation  = isset( $arguments['operation'] ) ? (string) $arguments['operation'] : 'set';
+				return $this->service->prepare_update( $product_id, $quantity, $operation );
 
 			case 'confirm_stock_update':
-				$draft_id = $arguments['draft_id'] ?? '';
-				return $service->confirm_update( $draft_id );
+				$draft_id = isset( $arguments['draft_id'] ) ? (string) $arguments['draft_id'] : '';
+				return $this->service->confirm_update( $draft_id );
 
 			default:
 				return array( 'error' => "Unknown tool: {$name}" );

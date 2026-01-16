@@ -7,12 +7,13 @@
 
 namespace AgentWP\Services;
 
+use AgentWP\Contracts\OrderSearchServiceInterface;
 use AgentWP\Plugin;
 use DateTimeImmutable;
 use DateTimeZone;
 use Exception;
 
-class OrderSearchService {
+class OrderSearchService implements OrderSearchServiceInterface {
 	const DEFAULT_LIMIT = 10;
 	const CACHE_TTL     = 3600;
 	const MAX_LIMIT     = 50;
@@ -751,8 +752,8 @@ class OrderSearchService {
 	 * @return int
 	 */
 	private function get_base_timestamp() {
-		if ( function_exists( 'current_time' ) ) {
-			return (int) current_time( 'timestamp' );
+		if ( function_exists( 'current_datetime' ) ) {
+			return current_datetime()->getTimestamp();
 		}
 
 		return time();

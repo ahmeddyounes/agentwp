@@ -9,8 +9,9 @@ namespace AgentWP\AI;
 
 use AgentWP\AI\Functions\FunctionSchema;
 use AgentWP\Billing\UsageTracker;
+use AgentWP\Contracts\OpenAIClientInterface;
 
-class OpenAIClient {
+class OpenAIClient implements OpenAIClientInterface {
 	const API_BASE = 'https://api.openai.com/v1';
 
 	/**
@@ -34,60 +35,18 @@ class OpenAIClient {
 	 */
 	const MAX_TOOL_ARGUMENTS_LENGTH = 102400;
 
-	/**
-	 * @var string
-	 */
-	private $api_key;
-
-	/**
-	 * @var string
-	 */
-	private $model;
-
-	/**
-	 * @var int
-	 */
-	private $timeout;
-
-	/**
-	 * @var bool
-	 */
-	private $stream;
-
-	/**
-	 * @var callable|null
-	 */
+	private string $api_key;
+	private string $model;
+	private int $timeout;
+	private bool $stream;
+	/** @var callable|null */
 	private $on_stream;
-
-	/**
-	 * @var TokenCounter
-	 */
-	private $token_counter;
-
-	/**
-	 * @var int
-	 */
-	private $max_retries;
-
-	/**
-	 * @var int
-	 */
-	private $initial_delay;
-
-	/**
-	 * @var int
-	 */
-	private $max_delay;
-
-	/**
-	 * @var string
-	 */
-	private $base_url;
-
-	/**
-	 * @var string
-	 */
-	private $intent_type;
+	private TokenCounter $token_counter;
+	private int $max_retries;
+	private int $initial_delay;
+	private int $max_delay;
+	private string $base_url;
+	private string $intent_type;
 
 	/**
 	 * @param string $api_key OpenAI API key.
@@ -120,7 +79,7 @@ class OpenAIClient {
 	 * @param array $functions Tool definitions or FunctionSchema instances.
 	 * @return Response
 	 */
-	public function chat( array $messages, array $functions ) {
+	public function chat( array $messages, array $functions ): Response {
 		if ( '' === $this->api_key ) {
 			return Response::error( 'Missing OpenAI API key.', 401 );
 		}
@@ -221,9 +180,7 @@ class OpenAIClient {
 	 * @param string $key API key.
 	 * @return bool
 	 */
-	public function validateKey( $key ) {
-		$key = is_string( $key ) ? $key : '';
-
+	public function validateKey( string $key ): bool {
 		if ( '' === $key ) {
 			return false;
 		}

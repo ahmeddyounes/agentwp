@@ -7,11 +7,23 @@
 
 namespace AgentWP\Services;
 
-use AgentWP\Plugin;
-use Exception;
+use AgentWP\Contracts\DraftStorageInterface;
+use AgentWP\Contracts\ProductStockServiceInterface;
+use AgentWP\Infrastructure\TransientDraftStorage;
 
-class ProductStockService {
-	const DRAFT_TYPE = 'stock_update';
+class ProductStockService implements ProductStockServiceInterface {
+	private const DRAFT_TYPE = 'stock';
+
+	private DraftStorageInterface $draftStorage;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param DraftStorageInterface|null $draftStorage Draft storage implementation.
+	 */
+	public function __construct( ?DraftStorageInterface $draftStorage = null ) {
+		$this->draftStorage = $draftStorage ?? new TransientDraftStorage();
+	}
 
 	/**
 	 * Search products.
@@ -19,7 +31,7 @@ class ProductStockService {
 	 * @param string $query Query string.
 	 * @return array
 	 */
-	public function search_products( $query ) {
+	public function search_products( string $query ): array {
 		// Basic search logic
 		if ( ! function_exists( 'wc_get_products' ) ) return array();
 		
@@ -44,7 +56,19 @@ class ProductStockService {
 	/**
 	 * Prepare stock update.
 	 */
-	public function prepare_update( $product_id, $quantity, $operation = 'set' ) {
+	public function prepare_update( int $product_id, int $quantity, string $operation = 'set' ): array {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return array( 'error' => 'Permission denied.' );
+		}
+
+		if ( $product_id <= 0 ) {
+			return array( 'error' => 'Invalid product ID.' );
+		}
+
+		if ( $quantity < 0 ) {
+			return array( 'error' => 'Quantity cannot be negative.' );
+		}
+
 		$product = wc_get_product( $product_id );
 		if ( ! $product ) {
 			return array( 'error' => 'Product not found.' );
@@ -71,8 +95,8 @@ class ProductStockService {
 			),
 		);
 
-		$draft_id = 'stock_' . wp_generate_password( 12, false );
-		$this->store_draft( $draft_id, $draft_payload );
+		$draft_id = $this->draftStorage->generate_id( self::DRAFT_TYPE );
+		$this->draftStorage->store( self::DRAFT_TYPE, $draft_id, $draft_payload );
 
 		return array(
 			'success' => true,
@@ -84,12 +108,12 @@ class ProductStockService {
 	/**
 	 * Confirm update.
 	 */
-	public function confirm_update( $draft_id ) {
+	public function confirm_update( string $draft_id ): array {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			return array( 'error' => 'Permission denied.' );
 		}
 
-		$draft = $this->claim_draft( $draft_id );
+		$draft = $this->draftStorage->claim( self::DRAFT_TYPE, $draft_id );
 		if ( ! $draft ) {
 			return array( 'error' => 'Draft expired.' );
 		}
@@ -108,17 +132,5 @@ class ProductStockService {
 			'success' => true,
 			'message' => "Stock updated for {$product->get_name()}.",
 		);
-	}
-
-	private function store_draft( $id, $data ) {
-		$key = Plugin::TRANSIENT_PREFIX . 'stock_' . get_current_user_id() . '_' . $id;
-		set_transient( $key, $data, 3600 );
-	}
-
-	private function claim_draft( $id ) {
-		$key = Plugin::TRANSIENT_PREFIX . 'stock_' . get_current_user_id() . '_' . $id;
-		$data = get_transient( $key );
-		if ( $data ) delete_transient( $key );
-		return $data;
 	}
 }

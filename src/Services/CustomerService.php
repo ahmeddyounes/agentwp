@@ -7,7 +7,9 @@
 
 namespace AgentWP\Services;
 
-class CustomerService {
+use AgentWP\Contracts\CustomerServiceInterface;
+
+class CustomerService implements CustomerServiceInterface {
 	const RECENT_LIMIT = 5;
 	const TOP_LIMIT    = 5;
 	const ORDER_BATCH  = 200;
@@ -778,8 +780,8 @@ class CustomerService {
 	 * @return int
 	 */
 	private function get_now_timestamp() {
-		if ( function_exists( 'current_time' ) ) {
-			return (int) current_time( 'timestamp' );
+		if ( function_exists( 'current_datetime' ) ) {
+			return current_datetime()->getTimestamp();
 		}
 
 		return time();
