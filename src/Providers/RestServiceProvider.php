@@ -103,17 +103,24 @@ final class RestServiceProvider extends ServiceProvider {
 	/**
 	 * Register route registrar.
 	 *
+	 * Uses tag-based discovery via 'rest.controller' tag.
+	 * Falls back to default controllers if no tagged controllers found.
+	 *
 	 * @return void
 	 */
 	private function registerRouteRegistrar(): void {
 		$this->container->singleton(
 			RestRouteRegistrar::class,
-			fn() => RestRouteRegistrar::withDefaults( $this->container )
+			fn() => RestRouteRegistrar::fromContainer( $this->container )
 		);
 	}
 
 	/**
-	 * Register REST controllers.
+	 * Register default REST controllers.
+	 *
+	 * Tags each controller with 'rest.controller' for discovery.
+	 * Additional controllers can be registered by other providers
+	 * by binding and tagging them with 'rest.controller'.
 	 *
 	 * @return void
 	 */
