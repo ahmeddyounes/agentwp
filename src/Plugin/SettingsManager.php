@@ -26,12 +26,16 @@ class SettingsManager {
 	public const OPTION_BUDGET_LIMIT       = 'agentwp_budget_limit';
 	public const OPTION_DRAFT_TTL          = 'agentwp_draft_ttl_minutes';
 	public const OPTION_USAGE_STATS        = 'agentwp_usage_stats';
+	public const OPTION_MEMORY_LIMIT       = 'agentwp_memory_limit';
+	public const OPTION_MEMORY_TTL         = 'agentwp_memory_ttl';
 
 	/**
 	 * Default values for standalone options.
 	 */
 	public const DEFAULT_BUDGET_LIMIT       = 0;
 	public const DEFAULT_DRAFT_TTL          = 10;
+	public const DEFAULT_MEMORY_LIMIT       = 5;
+	public const DEFAULT_MEMORY_TTL         = 1800;
 	public const DEFAULT_API_KEY            = '';
 	public const DEFAULT_API_KEY_LAST4      = '';
 	public const DEFAULT_DEMO_API_KEY       = '';
@@ -196,6 +200,44 @@ class SettingsManager {
 	}
 
 	/**
+	 * Get memory store limit (max entries).
+	 *
+	 * @return int
+	 */
+	public function getMemoryLimit(): int {
+		return max( 1, (int) $this->options->get( self::OPTION_MEMORY_LIMIT, self::DEFAULT_MEMORY_LIMIT ) );
+	}
+
+	/**
+	 * Set memory store limit.
+	 *
+	 * @param int $limit Max memory entries.
+	 * @return bool
+	 */
+	public function setMemoryLimit( int $limit ): bool {
+		return $this->options->set( self::OPTION_MEMORY_LIMIT, max( 1, $limit ) );
+	}
+
+	/**
+	 * Get memory store TTL in seconds.
+	 *
+	 * @return int
+	 */
+	public function getMemoryTtl(): int {
+		return max( 60, (int) $this->options->get( self::OPTION_MEMORY_TTL, self::DEFAULT_MEMORY_TTL ) );
+	}
+
+	/**
+	 * Set memory store TTL in seconds.
+	 *
+	 * @param int $ttl TTL in seconds.
+	 * @return bool
+	 */
+	public function setMemoryTtl( int $ttl ): bool {
+		return $this->options->set( self::OPTION_MEMORY_TTL, max( 60, $ttl ) );
+	}
+
+	/**
 	 * Get usage stats.
 	 *
 	 * @return array
@@ -256,6 +298,14 @@ class SettingsManager {
 
 		if ( ! $this->options->has( self::OPTION_DEMO_API_KEY_LAST4 ) ) {
 			$this->options->set( self::OPTION_DEMO_API_KEY_LAST4, self::DEFAULT_DEMO_API_KEY_LAST4 );
+		}
+
+		if ( ! $this->options->has( self::OPTION_MEMORY_LIMIT ) ) {
+			$this->options->set( self::OPTION_MEMORY_LIMIT, self::DEFAULT_MEMORY_LIMIT );
+		}
+
+		if ( ! $this->options->has( self::OPTION_MEMORY_TTL ) ) {
+			$this->options->set( self::OPTION_MEMORY_TTL, self::DEFAULT_MEMORY_TTL );
 		}
 	}
 

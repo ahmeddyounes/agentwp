@@ -32,6 +32,7 @@ use AgentWP\Contracts\OrderSearchServiceInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Plugin\SettingsManager;
 use AgentWP\Intent\Handlers\AnalyticsQueryHandler;
 use AgentWP\Intent\Handlers\CustomerLookupHandler;
 use AgentWP\Intent\Handlers\EmailDraftHandler;
@@ -73,6 +74,11 @@ final class IntentServiceProvider extends ServiceProvider {
 	/**
 	 * Register memory store.
 	 *
+	 * Configuration is read from SettingsManager with safe defaults if unavailable.
+	 * Values can be customized via WordPress filters:
+	 * - 'agentwp_memory_limit' (int): Max memory entries (min 1, default 5)
+	 * - 'agentwp_memory_ttl' (int): TTL in seconds (min 60, default 1800)
+	 *
 	 * @return void
 	 */
 	private function registerMemoryStore(): void {
@@ -84,7 +90,28 @@ final class IntentServiceProvider extends ServiceProvider {
 
 		$this->container->singleton(
 			MemoryStoreInterface::class,
-			fn() => new \AgentWP\Intent\MemoryStore()
+			function () {
+				// Get WPFunctions for filter hooks.
+				$wp = $this->container->has( WPFunctions::class )
+					? $this->container->get( WPFunctions::class )
+					: new WPFunctions();
+
+				// Read from settings or use safe defaults.
+				$limit = SettingsManager::DEFAULT_MEMORY_LIMIT;
+				$ttl   = SettingsManager::DEFAULT_MEMORY_TTL;
+
+				if ( $this->container->has( SettingsManager::class ) ) {
+					$settings = $this->container->get( SettingsManager::class );
+					$limit    = $settings->getMemoryLimit();
+					$ttl      = $settings->getMemoryTtl();
+				}
+
+				// Apply filters for customization.
+				$limit = (int) $wp->applyFilters( 'agentwp_memory_limit', $limit );
+				$ttl   = (int) $wp->applyFilters( 'agentwp_memory_ttl', $ttl );
+
+				return new \AgentWP\Intent\MemoryStore( $limit, $ttl );
+			}
 		);
 	}
 
