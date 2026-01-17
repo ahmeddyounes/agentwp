@@ -72,7 +72,7 @@ class OrderStatusHandler extends AbstractAgenticHandler {
 	 *
 	 * @param string $name      Tool name.
 	 * @param array  $arguments Tool arguments.
-	 * @return mixed Tool execution result.
+	 * @return array Tool execution result.
 	 */
 	public function execute_tool( string $name, array $arguments ) {
 		switch ( $name ) {
@@ -81,17 +81,17 @@ class OrderStatusHandler extends AbstractAgenticHandler {
 				$status   = isset( $arguments['new_status'] ) ? (string) $arguments['new_status'] : '';
 				$note     = isset( $arguments['note'] ) ? (string) $arguments['note'] : '';
 				$notify   = isset( $arguments['notify_customer'] ) ? (bool) $arguments['notify_customer'] : false;
-				return $this->service->prepare_update( $order_id, $status, $note, $notify );
+				return $this->service->prepare_update( $order_id, $status, $note, $notify )->toLegacyArray();
 
 			case 'prepare_bulk_status_update':
 				$order_ids = isset( $arguments['order_ids'] ) ? array_map( 'intval', (array) $arguments['order_ids'] ) : array();
 				$status    = isset( $arguments['new_status'] ) ? (string) $arguments['new_status'] : '';
 				$notify    = isset( $arguments['notify_customer'] ) ? (bool) $arguments['notify_customer'] : false;
-				return $this->service->prepare_bulk_update( $order_ids, $status, $notify );
+				return $this->service->prepare_bulk_update( $order_ids, $status, $notify )->toLegacyArray();
 
 			case 'confirm_status_update':
 				$draft_id = isset( $arguments['draft_id'] ) ? (string) $arguments['draft_id'] : '';
-				return $this->service->confirm_update( $draft_id );
+				return $this->service->confirm_update( $draft_id )->toLegacyArray();
 
 			default:
 				return array( 'error' => "Unknown tool: {$name}" );

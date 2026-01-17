@@ -312,15 +312,17 @@ function agentwp_test_refund( WP_REST_Request $request ) {
 
 	$draft_id = isset( $payload['draft_id'] ) ? sanitize_text_field( $payload['draft_id'] ) : '';
 	if ( '' !== $draft_id ) {
-		$result = $service->confirm_refund( $draft_id );
+		$serviceResult = $service->confirm_refund( $draft_id );
 	} else {
 		$order_id = isset( $payload['order_id'] ) ? absint( $payload['order_id'] ) : 0;
 		$amount = isset( $payload['amount'] ) ? (float) $payload['amount'] : null;
 		$reason = isset( $payload['reason'] ) ? sanitize_text_field( $payload['reason'] ) : '';
 		$restock_items = isset( $payload['restock_items'] ) ? (bool) $payload['restock_items'] : true;
 
-		$result = $service->prepare_refund( $order_id, $amount, $reason, $restock_items );
+		$serviceResult = $service->prepare_refund( $order_id, $amount, $reason, $restock_items );
 	}
+
+	$result = $serviceResult->toLegacyArray();
 
 	if ( isset( $result['success'] ) && true === $result['success'] ) {
 		unset( $result['success'] );
@@ -342,15 +344,17 @@ function agentwp_test_status_update( WP_REST_Request $request ) {
 
 	$draft_id = isset( $payload['draft_id'] ) ? sanitize_text_field( $payload['draft_id'] ) : '';
 	if ( '' !== $draft_id ) {
-		$result = $service->confirm_update( $draft_id );
+		$serviceResult = $service->confirm_update( $draft_id );
 	} else {
 		$order_id = isset( $payload['order_id'] ) ? absint( $payload['order_id'] ) : 0;
 		$new_status = isset( $payload['new_status'] ) ? sanitize_text_field( $payload['new_status'] ) : '';
 		$note = isset( $payload['note'] ) ? sanitize_text_field( $payload['note'] ) : '';
 		$notify_customer = isset( $payload['notify_customer'] ) ? (bool) $payload['notify_customer'] : false;
 
-		$result = $service->prepare_update( $order_id, $new_status, $note, $notify_customer );
+		$serviceResult = $service->prepare_update( $order_id, $new_status, $note, $notify_customer );
 	}
+
+	$result = $serviceResult->toLegacyArray();
 
 	if ( isset( $result['success'] ) && true === $result['success'] ) {
 		unset( $result['success'] );
@@ -374,7 +378,7 @@ function agentwp_test_stock_update( WP_REST_Request $request ) {
 
 	$draft_id = isset( $payload['draft_id'] ) ? sanitize_text_field( $payload['draft_id'] ) : '';
 	if ( '' !== $draft_id ) {
-		$result = $service->confirm_update( $draft_id );
+		$serviceResult = $service->confirm_update( $draft_id );
 	} else {
 		$product_id = isset( $payload['product_id'] ) ? absint( $payload['product_id'] ) : 0;
 		$quantity   = isset( $payload['quantity'] ) ? (int) $payload['quantity'] : 0;
@@ -384,8 +388,10 @@ function agentwp_test_stock_update( WP_REST_Request $request ) {
 			return agentwp_test_error_response( 'Missing operation.', 400 );
 		}
 
-		$result = $service->prepare_update( $product_id, $quantity, $operation );
+		$serviceResult = $service->prepare_update( $product_id, $quantity, $operation );
 	}
+
+	$result = $serviceResult->toLegacyArray();
 
 	if ( isset( $result['success'] ) && true === $result['success'] ) {
 		unset( $result['success'] );

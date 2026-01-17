@@ -7,6 +7,8 @@
 
 namespace AgentWP\Contracts;
 
+use AgentWP\DTO\ServiceResult;
+
 /**
  * Interface for product stock operations.
  */
@@ -26,15 +28,15 @@ interface ProductStockServiceInterface {
 	 * @param int    $product_id Product ID.
 	 * @param int    $quantity   Quantity value.
 	 * @param string $operation  Operation type: 'set', 'increase', or 'decrease'.
-	 * @return array Result with draft_id on success or error.
+	 * @return ServiceResult Result with draft_id on success or error.
 	 */
-	public function prepare_update( int $product_id, int $quantity, string $operation = 'set' ): array;
+	public function prepare_update( int $product_id, int $quantity, string $operation = 'set' ): ServiceResult;
 
 	/**
 	 * Confirm and execute a stock update.
 	 *
 	 * @param string $draft_id Draft ID.
-	 * @return array Result with success message or error.
+	 * @return ServiceResult Result with success message or error.
 	 */
-	public function confirm_update( string $draft_id ): array;
+	public function confirm_update( string $draft_id ): ServiceResult;
 }

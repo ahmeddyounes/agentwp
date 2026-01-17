@@ -10,6 +10,7 @@ namespace AgentWP\Services;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
+use AgentWP\DTO\ServiceResult;
 use Exception;
 
 class OrderStatusService implements OrderStatusServiceInterface {
@@ -37,31 +38,31 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	 * @param string $new_status      Target status.
 	 * @param string $note            Optional note.
 	 * @param bool   $notify_customer Whether to notify.
-	 * @return array Result.
+	 * @return ServiceResult Result.
 	 */
-	public function prepare_update( int $order_id, string $new_status, string $note = '', bool $notify_customer = false ): array {
+	public function prepare_update( int $order_id, string $new_status, string $note = '', bool $notify_customer = false ): ServiceResult {
 		if ( ! $this->policy->canUpdateOrderStatus() ) {
-			return array( 'error' => 'Permission denied.', 'code' => 403 );
+			return ServiceResult::permissionDenied();
 		}
 
 		$order = wc_get_order( $order_id );
 		if ( ! $order ) {
-			return array( 'error' => 'Order not found.', 'code' => 404 );
+			return ServiceResult::notFound( 'Order', $order_id );
 		}
 
 		$new_status = $this->normalize_status( $new_status );
 		if ( '' === $new_status ) {
-			return array( 'error' => 'Invalid status.', 'code' => 400 );
+			return ServiceResult::invalidInput( 'Invalid status.' );
 		}
 
 		$valid_statuses = $this->get_valid_statuses();
 		if ( ! in_array( $new_status, $valid_statuses, true ) ) {
-			return array( 'error' => 'Invalid status slug.', 'code' => 400 );
+			return ServiceResult::invalidInput( 'Invalid status slug.' );
 		}
 
 		$current_status = $this->normalize_status( $order->get_status() );
 		if ( $new_status === $current_status ) {
-			return array( 'error' => 'Order already has this status.', 'code' => 400 );
+			return ServiceResult::invalidState( 'Order already has this status.' );
 		}
 
 		$warning = $this->get_irreversible_warning( $new_status );
@@ -83,13 +84,15 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		$stored   = $this->draftStorage->store( self::DRAFT_TYPE, $draft_id, $draft_payload );
 
 		if ( ! $stored ) {
-			return array( 'error' => 'Failed to save draft.', 'code' => 500 );
+			return ServiceResult::operationFailed( 'Failed to save draft.' );
 		}
 
-		return array(
-			'success'  => true,
-			'draft_id' => $draft_id,
-			'draft'    => $draft_payload,
+		return ServiceResult::success(
+			"Status update prepared for Order #{$order_id}: {$current_status} -> {$new_status}.",
+			array(
+				'draft_id' => $draft_id,
+				'draft'    => $draft_payload,
+			)
 		);
 	}
 
@@ -99,25 +102,29 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	 * @param array  $order_ids       Order IDs.
 	 * @param string $new_status      Target status.
 	 * @param bool   $notify_customer Whether to notify.
-	 * @return array Result.
+	 * @return ServiceResult Result.
 	 */
-	public function prepare_bulk_update( array $order_ids, string $new_status, bool $notify_customer = false ): array {
+	public function prepare_bulk_update( array $order_ids, string $new_status, bool $notify_customer = false ): ServiceResult {
 		if ( ! $this->policy->canUpdateOrderStatus() ) {
-			return array( 'error' => 'Permission denied.', 'code' => 403 );
+			return ServiceResult::permissionDenied();
 		}
 
 		if ( empty( $order_ids ) ) {
-			return array( 'error' => 'No orders specified.', 'code' => 400 );
+			return ServiceResult::invalidInput( 'No orders specified.' );
 		}
 
 		if ( count( $order_ids ) > self::MAX_BULK ) {
-			return array( 'error' => 'Too many orders. Max ' . self::MAX_BULK . '.', 'code' => 400 );
+			return ServiceResult::failure(
+				ServiceResult::CODE_LIMIT_EXCEEDED,
+				'Too many orders. Max ' . self::MAX_BULK . '.',
+				400
+			);
 		}
 
 		$new_status = $this->normalize_status( $new_status );
 		$valid_statuses = $this->get_valid_statuses();
 		if ( ! in_array( $new_status, $valid_statuses, true ) ) {
-			return array( 'error' => 'Invalid status.', 'code' => 400 );
+			return ServiceResult::invalidInput( 'Invalid status.' );
 		}
 
 		$previews = array();
@@ -126,7 +133,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		foreach ( $order_ids as $id ) {
 			$order = wc_get_order( $id );
 			if ( ! $order ) continue;
-			
+
 			$previews[] = array(
 				'id' => $id,
 				'current' => $order->get_status(),
@@ -148,10 +155,12 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		$draft_id = $this->draftStorage->generate_id( self::DRAFT_TYPE );
 		$this->draftStorage->store( self::DRAFT_TYPE, $draft_id, $draft_payload );
 
-		return array(
-			'success'  => true,
-			'draft_id' => $draft_id,
-			'draft'    => $draft_payload,
+		return ServiceResult::success(
+			"Bulk status update prepared for " . count( $order_ids ) . " orders to {$new_status}.",
+			array(
+				'draft_id' => $draft_id,
+				'draft'    => $draft_payload,
+			)
 		);
 	}
 
@@ -159,16 +168,16 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	 * Confirm and execute a status update draft.
 	 *
 	 * @param string $draft_id Draft ID.
-	 * @return array Result.
+	 * @return ServiceResult Result.
 	 */
-	public function confirm_update( string $draft_id ): array {
+	public function confirm_update( string $draft_id ): ServiceResult {
 		if ( ! $this->policy->canUpdateOrderStatus() ) {
-			return array( 'error' => 'Permission denied.', 'code' => 403 );
+			return ServiceResult::permissionDenied();
 		}
 
 		$draft = $this->draftStorage->claim( self::DRAFT_TYPE, $draft_id );
 		if ( ! $draft ) {
-			return array( 'error' => 'Draft not found or expired.', 'code' => 404 );
+			return ServiceResult::draftExpired( 'Draft not found or expired.' );
 		}
 
 		$payload = $draft['payload'] ?? $draft;
@@ -186,23 +195,24 @@ class OrderStatusService implements OrderStatusServiceInterface {
 
 		$order = wc_get_order( $order_id );
 		if ( ! $order ) {
-			return array( 'error' => 'Order not found.', 'code' => 404 );
+			return ServiceResult::notFound( 'Order', $order_id );
 		}
 
 		$updated = $this->apply_status_update( $order, $new_status, $note, $notify );
 		if ( ! $updated ) {
-			return array( 'error' => 'Update failed.', 'code' => 500 );
+			return ServiceResult::operationFailed( 'Update failed.' );
 		}
 
-		return array(
-			'success'    => true,
-			'order_id'   => $order_id,
-			'new_status' => $new_status,
-			'message'    => "Order #{$order_id} updated to {$new_status}.",
+		return ServiceResult::success(
+			"Order #{$order_id} updated to {$new_status}.",
+			array(
+				'order_id'   => $order_id,
+				'new_status' => $new_status,
+			)
 		);
 	}
 
-	private function process_bulk_update( array $payload ): array {
+	private function process_bulk_update( array $payload ): ServiceResult {
 		$ids    = isset( $payload['order_ids'] ) && is_array( $payload['order_ids'] ) ? $payload['order_ids'] : array();
 		$status = isset( $payload['new_status'] ) ? (string) $payload['new_status'] : '';
 		$notify = isset( $payload['notify_customer'] ) ? (bool) $payload['notify_customer'] : false;
@@ -210,11 +220,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		$updated = array();
 
 		if ( empty( $ids ) || '' === $status ) {
-			return array(
-				'success' => false,
-				'error'   => 'Invalid bulk update payload.',
-				'code'    => 400,
-			);
+			return ServiceResult::invalidInput( 'Invalid bulk update payload.' );
 		}
 
 		// Batch filter handling
@@ -249,11 +255,13 @@ class OrderStatusService implements OrderStatusServiceInterface {
 			}
 		}
 
-		return array(
-			'success'       => true,
-			'updated_count' => count( $updated ),
-			'updated_ids'   => $updated,
-			'new_status'    => $status,
+		return ServiceResult::success(
+			count( $updated ) . ' orders updated to ' . $status . '.',
+			array(
+				'updated_count' => count( $updated ),
+				'updated_ids'   => $updated,
+				'new_status'    => $status,
+			)
 		);
 	}
 

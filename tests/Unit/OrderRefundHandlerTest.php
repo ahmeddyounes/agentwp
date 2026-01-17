@@ -5,6 +5,7 @@ use AgentWP\Intent\Handlers\OrderRefundHandler;
 use AgentWP\Tests\TestCase;
 use AgentWP\AI\Response;
 use AgentWP\Contracts\OrderRefundServiceInterface;
+use AgentWP\DTO\ServiceResult;
 use AgentWP\Tests\Fakes\FakeAIClientFactory;
 use AgentWP\Tests\Fakes\FakeOpenAIClient;
 use AgentWP\Tests\Fakes\FakeToolRegistry;
@@ -17,7 +18,7 @@ class OrderRefundHandlerTest extends TestCase {
 		$service->shouldReceive( 'prepare_refund' )
 			->once()
 			->with( 123, null, '', true )
-			->andReturn( array( 'draft_id' => 'draft_123' ) );
+			->andReturn( ServiceResult::success( 'Refund prepared.', array( 'draft_id' => 'draft_123' ) ) );
 
 		$client = new FakeOpenAIClient(
 			array(

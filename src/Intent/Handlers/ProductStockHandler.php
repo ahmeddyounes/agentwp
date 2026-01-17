@@ -72,7 +72,7 @@ class ProductStockHandler extends AbstractAgenticHandler {
 	 *
 	 * @param string $name      Tool name.
 	 * @param array  $arguments Tool arguments.
-	 * @return mixed Tool execution result.
+	 * @return array Tool execution result.
 	 */
 	public function execute_tool( string $name, array $arguments ) {
 		switch ( $name ) {
@@ -84,11 +84,11 @@ class ProductStockHandler extends AbstractAgenticHandler {
 				$product_id = isset( $arguments['product_id'] ) ? (int) $arguments['product_id'] : 0;
 				$quantity   = isset( $arguments['quantity'] ) ? (int) $arguments['quantity'] : 0;
 				$operation  = isset( $arguments['operation'] ) ? (string) $arguments['operation'] : 'set';
-				return $this->service->prepare_update( $product_id, $quantity, $operation );
+				return $this->service->prepare_update( $product_id, $quantity, $operation )->toLegacyArray();
 
 			case 'confirm_stock_update':
 				$draft_id = isset( $arguments['draft_id'] ) ? (string) $arguments['draft_id'] : '';
-				return $this->service->confirm_update( $draft_id );
+				return $this->service->confirm_update( $draft_id )->toLegacyArray();
 
 			default:
 				return array( 'error' => "Unknown tool: {$name}" );

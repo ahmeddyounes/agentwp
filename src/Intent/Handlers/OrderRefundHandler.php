@@ -72,7 +72,7 @@ class OrderRefundHandler extends AbstractAgenticHandler {
 	 *
 	 * @param string $name      Tool name.
 	 * @param array  $arguments Tool arguments.
-	 * @return mixed Tool execution result.
+	 * @return array Tool execution result.
 	 */
 	public function execute_tool( string $name, array $arguments ) {
 		switch ( $name ) {
@@ -82,11 +82,11 @@ class OrderRefundHandler extends AbstractAgenticHandler {
 				$reason        = isset( $arguments['reason'] ) ? $arguments['reason'] : '';
 				$restock_items = isset( $arguments['restock_items'] ) ? (bool) $arguments['restock_items'] : true;
 
-				return $this->service->prepare_refund( $order_id, $amount, $reason, $restock_items );
+				return $this->service->prepare_refund( $order_id, $amount, $reason, $restock_items )->toLegacyArray();
 
 			case 'confirm_refund':
 				$draft_id = isset( $arguments['draft_id'] ) ? (string) $arguments['draft_id'] : '';
-				return $this->service->confirm_refund( $draft_id );
+				return $this->service->confirm_refund( $draft_id )->toLegacyArray();
 
 			default:
 				return array( 'error' => "Unknown tool: {$name}" );

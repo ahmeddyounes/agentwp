@@ -10,6 +10,7 @@ namespace AgentWP\Services;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
+use AgentWP\DTO\ServiceResult;
 
 class OrderRefundService implements OrderRefundServiceInterface {
 	private const DRAFT_TYPE = 'refund';
@@ -33,45 +34,32 @@ class OrderRefundService implements OrderRefundServiceInterface {
 	 * @param float  $amount        Refund amount (optional).
 	 * @param string $reason        Refund reason.
 	 * @param bool   $restock_items Whether to restock items.
-	 * @return array Result with draft_id or error.
+	 * @return ServiceResult Result with draft_id or error.
 	 */
-	public function prepare_refund( int $order_id, ?float $amount = null, string $reason = '', bool $restock_items = true ): array {
+	public function prepare_refund( int $order_id, ?float $amount = null, string $reason = '', bool $restock_items = true ): ServiceResult {
 		if ( ! $this->policy->canRefundOrders() ) {
-			return array(
-				'success' => false,
-				'message' => 'Permission denied.',
-			);
+			return ServiceResult::permissionDenied();
 		}
 
 		if ( $order_id <= 0 ) {
-			return array(
-				'success' => false,
-				'message' => 'Invalid order ID.',
-			);
+			return ServiceResult::invalidInput( 'Invalid order ID.' );
 		}
 
 		$order = wc_get_order( $order_id );
 		if ( ! $order ) {
-			return array(
-				'success' => false,
-				'message' => "Order #{$order_id} not found.",
-			);
+			return ServiceResult::notFound( 'Order', $order_id );
 		}
 
 		if ( $order->get_remaining_refund_amount() <= 0 ) {
-			return array(
-				'success' => false,
-				'message' => "Order #{$order_id} is already fully refunded.",
-			);
+			return ServiceResult::invalidState( "Order #{$order_id} is already fully refunded." );
 		}
 
 		$max_refund = $order->get_remaining_refund_amount();
 		$refund_amount = $amount !== null ? (float) $amount : $max_refund;
 
 		if ( $refund_amount > $max_refund ) {
-			return array(
-				'success' => false,
-				'message' => "Cannot refund \${$refund_amount}. Max refundable is \${$max_refund}.",
+			return ServiceResult::invalidInput(
+				"Cannot refund \${$refund_amount}. Max refundable is \${$max_refund}."
 			);
 		}
 
@@ -88,18 +76,19 @@ class OrderRefundService implements OrderRefundServiceInterface {
 
 		$this->draftStorage->store( self::DRAFT_TYPE, $draft_id, $draft_data );
 
-		return array(
-			'success'  => true,
-			'draft_id' => $draft_id,
-			'preview'  => array(
-				'order_id'      => $order_id,
-				'amount'        => $refund_amount,
-				'currency'      => $order->get_currency(),
-				'reason'        => $reason,
-				'restock_items' => $restock_items,
-				'status'        => 'ready_to_confirm',
-			),
-			'message' => "Refund prepared for Order #{$order_id}. Amount: {$refund_amount} {$order->get_currency()}. Reply with confirmation to proceed.",
+		return ServiceResult::success(
+			"Refund prepared for Order #{$order_id}. Amount: {$refund_amount} {$order->get_currency()}. Reply with confirmation to proceed.",
+			array(
+				'draft_id' => $draft_id,
+				'preview'  => array(
+					'order_id'      => $order_id,
+					'amount'        => $refund_amount,
+					'currency'      => $order->get_currency(),
+					'reason'        => $reason,
+					'restock_items' => $restock_items,
+					'status'        => 'ready_to_confirm',
+				),
+			)
 		);
 	}
 
@@ -107,22 +96,16 @@ class OrderRefundService implements OrderRefundServiceInterface {
 	 * Confirm and execute a refund.
 	 *
 	 * @param string $draft_id Draft identifier.
-	 * @return array Result.
+	 * @return ServiceResult Result.
 	 */
-	public function confirm_refund( string $draft_id ): array {
+	public function confirm_refund( string $draft_id ): ServiceResult {
 		if ( ! $this->policy->canRefundOrders() ) {
-			return array(
-				'success' => false,
-				'message' => 'Permission denied.',
-			);
+			return ServiceResult::permissionDenied();
 		}
 
 		$data = $this->draftStorage->claim( self::DRAFT_TYPE, $draft_id );
 		if ( ! $data ) {
-			return array(
-				'success' => false,
-				'message' => 'Refund draft expired or invalid. Please request the refund again.',
-			);
+			return ServiceResult::draftExpired( 'Refund draft expired or invalid. Please request the refund again.' );
 		}
 
 		$order_id = $data['order_id'];
@@ -142,10 +125,7 @@ class OrderRefundService implements OrderRefundServiceInterface {
 		);
 
 		if ( is_wp_error( $result ) ) {
-			return array(
-				'success' => false,
-				'message' => 'Refund failed: ' . $result->get_error_message(),
-			);
+			return ServiceResult::operationFailed( 'Refund failed: ' . $result->get_error_message() );
 		}
 
 		$restocked_items = array();
@@ -163,13 +143,14 @@ class OrderRefundService implements OrderRefundServiceInterface {
 			}
 		}
 
-		return array(
-			'success'         => true,
-			'confirmed'       => true,
-			'order_id'        => $order_id,
-			'refund_id'       => $result->get_id(),
-			'restocked_items' => $restocked_items,
-			'message'         => "Refund #{$result->get_id()} processed successfully for Order #{$order_id}.",
+		return ServiceResult::success(
+			"Refund #{$result->get_id()} processed successfully for Order #{$order_id}.",
+			array(
+				'confirmed'       => true,
+				'order_id'        => $order_id,
+				'refund_id'       => $result->get_id(),
+				'restocked_items' => $restocked_items,
+			)
 		);
 	}
 }

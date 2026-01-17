@@ -10,6 +10,7 @@ namespace AgentWP\Services;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
+use AgentWP\DTO\ServiceResult;
 
 class ProductStockService implements ProductStockServiceInterface {
 	private const DRAFT_TYPE = 'stock';
@@ -73,22 +74,22 @@ class ProductStockService implements ProductStockServiceInterface {
 	/**
 	 * Prepare stock update.
 	 */
-	public function prepare_update( int $product_id, int $quantity, string $operation = 'set' ): array {
+	public function prepare_update( int $product_id, int $quantity, string $operation = 'set' ): ServiceResult {
 		if ( ! $this->policy->canManageStock() ) {
-			return array( 'error' => 'Permission denied.' );
+			return ServiceResult::permissionDenied();
 		}
 
 		if ( $product_id <= 0 ) {
-			return array( 'error' => 'Invalid product ID.' );
+			return ServiceResult::invalidInput( 'Invalid product ID.' );
 		}
 
 		if ( $quantity < 0 ) {
-			return array( 'error' => 'Quantity cannot be negative.' );
+			return ServiceResult::invalidInput( 'Quantity cannot be negative.' );
 		}
 
 		$product = wc_get_product( $product_id );
 		if ( ! $product ) {
-			return array( 'error' => 'Product not found.' );
+			return ServiceResult::notFound( 'Product', $product_id );
 		}
 
 		$current_stock = method_exists( $product, 'get_stock_quantity' ) ? $product->get_stock_quantity() : null;
@@ -116,24 +117,26 @@ class ProductStockService implements ProductStockServiceInterface {
 		$draft_id = $this->draftStorage->generate_id( self::DRAFT_TYPE );
 		$this->draftStorage->store( self::DRAFT_TYPE, $draft_id, $draft_payload );
 
-		return array(
-			'success'  => true,
-			'draft_id' => $draft_id,
-			'draft'    => $draft_payload,
+		return ServiceResult::success(
+			"Stock update prepared for {$product->get_name()}: {$current} -> {$new}.",
+			array(
+				'draft_id' => $draft_id,
+				'draft'    => $draft_payload,
+			)
 		);
 	}
 
 	/**
 	 * Confirm update.
 	 */
-	public function confirm_update( string $draft_id ): array {
+	public function confirm_update( string $draft_id ): ServiceResult {
 		if ( ! $this->policy->canManageStock() ) {
-			return array( 'error' => 'Permission denied.' );
+			return ServiceResult::permissionDenied();
 		}
 
 		$draft = $this->draftStorage->claim( self::DRAFT_TYPE, $draft_id );
 		if ( ! $draft ) {
-			return array( 'error' => 'Draft expired.' );
+			return ServiceResult::draftExpired( 'Draft expired.' );
 		}
 
 		$product_id = $draft['product_id'];
@@ -141,20 +144,21 @@ class ProductStockService implements ProductStockServiceInterface {
 
 		$product = wc_get_product( $product_id );
 		if ( ! $product ) {
-			return array( 'error' => 'Product not found.' );
+			return ServiceResult::notFound( 'Product', $product_id );
 		}
 
 		if ( ! function_exists( 'wc_update_product_stock' ) ) {
-			return array( 'error' => 'Stock update unavailable.', 'code' => 500 );
+			return ServiceResult::operationFailed( 'Stock update unavailable.' );
 		}
 
 		wc_update_product_stock( $product, $quantity );
 
-		return array(
-			'success' => true,
-			'product_id' => (int) $product_id,
-			'new_stock' => (int) $quantity,
-			'message' => "Stock updated for {$product->get_name()}.",
+		return ServiceResult::success(
+			"Stock updated for {$product->get_name()}.",
+			array(
+				'product_id' => (int) $product_id,
+				'new_stock'  => (int) $quantity,
+			)
 		);
 	}
 }
