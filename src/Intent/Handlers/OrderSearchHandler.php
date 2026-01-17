@@ -10,11 +10,13 @@ namespace AgentWP\Intent\Handlers;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\OrderSearchServiceInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Intent;
 
 /**
  * Handles order search intents using the agentic loop.
  */
+#[HandlesIntent( Intent::ORDER_SEARCH )]
 class OrderSearchHandler extends AbstractAgenticHandler {
 
 	/**

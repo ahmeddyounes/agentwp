@@ -10,11 +10,13 @@ namespace AgentWP\Intent\Handlers;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\EmailDraftServiceInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Intent;
 
 /**
  * Handles email draft intents using the agentic loop.
  */
+#[HandlesIntent( Intent::EMAIL_DRAFT )]
 class EmailDraftHandler extends AbstractAgenticHandler {
 
 	/**

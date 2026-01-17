@@ -10,11 +10,13 @@ namespace AgentWP\Intent\Handlers;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Intent;
 
 /**
  * Handles order status intents using the agentic loop.
  */
+#[HandlesIntent( Intent::ORDER_STATUS )]
 class OrderStatusHandler extends AbstractAgenticHandler {
 
 	/**

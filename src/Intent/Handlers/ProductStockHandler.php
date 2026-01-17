@@ -10,11 +10,13 @@ namespace AgentWP\Intent\Handlers;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Intent;
 
 /**
  * Handles product stock intents using the agentic loop.
  */
+#[HandlesIntent( Intent::PRODUCT_STOCK )]
 class ProductStockHandler extends AbstractAgenticHandler {
 
 	/**

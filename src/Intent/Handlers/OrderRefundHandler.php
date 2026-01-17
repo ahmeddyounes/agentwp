@@ -10,11 +10,13 @@ namespace AgentWP\Intent\Handlers;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Intent;
 
 /**
  * Handles order refund intents using the agentic loop.
  */
+#[HandlesIntent( Intent::ORDER_REFUND )]
 class OrderRefundHandler extends AbstractAgenticHandler {
 
 	/**

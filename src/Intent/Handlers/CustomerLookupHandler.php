@@ -10,11 +10,13 @@ namespace AgentWP\Intent\Handlers;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\CustomerServiceInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Intent;
 
 /**
  * Handles customer lookup intents using the agentic loop.
  */
+#[HandlesIntent( Intent::CUSTOMER_LOOKUP )]
 class CustomerLookupHandler extends AbstractAgenticHandler {
 
 	/**

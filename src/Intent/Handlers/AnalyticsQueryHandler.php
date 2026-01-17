@@ -10,11 +10,13 @@ namespace AgentWP\Intent\Handlers;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\AnalyticsServiceInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Intent;
 
 /**
  * Handles analytics query intents using the agentic loop.
  */
+#[HandlesIntent( Intent::ANALYTICS_QUERY )]
 class AnalyticsQueryHandler extends AbstractAgenticHandler {
 
 	/**

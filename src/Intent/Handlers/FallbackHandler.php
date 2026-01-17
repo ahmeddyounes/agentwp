@@ -8,8 +8,10 @@
 namespace AgentWP\Intent\Handlers;
 
 use AgentWP\AI\Response;
+use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Intent;
 
+#[HandlesIntent( Intent::UNKNOWN )]
 class FallbackHandler extends BaseHandler {
 	/**
 	 * Initialize fallback intent handler.
