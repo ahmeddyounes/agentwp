@@ -28,8 +28,8 @@ export default defineConfig({
       reportsDirectory: './coverage',
       include: ['components/**/*.{js,jsx,ts,tsx}', 'src/**/*.{js,jsx,ts,tsx}'],
       exclude: [
-        'components/cards/index.js',
-        'src/main.jsx',
+        'components/cards/index.ts',
+        'src/main.tsx',
         '**/*.d.ts',
         '**/*.test.{js,jsx,ts,tsx}',
       ],

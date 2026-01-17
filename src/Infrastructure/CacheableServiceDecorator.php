@@ -180,7 +180,9 @@ final class CacheableServiceDecorator {
 
 		return $this->cached( $key, function () use ( $method, $params ) {
 			if ( ! method_exists( $this->service, $method ) ) {
-				throw new \BadMethodCallException( "Method {$method} does not exist on service." );
+				throw new \BadMethodCallException(
+					sprintf( 'Method %s does not exist on service.', $method ) // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Safe in exception message context.
+				);
 			}
 
 			return call_user_func_array( [ $this->service, $method ], $params );
@@ -196,7 +198,9 @@ final class CacheableServiceDecorator {
 	 */
 	public function __call( string $method, array $params ) {
 		if ( ! method_exists( $this->service, $method ) ) {
-			throw new \BadMethodCallException( "Method {$method} does not exist on service." );
+			throw new \BadMethodCallException(
+				sprintf( 'Method %s does not exist on service.', $method ) // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Safe in exception message context.
+			);
 		}
 
 		return call_user_func_array( [ $this->service, $method ], $params );
@@ -210,7 +214,9 @@ final class CacheableServiceDecorator {
 	 */
 	public function __get( string $property ) {
 		if ( ! property_exists( $this->service, $property ) ) {
-			throw new \InvalidArgumentException( "Property {$property} does not exist on service." );
+			throw new \InvalidArgumentException(
+				sprintf( 'Property %s does not exist on service.', $property ) // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Safe in exception message context.
+			);
 		}
 
 		return $this->service->$property;

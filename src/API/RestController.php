@@ -8,6 +8,7 @@
 namespace AgentWP\API;
 
 use AgentWP\Config\AgentWPConfig;
+use AgentWP\Container\ContainerInterface;
 use AgentWP\Error\Handler as ErrorHandler;
 use AgentWP\Plugin;
 use WP_Error;
@@ -28,6 +29,36 @@ abstract class RestController extends WP_REST_Controller {
 	 */
 	public function __construct() {
 		$this->namespace = self::REST_NAMESPACE;
+	}
+
+	/**
+	 * Get the plugin container instance.
+	 *
+	 * @return ContainerInterface|null
+	 */
+	protected function container(): ?ContainerInterface {
+		return Plugin::container();
+	}
+
+	/**
+	 * Resolve a dependency from the container with a null fallback.
+	 *
+	 * Controllers should prefer resolving interfaces when available.
+	 *
+	 * @param string $id Service identifier.
+	 * @return mixed|null
+	 */
+	protected function resolve( string $id ) {
+		$container = $this->container();
+		if ( ! $container || ! $container->has( $id ) ) {
+			return null;
+		}
+
+		try {
+			return $container->get( $id );
+		} catch ( \Throwable $e ) {
+			return null;
+		}
 	}
 
 	/**

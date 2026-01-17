@@ -170,6 +170,10 @@ abstract class SimpleHandler extends BaseHandler {
 	 * @return Response Success response.
 	 */
 	protected function buildSuccess( string $message = '', array $data = [] ): Response {
-		return Response::success( $message, $data );
+		if ( '' !== $message && ! isset( $data['message'] ) ) {
+			$data['message'] = $message;
+		}
+
+		return Response::success( $data );
 	}
 }

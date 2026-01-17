@@ -1,12 +1,17 @@
 import { render, screen } from '@testing-library/react';
-import BaseCard from '../../../components/cards/BaseCard.jsx';
+import BaseCard from '../../../components/cards/BaseCard';
 
 describe('BaseCard', () => {
   it('renders header, body, and actions with accessible labeling', () => {
     render(
-      <BaseCard title="Card title" subtitle="Card subtitle" actions={<button>Action</button>} theme="dark">
+      <BaseCard
+        title="Card title"
+        subtitle="Card subtitle"
+        actions={<button>Action</button>}
+        theme="dark"
+      >
         <p>Body content</p>
-      </BaseCard>
+      </BaseCard>,
     );
 
     const region = screen.getByRole('region');

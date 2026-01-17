@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import agentwpClient from '../api/AgentWPClient.js';
+import agentwpClient from '../api/AgentWPClient';
 import type { UsageSummary } from '../types';
 
 interface UsageResponse {

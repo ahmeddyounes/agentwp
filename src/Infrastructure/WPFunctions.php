@@ -244,7 +244,7 @@ final class WPFunctions {
 			return false;
 		}
 
-		return wp_cache_set( $key, $value, $group, $expire );
+		return wp_cache_set( $key, $value, $group, $expire ); // phpcs:ignore WordPressVIPMinimum.Performance.LowExpiryCacheTime.CacheTimeUndetermined -- Expiry is controlled by the caller; 0 means no expiration.
 	}
 
 	/**

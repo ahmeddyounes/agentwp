@@ -27,6 +27,11 @@
       "AgentWP\\Tests\\": "tests/"
     }
   },
+  "scripts": {
+    "phpunit": "vendor/bin/phpunit",
+    "phpcs": "vendor/bin/phpcs",
+    "phpstan": "php -d memory_limit=1G vendor/bin/phpstan analyse --no-progress"
+  },
   "config": {
     "allow-plugins": {
       "dealerdirect/phpcodesniffer-composer-installer": true

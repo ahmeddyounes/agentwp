@@ -21,6 +21,8 @@ class UserContextProvider implements ContextProviderInterface {
 	 * @return array User context data.
 	 */
 	public function provide( array $context, array $metadata ): array {
+		unset( $context, $metadata );
+
 		if ( ! function_exists( 'wp_get_current_user' ) ) {
 			return [];
 		}

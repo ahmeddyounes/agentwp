@@ -2,11 +2,18 @@
 const withAlpha = (variable) => `rgb(var(${variable}) / <alpha-value>)`;
 
 export default {
-  content: ['./index.html', './src/**/*.{js,jsx}'],
+  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}', './components/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
       fontFamily: {
-        sans: ['system-ui', '-apple-system', '"Segoe UI"', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+        sans: [
+          'system-ui',
+          '-apple-system',
+          '"Segoe UI"',
+          '"Helvetica Neue"',
+          'Arial',
+          'sans-serif',
+        ],
         display: [
           'system-ui',
           '-apple-system',

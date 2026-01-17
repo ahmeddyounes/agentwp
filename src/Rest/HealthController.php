@@ -42,9 +42,10 @@ class HealthController extends RestController {
 
 		return $this->response_success(
 			array(
-				'status'  => 'ok',
-				'time'    => gmdate( 'c' ),
-				'version' => defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '',
+				'status'    => 'ok',
+				'time'      => gmdate( 'c' ),
+				'timestamp' => (int) ( time() * 1000 ),
+				'version'   => defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '',
 			)
 		);
 	}

@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import ErrorBoundary from '../../components/ErrorBoundary.jsx';
+import ErrorBoundary from '../../components/ErrorBoundary';
 
-const Thrower = () => {
+const Thrower = (): JSX.Element => {
   throw new Error('Boom');
 };
 
@@ -12,10 +12,10 @@ describe('ErrorBoundary', () => {
     const user = userEvent.setup();
     const onError = vi.fn();
     const reload = vi.fn();
-    const original = window.location;
+    const originalLocation = window.location;
 
     Object.defineProperty(window, 'location', {
-      value: { ...original, reload },
+      value: { ...originalLocation, reload },
       writable: true,
     });
 
@@ -34,6 +34,6 @@ describe('ErrorBoundary', () => {
     expect(reload).toHaveBeenCalledTimes(1);
 
     consoleSpy.mockRestore();
-    window.location = original;
+    Object.defineProperty(window, 'location', { value: originalLocation });
   });
 });

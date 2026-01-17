@@ -1,4 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ElementType,
+  type ReactNode,
+} from 'react';
 import {
   ArcElement,
   BarElement,
@@ -12,7 +20,7 @@ import {
   Tooltip,
 } from 'chart.js';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
-import BaseCard from './BaseCard.jsx';
+import BaseCard, { type CardTheme } from './BaseCard';
 
 ChartJS.register(
   CategoryScale,
@@ -23,17 +31,11 @@ ChartJS.register(
   ArcElement,
   Tooltip,
   Legend,
-  Filler
+  Filler,
 );
 
 const ChartIcon = () => (
-  <svg
-    viewBox="0 0 24 24"
-    width="20"
-    height="20"
-    aria-hidden="true"
-    focusable="false"
-  >
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
     <path
       fill="currentColor"
       d="M4.8 20.2a1 1 0 0 1-1-1V4.8a1 1 0 0 1 2 0v13.4h13.4a1 1 0 0 1 0 2H4.8zm4.2-4.9 3-4.2a1 1 0 0 1 1.6-.1l2 2.6 3-4a1 1 0 0 1 1.6 1.2l-3.8 5a1 1 0 0 1-1.6 0l-2.1-2.7-2.2 3.1a1 1 0 1 1-1.5-.9z"
@@ -45,7 +47,9 @@ const CHART_COMPONENTS = {
   line: Line,
   bar: Bar,
   doughnut: Doughnut,
-};
+} as const;
+
+type ChartKind = keyof typeof CHART_COMPONENTS;
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -53,27 +57,37 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
 });
 
-const formatCurrency = (value) => {
+const formatCurrency = (value: unknown): string => {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return value?.toString() ?? '';
   }
   return currencyFormatter.format(value);
 };
 
-const resolveTooltipValue = (context) => {
-  if (typeof context.parsed === 'number') {
-    return context.parsed;
+interface TooltipContext {
+  parsed?: unknown;
+  raw?: unknown;
+  dataset?: { label?: string };
+}
+
+const resolveTooltipValue = (context: TooltipContext): unknown => {
+  const parsed = context.parsed;
+  if (typeof parsed === 'number') {
+    return parsed;
   }
-  if (context.parsed?.y !== undefined) {
-    return context.parsed.y;
-  }
-  if (context.parsed?.r !== undefined) {
-    return context.parsed.r;
+  if (parsed && typeof parsed === 'object') {
+    const parsedObject = parsed as { y?: unknown; r?: unknown };
+    if (parsedObject.y !== undefined) {
+      return parsedObject.y;
+    }
+    if (parsedObject.r !== undefined) {
+      return parsedObject.r;
+    }
   }
   return context.raw;
 };
 
-const usePrefersDark = (fallback = false) => {
+const usePrefersDark = (fallback = false): boolean => {
   const [prefersDark, setPrefersDark] = useState(() => {
     if (typeof window === 'undefined' || !window.matchMedia) {
       return fallback;
@@ -86,7 +100,7 @@ const usePrefersDark = (fallback = false) => {
       return undefined;
     }
     const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (event) => {
+    const handleChange = (event: MediaQueryListEvent) => {
       setPrefersDark(event.matches);
     };
     if (media.addEventListener) {
@@ -106,7 +120,17 @@ const usePrefersDark = (fallback = false) => {
   return prefersDark;
 };
 
-const buildChartPalette = (theme) => {
+const buildChartPalette = (
+  theme: Exclude<CardTheme, 'auto'>,
+): {
+  text: string;
+  muted: string;
+  grid: string;
+  tooltipBg: string;
+  tooltipBorder: string;
+  tooltipText: string;
+  canvas: string;
+} => {
   if (theme === 'light') {
     return {
       text: '#0f172a',
@@ -132,9 +156,58 @@ const buildChartPalette = (theme) => {
 /**
  * Chart card for analytics visualizations with export support.
  *
- * @param {object} props Component props.
  * @returns {JSX.Element}
  */
+export interface ChartTableRow {
+  id: string | number;
+  cells: ReactNode[];
+}
+
+export interface ChartTable {
+  caption?: ReactNode;
+  headers: string[];
+  rows: ChartTableRow[];
+}
+
+export interface ChartCardProps {
+  title?: string;
+  subtitle?: ReactNode;
+  metric?: ReactNode;
+  trend?: ReactNode;
+  footer?: ReactNode;
+  theme?: CardTheme;
+  type?: ChartKind;
+  data: Record<string, unknown>;
+  options?: ChartOptionsInput;
+  meta?: ReactNode;
+  table?: ChartTable;
+  height?: number;
+  exportFilename?: string;
+  exportLabel?: string;
+  valueFormatter?: (value: unknown) => string;
+  yAxisFormatter?: ((value: unknown) => string) | undefined;
+  className?: string;
+}
+
+type ChartOptionsPlugins = Record<string, unknown> & {
+  legend?: Record<string, unknown> & {
+    labels?: Record<string, unknown>;
+  };
+  tooltip?: Record<string, unknown> & {
+    callbacks?: Record<string, unknown>;
+  };
+};
+
+type ChartOptionsScales = Record<string, unknown> & {
+  x?: Record<string, unknown>;
+  y?: Record<string, unknown>;
+};
+
+type ChartOptionsInput = Record<string, unknown> & {
+  plugins?: ChartOptionsPlugins;
+  scales?: ChartOptionsScales;
+};
+
 export default function ChartCard({
   title = 'Performance snapshot',
   subtitle,
@@ -153,14 +226,16 @@ export default function ChartCard({
   valueFormatter = formatCurrency,
   yAxisFormatter,
   className = '',
-}) {
+}: ChartCardProps) {
   const prefersDark = usePrefersDark();
   const resolvedTheme = theme === 'auto' ? (prefersDark ? 'dark' : 'light') : theme;
   const palette = useMemo(() => buildChartPalette(resolvedTheme), [resolvedTheme]);
-  const ChartComponent = CHART_COMPONENTS[type] || Line;
-  const chartRef = useRef(null);
-  const exportTimerRef = useRef(null);
-  const [exportStatus, setExportStatus] = useState('idle');
+  const ChartComponent: ElementType = CHART_COMPONENTS[type] || Line;
+  const chartRef = useRef<{ toBase64Image: (type?: string, quality?: number) => string } | null>(
+    null,
+  );
+  const exportTimerRef = useRef<number | null>(null);
+  const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'exported'>('idle');
   const tableId = useId();
   const chartId = useId();
 
@@ -176,8 +251,18 @@ export default function ChartCard({
     () => [
       {
         id: 'agentwpChartBackground',
-        beforeDraw: (chartInstance) => {
-          const { ctx, width, height } = chartInstance;
+        beforeDraw: (chartInstance: unknown) => {
+          if (!chartInstance || typeof chartInstance !== 'object') {
+            return;
+          }
+          const { ctx, width, height } = chartInstance as {
+            ctx?: CanvasRenderingContext2D;
+            width?: number;
+            height?: number;
+          };
+          if (!ctx || typeof width !== 'number' || typeof height !== 'number') {
+            return;
+          }
           ctx.save();
           ctx.fillStyle = palette.canvas;
           ctx.fillRect(0, 0, width, height);
@@ -185,23 +270,23 @@ export default function ChartCard({
         },
       },
     ],
-    [palette.canvas]
+    [palette.canvas],
   );
 
   const tooltipCallbacks = useMemo(
     () => ({
-      label: (context) => {
+      label: (context: TooltipContext) => {
         const label = context.dataset?.label ? `${context.dataset.label}: ` : '';
         const value = resolveTooltipValue(context);
         return `${label}${valueFormatter(value)}`;
       },
     }),
-    [valueFormatter]
+    [valueFormatter],
   );
 
   const mergedOptions = useMemo(() => {
     const hasScales = type !== 'doughnut';
-    const baseOptions = {
+    const baseOptions: ChartOptionsInput = {
       responsive: true,
       maintainAspectRatio: false,
       devicePixelRatio: 2,
@@ -322,7 +407,7 @@ export default function ChartCard({
       exportTimerRef.current = window.setTimeout(() => {
         setExportStatus('idle');
       }, 2000);
-    } catch (error) {
+    } catch {
       setExportStatus('idle');
     }
   };

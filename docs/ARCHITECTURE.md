@@ -254,7 +254,7 @@ Response schema:
 ```
 
 ### GET /health
-Provides system health and connectivity checks.
+Provides basic service health.
 
 Response schema:
 ```json
@@ -262,8 +262,9 @@ Response schema:
   "success": true,
   "data": {
     "status": "ok|degraded|down",
-    "openai_reachable": true,
-    "rate_limit_remaining": 0
+    "time": "string (ISO 8601, UTC)",
+    "timestamp": 1700000000000,
+    "version": "string"
   }
 }
 ```

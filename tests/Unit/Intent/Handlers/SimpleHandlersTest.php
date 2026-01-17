@@ -5,21 +5,65 @@
 
 namespace AgentWP\Tests\Unit\Intent\Handlers;
 
+use AgentWP\AI\Response;
+use AgentWP\Contracts\AnalyticsServiceInterface;
+use AgentWP\Contracts\EmailDraftServiceInterface;
+use AgentWP\Contracts\OrderRefundServiceInterface;
+use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Intent\Handlers\AnalyticsQueryHandler;
 use AgentWP\Intent\Handlers\EmailDraftHandler;
 use AgentWP\Intent\Handlers\FallbackHandler;
 use AgentWP\Intent\Handlers\OrderRefundHandler;
 use AgentWP\Intent\Handlers\OrderStatusHandler;
 use AgentWP\Intent\Intent;
+use AgentWP\Tests\Fakes\FakeAIClientFactory;
+use AgentWP\Tests\Fakes\FakeOpenAIClient;
 use AgentWP\Tests\TestCase;
+use Mockery;
 
 class SimpleHandlersTest extends TestCase {
 	public function test_handlers_return_expected_messages(): void {
 		$handlers = array(
-			array( new AnalyticsQueryHandler(), Intent::ANALYTICS_QUERY ),
-			array( new EmailDraftHandler(), Intent::EMAIL_DRAFT ),
-			array( new OrderRefundHandler(), Intent::ORDER_REFUND ),
-			array( new OrderStatusHandler(), Intent::ORDER_STATUS ),
+			array(
+				new AnalyticsQueryHandler(
+					Mockery::mock( AnalyticsServiceInterface::class ),
+					new FakeAIClientFactory(
+						new FakeOpenAIClient( array( Response::success( array( 'content' => 'ok', 'tool_calls' => array() ) ) ) ),
+						true
+					)
+				),
+				Intent::ANALYTICS_QUERY,
+			),
+			array(
+				new EmailDraftHandler(
+					Mockery::mock( EmailDraftServiceInterface::class ),
+					new FakeAIClientFactory(
+						new FakeOpenAIClient( array( Response::success( array( 'content' => 'ok', 'tool_calls' => array() ) ) ) ),
+						true
+					)
+				),
+				Intent::EMAIL_DRAFT,
+			),
+			array(
+				new OrderRefundHandler(
+					Mockery::mock( OrderRefundServiceInterface::class ),
+					new FakeAIClientFactory(
+						new FakeOpenAIClient( array( Response::success( array( 'content' => 'ok', 'tool_calls' => array() ) ) ) ),
+						true
+					)
+				),
+				Intent::ORDER_REFUND,
+			),
+			array(
+				new OrderStatusHandler(
+					Mockery::mock( OrderStatusServiceInterface::class ),
+					new FakeAIClientFactory(
+						new FakeOpenAIClient( array( Response::success( array( 'content' => 'ok', 'tool_calls' => array() ) ) ) ),
+						true
+					)
+				),
+				Intent::ORDER_STATUS,
+			),
 		);
 
 		foreach ( $handlers as $config ) {

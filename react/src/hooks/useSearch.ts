@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import agentwpClient from '../api/AgentWPClient.js';
+import agentwpClient from '../api/AgentWPClient';
 import type { SearchResults } from '../types';
 
 const DEBOUNCE_MS = 300;

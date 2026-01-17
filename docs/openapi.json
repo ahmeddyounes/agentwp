@@ -739,6 +739,10 @@
           "time": {
             "type": "string"
           },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64"
+          },
           "version": {
             "type": "string"
           }

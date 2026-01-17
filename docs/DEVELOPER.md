@@ -9,7 +9,7 @@ Key pieces:
 - **REST API**: Controllers in `src/Rest` and `src/API` expose `/wp-json/agentwp/v1/*`.
 - **Intent engine**: `AgentWP\Intent\Engine` classifies prompts and routes them to handlers.
 - **Handlers**: Classes in `src/Intent/Handlers` implement intent-specific responses.
-- **WooCommerce integrations**: Handlers in `src/Handlers` execute refunds, status updates, stock changes, and email drafts.
+- **WooCommerce integrations**: Services in `src/Services` execute refunds, status updates, stock changes, and email drafts.
 - **React Command Deck**: Source in `react/`, built assets in `assets/`.
 
 Request flow:
@@ -38,6 +38,16 @@ npm run build
 npm install
 npm run wp-env:start
 ```
+
+## PHP tooling
+
+```bash
+composer run phpunit
+composer run phpcs
+composer run phpstan
+```
+
+Note: PHPStan needs more memory than the default PHP CLI limit; `composer run phpstan` sets `memory_limit=1G`.
 
 ## Hook and filter reference
 AgentWP exposes a few filters to help you customize behavior.

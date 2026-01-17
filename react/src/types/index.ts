@@ -75,9 +75,12 @@ export type ThemePreference = 'light' | 'dark' | 'system';
 export type Period = '7d' | '30d' | '90d';
 
 export interface AgentWPSettings {
+  root?: string;
+  nonce?: string;
+  theme?: string;
+  supportEmail?: string;
+  version?: string;
   demoMode?: boolean;
-  apiNonce?: string;
-  restUrl?: string;
   [key: string]: unknown;
 }
 

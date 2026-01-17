@@ -6,96 +6,86 @@
 namespace AgentWP\Tests\Unit\Intent\Handlers;
 
 use AgentWP\AI\Response;
+use AgentWP\Contracts\CustomerServiceInterface;
 use AgentWP\Intent\Handlers\CustomerLookupHandler;
 use AgentWP\Intent\Intent;
+use AgentWP\Tests\Fakes\FakeAIClientFactory;
+use AgentWP\Tests\Fakes\FakeOpenAIClient;
 use AgentWP\Tests\TestCase;
 use Mockery;
 
 class CustomerLookupHandlerTest extends TestCase {
-	public function test_returns_prompt_when_input_missing(): void {
-		$handler  = new CustomerLookupHandler();
-		$response = $handler->handle( array() );
+	public function test_returns_error_when_api_key_missing(): void {
+		$service = Mockery::mock( CustomerServiceInterface::class );
+		$factory = new FakeAIClientFactory( new FakeOpenAIClient(), false );
+		$handler = new CustomerLookupHandler( $service, $factory );
 
-		$this->assertTrue( $response->is_success() );
-		$this->assertSame( Intent::CUSTOMER_LOOKUP, $response->get_data()['intent'] );
-		$this->assertSame(
-			'I can look up customer profiles. Share an email or customer ID.',
-			$response->get_data()['message']
-		);
+		$response = $handler->handle( array( 'input' => 'customer@example.com' ) );
+
+		$this->assertFalse( $response->is_success() );
+		$this->assertSame( 401, $response->get_status() );
 	}
 
-	public function test_returns_prompt_for_invalid_input(): void {
-		$handler  = new CustomerLookupHandler();
-		$response = $handler->handle( array( 'input' => 'just words' ) );
-
-		$this->assertTrue( $response->is_success() );
-		$this->assertSame(
-			'Share an email address or customer ID to look up their profile.',
-			$response->get_data()['message']
-		);
-	}
-
-	public function test_successful_customer_lookup_message(): void {
-		$mock = Mockery::mock( 'overload:AgentWP\\Handlers\\CustomerHandler' );
-		$mock->shouldReceive( 'handle' )
+	public function test_executes_customer_profile_tool_and_returns_final_message(): void {
+		$service = Mockery::mock( CustomerServiceInterface::class );
+		$service->shouldReceive( 'handle' )
 			->once()
 			->with(
 				array(
 					'email'       => 'customer@example.com',
-					'customer_id' => 0,
-				)
-			)
-			->andReturn(
-				Response::success(
-					array(
-						'total_orders' => 2,
-					)
-				)
-			);
-
-		$handler  = new CustomerLookupHandler();
-		$response = $handler->handle( array( 'input' => 'customer@example.com' ) );
-
-		$this->assertTrue( $response->is_success() );
-		$this->assertSame( 'Found 2 orders for that customer.', $response->get_data()['message'] );
-	}
-
-	public function test_customer_lookup_message_when_no_orders(): void {
-		$mock = Mockery::mock( 'overload:AgentWP\\Handlers\\CustomerHandler' );
-		$mock->shouldReceive( 'handle' )
-			->once()
-			->with(
-				array(
-					'email'       => '',
 					'customer_id' => 42,
 				)
 			)
 			->andReturn(
-				Response::success(
-					array(
-						'total_orders' => 0,
-					)
+				array(
+					'total_orders' => 2,
 				)
 			);
 
-		$handler  = new CustomerLookupHandler();
-		$response = $handler->handle( array( 'input' => '42' ) );
+		$client = new FakeOpenAIClient(
+			array(
+				Response::success(
+					array(
+						'content'    => '',
+						'tool_calls' => array(
+							array(
+								'id'       => 'call_1',
+								'function' => array(
+									'name'      => 'get_customer_profile',
+									'arguments' => wp_json_encode(
+										array(
+											'email'       => 'customer@example.com',
+											'customer_id' => 42,
+										)
+									),
+								),
+							),
+						),
+					)
+				),
+				Response::success(
+					array(
+						'content'    => 'Found 2 orders for that customer.',
+						'tool_calls' => array(),
+					)
+				),
+			)
+		);
+
+		$factory = new FakeAIClientFactory( $client, true );
+		$handler = new CustomerLookupHandler( $service, $factory );
+
+		$response = $handler->handle(
+			array(
+				'input' => 'Look up customer',
+				'store' => array( 'name' => 'demo' ),
+			)
+		);
 
 		$this->assertTrue( $response->is_success() );
-		$this->assertSame( 'I could not find any orders for that customer.', $response->get_data()['message'] );
-	}
-
-	public function test_customer_lookup_errors_passthrough(): void {
-		$mock = Mockery::mock( 'overload:AgentWP\\Handlers\\CustomerHandler' );
-		$mock->shouldReceive( 'handle' )
-			->once()
-			->andReturn( Response::error( 'WooCommerce missing', 400 ) );
-
-		$handler  = new CustomerLookupHandler();
-		$response = $handler->handle( array( 'input' => '123' ) );
-
-		$this->assertFalse( $response->is_success() );
-		$this->assertSame( 400, $response->get_status() );
-		$this->assertSame( 'WooCommerce missing', $response->get_message() );
+		$data = $response->get_data();
+		$this->assertSame( Intent::CUSTOMER_LOOKUP, $data['intent'] );
+		$this->assertSame( 'Found 2 orders for that customer.', $data['message'] );
+		$this->assertSame( array( 'name' => 'demo' ), $data['store'] );
 	}
 }

@@ -18,6 +18,9 @@ class WC_Product {
 	public function get_name(): string {}
 
 	public function get_sku(): string {}
+
+	/** @return int|null */
+	public function get_stock_quantity() {}
 }
 
 class WC_Product_Simple extends WC_Product {
@@ -93,6 +96,8 @@ class WC_Abstract_Order {
 
 	public function get_formatted_billing_full_name(): string {}
 
+	public function get_remaining_refund_amount(): float {}
+
 	/** @return mixed */
 	public function get_meta( string $key = '', bool $single = false ) {}
 
@@ -161,6 +166,10 @@ class WC_Order extends WC_Abstract_Order {
 	public function get_shipping_country(): string {}
 }
 
+class WC_Order_Refund extends WC_Abstract_Order {
+	public function get_id(): int {}
+}
+
 class WC_Logger {
 	public function error( string $message, array $context = array() ): void {}
 
@@ -201,6 +210,9 @@ function wc_get_product_id_by_sku( string $sku ): int {}
 /** @return WC_Order|false|null */
 function wc_create_order( array $args = array() ) {}
 
+/** @return WC_Order_Refund|\WP_Error */
+function wc_create_refund( array $args = array() ) {}
+
 function wc_get_order_status_name( string $status ): string {}
 
 function wc_get_logger(): WC_Logger {}
@@ -212,6 +224,12 @@ function wc_format_decimal( $number, $dp = false, $trim_zeros = false ): string 
 
 /** @return mixed|null */
 function wc_get_payment_gateway_by_order( $order ) {}
+
+/** @param int|string $stock_quantity */
+function wc_update_product_stock( WC_Product $product, $stock_quantity ) {}
+
+/** @return array<string,string> */
+function wc_get_order_statuses(): array {}
 
 class WC_Mailer {
 	/** @var array<string, object> */

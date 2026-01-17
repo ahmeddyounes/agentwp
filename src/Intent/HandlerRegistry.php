@@ -40,18 +40,6 @@ class HandlerRegistry {
 				continue;
 			}
 
-			// Log warning when overwriting existing intent registration.
-			if ( isset( $this->handlers[ $intentValue ] ) && $this->handlers[ $intentValue ] !== $handler ) {
-				$existing_class = get_class( $this->handlers[ $intentValue ] );
-				$new_class = get_class( $handler );
-				error_log( sprintf(
-					'Handler Registry: Intent "%s" already registered to %s, overwriting with %s',
-					$intentValue,
-					$existing_class,
-					$new_class
-				) );
-			}
-
 			$this->handlers[ $intentValue ] = $handler;
 		}
 

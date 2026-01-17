@@ -118,9 +118,24 @@ class Plugin {
 	 */
 	private static function unschedule_action_scheduler_jobs() {
 		// Clean up BulkHandler async jobs.
-		if ( function_exists( 'as_unschedule_all_actions' ) ) {
-			as_unschedule_all_actions( Handlers\BulkHandler::ACTION_HOOK );
+		if ( ! function_exists( 'as_unschedule_all_actions' ) ) {
+			return;
 		}
+
+		if ( ! class_exists( 'AgentWP\\Handlers\\BulkHandler' ) ) {
+			return;
+		}
+
+		if ( ! defined( 'AgentWP\\Handlers\\BulkHandler::ACTION_HOOK' ) ) {
+			return;
+		}
+
+		$hook = constant( 'AgentWP\\Handlers\\BulkHandler::ACTION_HOOK' );
+		if ( ! is_string( $hook ) || '' === $hook ) {
+			return;
+		}
+
+		as_unschedule_all_actions( $hook );
 	}
 
 	/**

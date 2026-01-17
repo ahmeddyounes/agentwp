@@ -8,6 +8,8 @@
 namespace AgentWP\Intent;
 
 use AgentWP\AI\Response;
+use AgentWP\Contracts\ContextBuilderInterface;
+use AgentWP\Contracts\IntentClassifierInterface;
 use AgentWP\Contracts\MemoryStoreInterface;
 use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Handlers\AnalyticsQueryHandler;
@@ -21,17 +23,17 @@ use AgentWP\Intent\Handlers\ProductStockHandler;
 
 class Engine {
 	/**
-	 * @var IntentClassifier
+	 * @var IntentClassifierInterface
 	 */
 	private $classifier;
 
 	/**
-	 * @var ContextBuilder
+	 * @var ContextBuilderInterface
 	 */
 	private $context_builder;
 
 	/**
-	 * @var MemoryStoreInterface|MemoryStore
+	 * @var MemoryStoreInterface
 	 */
 	private $memory;
 
@@ -66,17 +68,17 @@ class Engine {
 	/**
 	 * @param array                             $handlers          Optional handlers.
 	 * @param FunctionRegistry|null             $function_registry Optional registry.
-	 * @param ContextBuilder|null               $context_builder   Optional context builder.
-	 * @param IntentClassifier|null             $classifier        Optional classifier.
-	 * @param MemoryStoreInterface|MemoryStore|null $memory        Optional memory store.
+	 * @param ContextBuilderInterface|null      $context_builder   Optional context builder.
+	 * @param IntentClassifierInterface|null    $classifier        Optional classifier.
+	 * @param MemoryStoreInterface|null         $memory            Optional memory store.
 	 * @param HandlerRegistry|null              $handler_registry  Optional handler registry.
 	 */
 	public function __construct(
 		array $handlers = array(),
 		?FunctionRegistry $function_registry = null,
-		?ContextBuilder $context_builder = null,
-		?IntentClassifier $classifier = null,
-		MemoryStoreInterface|MemoryStore|null $memory = null,
+		?ContextBuilderInterface $context_builder = null,
+		?IntentClassifierInterface $classifier = null,
+		?MemoryStoreInterface $memory = null,
 		?HandlerRegistry $handler_registry = null
 	) {
 		$this->classifier        = $classifier ? $classifier : new IntentClassifier();
@@ -144,13 +146,8 @@ class Engine {
 				$attribute = $attributes[0]->newInstance();
 				return $attribute->getIntents();
 			}
-		} catch ( \ReflectionException $e ) {
+		} catch ( \ReflectionException ) {
 			// Reflection failed - fall through to other detection methods.
-			error_log( sprintf(
-				'Engine: Reflection failed for handler %s: %s',
-				get_class( $handler ),
-				$e->getMessage()
-			) );
 		}
 
 		// Fallback 1: Try to get intents from getSupportedIntents() method.

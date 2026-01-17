@@ -199,11 +199,20 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		);
 	}
 
-	private function process_bulk_update( $payload ) {
-		$ids = $payload['order_ids'];
-		$status = $payload['new_status'];
-		$notify = $payload['notify_customer'];
+	private function process_bulk_update( array $payload ): array {
+		$ids    = isset( $payload['order_ids'] ) && is_array( $payload['order_ids'] ) ? $payload['order_ids'] : array();
+		$status = isset( $payload['new_status'] ) ? (string) $payload['new_status'] : '';
+		$notify = isset( $payload['notify_customer'] ) ? (bool) $payload['notify_customer'] : false;
+
 		$updated = array();
+
+		if ( empty( $ids ) || '' === $status ) {
+			return array(
+				'success' => false,
+				'error'   => 'Invalid bulk update payload.',
+				'code'    => 400,
+			);
+		}
 
 		// Batch filter handling
 		if ( ! $notify ) {
@@ -212,14 +221,20 @@ class OrderStatusService implements OrderStatusServiceInterface {
 
 		try {
 			foreach ( $ids as $id ) {
+				$id = (int) $id;
+				if ( $id <= 0 ) {
+					continue;
+				}
+
 				$order = wc_get_order( $id );
-				if ( ! $order ) continue;
+				if ( ! $order ) {
+					continue;
+				}
 
 				if ( method_exists( $order, 'update_status' ) ) {
 					try {
-						if ( $order->update_status( $status, '' ) ) {
-							$updated[] = $id;
-						}
+						$order->update_status( $status, '' );
+						$updated[] = $id;
 					} catch ( Exception $e ) {
 						continue;
 					}
@@ -232,51 +247,64 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		}
 
 		return array(
-			'success' => true,
+			'success'       => true,
 			'updated_count' => count( $updated ),
-			'updated_ids' => $updated,
-			'new_status' => $status,
+			'updated_ids'   => $updated,
+			'new_status'    => $status,
 		);
 	}
 
 	/**
 	 * Apply the status update.
 	 */
-	private function apply_status_update( $order, $new_status, $note, $notify ) {
-		if ( method_exists( $order, 'update_status' ) ) {
-			// Bypass emails if not notifying
-			if ( ! $notify ) {
-				add_filter( 'woocommerce_email_enabled', '__return_false' );
-			}
-			
-			try {
-				$result = $order->update_status( $new_status, $note );
-			} catch ( Exception $e ) {
-				$result = false;
-			} finally {
-				if ( ! $notify ) {
-					remove_filter( 'woocommerce_email_enabled', '__return_false' );
-				}
-			}
-			
-			return $result;
+	private function apply_status_update( object $order, string $new_status, string $note, bool $notify ): bool {
+		if ( ! method_exists( $order, 'update_status' ) ) {
+			return false;
 		}
-		return false;
+
+		// Bypass emails if not notifying.
+		if ( ! $notify ) {
+			add_filter( 'woocommerce_email_enabled', '__return_false' );
+		}
+
+		try {
+			$order->update_status( $new_status, $note );
+			return true;
+		} catch ( Exception $e ) {
+			return false;
+		} finally {
+			if ( ! $notify ) {
+				remove_filter( 'woocommerce_email_enabled', '__return_false' );
+			}
+		}
 	}
 
-	// ... Helpers ...
-	private function normalize_status( $status ) {
-		$status = is_string( $status ) ? strtolower( trim( $status ) ) : '';
-		if ( 0 === strpos( $status, 'wc-' ) ) $status = substr( $status, 3 );
+	/**
+	 * Normalize WooCommerce status slug.
+	 *
+	 * @param string $status Raw status input.
+	 * @return string Normalized status without `wc-` prefix.
+	 */
+	private function normalize_status( string $status ): string {
+		$status = strtolower( trim( $status ) );
+		if ( 0 === strpos( $status, 'wc-' ) ) {
+			$status = substr( $status, 3 );
+		}
+
 		return $status;
 	}
 
-	private function get_valid_statuses() {
+	/**
+	 * @return string[]
+	 */
+	private function get_valid_statuses(): array {
 		if ( ! function_exists( 'wc_get_order_statuses' ) ) {
 			return array();
 		}
+
 		// Strip 'wc-' prefix to match normalize_status() output.
 		$statuses = array_keys( wc_get_order_statuses() );
+
 		return array_map(
 			function ( $status ) {
 				return 0 === strpos( $status, 'wc-' ) ? substr( $status, 3 ) : $status;
@@ -285,7 +313,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		);
 	}
 
-	private function get_irreversible_warning( $status ) {
+	private function get_irreversible_warning( string $status ): string {
 		return in_array( $status, array( 'cancelled', 'refunded' ), true ) ? 'Irreversible.' : '';
 	}
 }

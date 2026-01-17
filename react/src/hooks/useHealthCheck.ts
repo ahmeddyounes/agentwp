@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import agentwpClient from '../api/AgentWPClient.js';
+import agentwpClient from '../api/AgentWPClient';
 import { HEALTH_CHECK_INTERVAL_MS } from '../utils/constants';
 
 interface HealthResponse {
   success: boolean;
   data?: {
     status: string;
+    time: string;
     timestamp: number;
+    version: string;
   };
   error?: {
     code: string;

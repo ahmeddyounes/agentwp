@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
 
-const API_BASE = '/agentwp/v1';
+const API_BASE = '/wp-json/agentwp/v1';
 
 // Mock data
 const mockHealthResponse = {

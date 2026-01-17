@@ -1,14 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
-import BaseCard from './BaseCard.jsx';
+import { isValidElement, useEffect, useMemo, useState, type ReactNode } from 'react';
+import BaseCard, { type CardTheme } from './BaseCard';
 
-const getSortValue = (row, column) => {
+export interface DataTableColumn<RowType> {
+  key: string;
+  label?: string;
+  align?: 'left' | 'center' | 'right';
+  width?: string | number;
+  sortable?: boolean;
+  render?: (row: RowType) => ReactNode;
+  sortValue?: (row: RowType) => unknown;
+}
+
+const getSortValue = <RowType extends Record<string, unknown>>(
+  row: RowType,
+  column: DataTableColumn<RowType>,
+): unknown => {
   if (column.sortValue) {
     return column.sortValue(row);
   }
-  return row?.[column.key];
+  return row[column.key];
 };
 
-const compareValues = (aValue, bValue) => {
+const compareValues = (aValue: unknown, bValue: unknown): number => {
   if (aValue == null && bValue == null) {
     return 0;
   }
@@ -29,10 +42,20 @@ const compareValues = (aValue, bValue) => {
 /**
  * Data table card with sorting and pagination.
  *
- * @param {object} props Component props.
  * @returns {JSX.Element}
  */
-export default function DataTableCard({
+export interface DataTableCardProps<RowType extends Record<string, unknown>> {
+  title?: string;
+  subtitle?: ReactNode;
+  columns?: DataTableColumn<RowType>[];
+  rows?: RowType[];
+  pageSize?: number;
+  getRowId?: (row: RowType, rowIndex: number) => string | number;
+  emptyMessage?: string;
+  theme?: CardTheme;
+}
+
+export default function DataTableCard<RowType extends Record<string, unknown>>({
   title = 'Data table',
   subtitle,
   columns,
@@ -41,12 +64,15 @@ export default function DataTableCard({
   getRowId,
   emptyMessage = 'No data available.',
   theme = 'auto',
-}) {
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+}: DataTableCardProps<RowType>) {
+  const [sortConfig, setSortConfig] = useState<{ key: string | null; direction: 'asc' | 'desc' }>({
+    key: null,
+    direction: 'asc',
+  });
   const [page, setPage] = useState(1);
 
-  const normalizedColumns = Array.isArray(columns) ? columns : [];
-  const normalizedRows = Array.isArray(rows) ? rows : [];
+  const normalizedColumns = useMemo(() => (Array.isArray(columns) ? columns : []), [columns]);
+  const normalizedRows = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
   const columnCount = Math.max(1, normalizedColumns.length);
 
   const sortedRows = useMemo(() => {
@@ -81,7 +107,7 @@ export default function DataTableCard({
   const endIndex = Math.min(startIndex + pageSize, sortedRows.length);
   const pagedRows = sortedRows.slice(startIndex, endIndex);
 
-  const handleSort = (column) => {
+  const handleSort = (column: DataTableColumn<RowType>) => {
     if (column.sortable === false) {
       return;
     }
@@ -98,6 +124,32 @@ export default function DataTableCard({
   };
 
   const paginationVisible = sortedRows.length > pageSize;
+
+  const renderCellValue = (value: unknown): ReactNode => {
+    if (value == null) {
+      return '--';
+    }
+    if (typeof value === 'string' || typeof value === 'number') {
+      return value;
+    }
+    if (typeof value === 'boolean') {
+      return value ? 'true' : 'false';
+    }
+    if (isValidElement(value)) {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      return value as ReactNode;
+    }
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  };
 
   return (
     <BaseCard title={title} subtitle={subtitle} variant="info" theme={theme}>
@@ -146,26 +198,32 @@ export default function DataTableCard({
           <tbody>
             {pagedRows.length === 0 ? (
               <tr>
-                  <td colSpan={columnCount} className="agentwp-card__muted">
+                <td colSpan={columnCount} className="agentwp-card__muted">
                   {emptyMessage}
                 </td>
               </tr>
             ) : (
               pagedRows.map((row, rowIndex) => {
-                const rowKey = getRowId ? getRowId(row, rowIndex) : row.id ?? rowIndex;
+                const rowKey = getRowId
+                  ? getRowId(row, rowIndex)
+                  : (() => {
+                      const candidate = row['id'];
+                      if (typeof candidate === 'string' || typeof candidate === 'number') {
+                        return candidate;
+                      }
+                      return rowIndex;
+                    })();
                 return (
                   <tr key={rowKey}>
                     {normalizedColumns.map((column) => {
                       const label = column.label || column.key || 'Column';
-                      const value = column.render
-                        ? column.render(row)
-                        : row?.[column.key] ?? '--';
+                      const value = column.render ? column.render(row) : row[column.key];
                       return (
                         <td
                           key={column.key || column.label || label}
                           style={{ textAlign: column.align || 'left' }}
                         >
-                          {value}
+                          {renderCellValue(value)}
                         </td>
                       );
                     })}
@@ -180,8 +238,7 @@ export default function DataTableCard({
       {paginationVisible && (
         <div className="agentwp-card__pagination">
           <span>
-            Showing {sortedRows.length === 0 ? 0 : startIndex + 1}-{endIndex} of{' '}
-            {sortedRows.length}
+            Showing {sortedRows.length === 0 ? 0 : startIndex + 1}-{endIndex} of {sortedRows.length}
           </span>
           <div className="agentwp-card__pagination-controls">
             <button

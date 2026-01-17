@@ -1,12 +1,26 @@
-import { useId } from 'react';
+import { useId, type ReactNode } from 'react';
 import './cards.css';
+
+export type CardVariant = 'info' | 'danger' | 'success' | 'error' | 'chart';
+export type CardTheme = 'auto' | 'light' | 'dark';
 
 /**
  * Base card layout for AgentWP response cards.
  *
- * @param {object} props Component props.
  * @returns {JSX.Element}
  */
+export interface BaseCardProps {
+  title?: ReactNode;
+  subtitle?: ReactNode;
+  icon?: ReactNode;
+  actions?: ReactNode;
+  children?: ReactNode;
+  variant?: CardVariant;
+  accent?: boolean;
+  theme?: CardTheme;
+  className?: string;
+}
+
 export default function BaseCard({
   title,
   subtitle,
@@ -17,7 +31,7 @@ export default function BaseCard({
   accent = false,
   theme = 'auto',
   className = '',
-}) {
+}: BaseCardProps) {
   const titleId = useId();
   const resolvedTheme = theme === 'light' || theme === 'dark' ? theme : undefined;
   const cardClasses = [
@@ -33,7 +47,6 @@ export default function BaseCard({
     <section
       className={cardClasses}
       data-theme={resolvedTheme}
-      role="region"
       aria-labelledby={title ? titleId : undefined}
     >
       {(title || subtitle || icon) && (

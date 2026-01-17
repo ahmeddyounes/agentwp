@@ -66,7 +66,10 @@ class IntentController extends RestController {
 			? $validation['metadata']
 			: array();
 
-		$engine   = new Engine();
+		$engine = $this->resolve( Engine::class );
+		if ( ! $engine instanceof Engine ) {
+			$engine = new Engine();
+		}
 		$response = $engine->handle( $prompt, $context, $metadata );
 
 		if ( ! $response->is_success() ) {

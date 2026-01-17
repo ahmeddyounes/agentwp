@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import App from '../src/App.tsx';
+import type { ReactElement } from 'react';
+import App from '../src/App';
 
 // MSW is set up in setupTests.ts and handles API mocking automatically
 // No need for manual globalThis.fetch mocking
@@ -16,7 +17,7 @@ const createTestQueryClient = () =>
     },
   });
 
-const renderWithQueryClient = (ui) => {
+const renderWithQueryClient = (ui: ReactElement) => {
   const queryClient = createTestQueryClient();
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 };
@@ -26,6 +27,7 @@ vi.mock('shepherd.js', () => ({
   __esModule: true,
   default: class Shepherd {
     static activeTour = null;
+    steps: unknown[] = [];
     constructor() {
       this.steps = [];
     }
@@ -43,7 +45,7 @@ vi.mock('shepherd.js', () => ({
 vi.mock('shepherd.js/dist/css/shepherd.css', () => ({}));
 
 describe('App', () => {
-  let portalRoot;
+  let portalRoot: HTMLDivElement;
 
   beforeEach(() => {
     portalRoot = document.createElement('div');

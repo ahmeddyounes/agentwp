@@ -6,57 +6,74 @@
 namespace AgentWP\Tests\Unit\Intent\Handlers;
 
 use AgentWP\AI\Response;
+use AgentWP\Contracts\ProductStockServiceInterface;
 use AgentWP\Intent\Handlers\ProductStockHandler;
+use AgentWP\Intent\Intent;
+use AgentWP\Tests\Fakes\FakeAIClientFactory;
+use AgentWP\Tests\Fakes\FakeOpenAIClient;
 use AgentWP\Tests\TestCase;
 use Mockery;
 
 class ProductStockHandlerTest extends TestCase {
-	public function test_returns_prompt_when_query_missing(): void {
-		$handler  = new ProductStockHandler();
-		$response = $handler->handle( array( 'input' => '' ) );
+	public function test_returns_error_when_api_key_missing(): void {
+		$service = Mockery::mock( ProductStockServiceInterface::class );
+		$factory = new FakeAIClientFactory( new FakeOpenAIClient(), false );
+		$handler = new ProductStockHandler( $service, $factory );
 
-		$this->assertTrue( $response->is_success() );
-		$this->assertSame( 'I can check product stock. Share a product name or SKU.', $response->get_data()['message'] );
-	}
-
-	public function test_product_stock_message_for_no_results(): void {
-		$mock = Mockery::mock( 'overload:AgentWP\\Handlers\\StockHandler' );
-		$mock->shouldReceive( 'handle' )
-			->once()
-			->with( array( 'query' => 'SKU-1' ) )
-			->andReturn( Response::success( array( 'count' => 0 ) ) );
-
-		$handler  = new ProductStockHandler();
-		$response = $handler->handle( array( 'input' => 'SKU-1' ) );
-
-		$this->assertTrue( $response->is_success() );
-		$this->assertSame( 'I could not find any products that match.', $response->get_data()['message'] );
-	}
-
-	public function test_product_stock_message_for_results(): void {
-		$mock = Mockery::mock( 'overload:AgentWP\\Handlers\\StockHandler' );
-		$mock->shouldReceive( 'handle' )
-			->once()
-			->with( array( 'query' => 'Hoodie' ) )
-			->andReturn( Response::success( array( 'count' => 3 ) ) );
-
-		$handler  = new ProductStockHandler();
-		$response = $handler->handle( array( 'input' => 'Hoodie' ) );
-
-		$this->assertTrue( $response->is_success() );
-		$this->assertSame( 'Found 3 products matching your request.', $response->get_data()['message'] );
-	}
-
-	public function test_product_stock_errors_passthrough(): void {
-		$mock = Mockery::mock( 'overload:AgentWP\\Handlers\\StockHandler' );
-		$mock->shouldReceive( 'handle' )
-			->once()
-			->andReturn( Response::error( 'WooCommerce missing', 400 ) );
-
-		$handler  = new ProductStockHandler();
-		$response = $handler->handle( array( 'input' => 'Hoodie' ) );
+		$response = $handler->handle( array( 'input' => 'Check stock for hoodie' ) );
 
 		$this->assertFalse( $response->is_success() );
-		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 401, $response->get_status() );
+	}
+
+	public function test_executes_search_product_tool(): void {
+		$service = Mockery::mock( ProductStockServiceInterface::class );
+		$service->shouldReceive( 'search_products' )
+			->once()
+			->with( 'Hoodie' )
+			->andReturn(
+				array(
+					array(
+						'id'    => 1,
+						'name'  => 'Hoodie',
+						'sku'   => 'HOODIE-1',
+						'stock' => 3,
+					),
+				)
+			);
+
+		$client = new FakeOpenAIClient(
+			array(
+				Response::success(
+					array(
+						'content'    => '',
+						'tool_calls' => array(
+							array(
+								'id'       => 'call_1',
+								'function' => array(
+									'name'      => 'search_product',
+									'arguments' => wp_json_encode( array( 'query' => 'Hoodie' ) ),
+								),
+							),
+						),
+					)
+				),
+				Response::success(
+					array(
+						'content'    => 'Found 1 product matching your request.',
+						'tool_calls' => array(),
+					)
+				),
+			)
+		);
+
+		$factory = new FakeAIClientFactory( $client, true );
+		$handler = new ProductStockHandler( $service, $factory );
+
+		$response = $handler->handle( array( 'input' => 'Search Hoodie' ) );
+
+		$this->assertTrue( $response->is_success() );
+		$this->assertSame( Intent::PRODUCT_STOCK, $response->get_data()['intent'] );
+		$this->assertSame( 'Found 1 product matching your request.', $response->get_data()['message'] );
 	}
 }

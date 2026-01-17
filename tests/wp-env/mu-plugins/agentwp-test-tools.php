@@ -4,12 +4,13 @@
  */
 
 use AgentWP\AI\Response;
-use AgentWP\Handlers\EmailDraftHandler;
-use AgentWP\Handlers\OrderStatusHandler;
-use AgentWP\Handlers\RefundHandler;
-use AgentWP\Handlers\StockHandler;
+use AgentWP\Contracts\AIClientFactoryInterface;
+use AgentWP\Contracts\OrderRefundServiceInterface;
+use AgentWP\Contracts\OrderStatusServiceInterface;
+use AgentWP\Contracts\ProductStockServiceInterface;
 use AgentWP\Intent\Engine;
 use AgentWP\Intent\Intent;
+use AgentWP\Plugin;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	return;
@@ -29,46 +30,77 @@ function agentwp_test_permissions() {
 	return new WP_Error( 'agentwp_test_forbidden', 'Insufficient permissions for AgentWP test route.' );
 }
 
+function agentwp_test_success_response( array $data = array(), int $status = 200, array $meta = array() ) {
+	$payload = array(
+		'success' => true,
+		'data'    => $data,
+	);
+
+	if ( ! empty( $meta ) ) {
+		$payload['meta'] = $meta;
+	}
+
+	$response = rest_ensure_response( $payload );
+	$response->set_status( $status );
+
+	return $response;
+}
+
+function agentwp_test_error_response( string $message, int $status = 400, array $meta = array() ) {
+	$payload = array(
+		'success' => false,
+		'data'    => array(),
+		'error'   => array(
+			'message' => $message,
+		),
+	);
+
+	if ( ! empty( $meta ) ) {
+		$payload['error']['meta'] = $meta;
+	}
+
+	$response = rest_ensure_response( $payload );
+	$response->set_status( $status );
+
+	return $response;
+}
+
+function agentwp_test_container() {
+	if ( ! class_exists( Plugin::class ) || ! method_exists( Plugin::class, 'container' ) ) {
+		return new WP_Error( 'agentwp_test_missing_plugin', 'AgentWP plugin not loaded.' );
+	}
+
+	$container = Plugin::container();
+	if ( ! $container ) {
+		return new WP_Error( 'agentwp_test_missing_container', 'AgentWP container not available.' );
+	}
+
+	return $container;
+}
+
+function agentwp_test_resolve( string $id ) {
+	$container = agentwp_test_container();
+	if ( is_wp_error( $container ) ) {
+		return $container;
+	}
+
+	try {
+		return $container->get( $id );
+	} catch ( Throwable $e ) {
+		return new WP_Error( 'agentwp_test_container_error', 'Failed to resolve AgentWP dependency.' );
+	}
+}
+
 function agentwp_test_response_from_ai( $result ) {
 	if ( ! $result instanceof Response ) {
-		$response = rest_ensure_response(
-			array(
-				'success' => false,
-				'data'    => array(),
-				'error'   => array(
-					'message' => 'Invalid AgentWP test response.',
-				),
-			)
-		);
-		$response->set_status( 500 );
-		return $response;
+		return agentwp_test_error_response( 'Invalid AgentWP test response.', 500 );
 	}
 
 	if ( $result->is_success() ) {
-		$response = rest_ensure_response(
-			array(
-				'success' => true,
-				'data'    => $result->get_data(),
-				'meta'    => $result->get_meta(),
-			)
-		);
-		$response->set_status( $result->get_status() );
-		return $response;
+		return agentwp_test_success_response( $result->get_data(), $result->get_status(), $result->get_meta() );
 	}
 
-	$response = rest_ensure_response(
-		array(
-			'success' => false,
-			'data'    => array(),
-			'error'   => array(
-				'message' => $result->get_message(),
-				'meta'    => $result->get_meta(),
-			),
-		)
-	);
-	$response->set_status( $result->get_status() );
-
-	return $response;
+	return agentwp_test_error_response( $result->get_message(), $result->get_status(), $result->get_meta() );
 }
 
 function agentwp_test_seed_product( $name, $price, $stock, $sku ) {
@@ -176,7 +208,7 @@ function agentwp_test_seed_huge_order() {
 	);
 }
 
-function agentwp_test_reset() {
+function agentwp_test_reset( WP_REST_Request $request ) {
 	$post_types = array( 'product', 'shop_order', 'shop_order_refund' );
 	$posts      = get_posts(
 		array(
@@ -235,8 +267,10 @@ function agentwp_test_reset() {
 		}
 	}
 
-	return array(
-		'reset' => true,
+	return agentwp_test_success_response(
+		array(
+			'reset' => true,
+		)
 	);
 }
 
@@ -271,56 +305,140 @@ function agentwp_test_refund( WP_REST_Request $request ) {
 	$payload = $request->get_json_params();
 	$payload = is_array( $payload ) ? $payload : array();
 
-	if ( ! class_exists( RefundHandler::class ) ) {
-		return new WP_Error( 'agentwp_test_missing_handler', 'Refund handler not available.' );
+	$service = agentwp_test_resolve( OrderRefundServiceInterface::class );
+	if ( is_wp_error( $service ) ) {
+		return agentwp_test_error_response( $service->get_error_message(), 500 );
 	}
 
-	$handler = new RefundHandler();
-	$result  = $handler->handle( $payload );
+	$draft_id = isset( $payload['draft_id'] ) ? sanitize_text_field( $payload['draft_id'] ) : '';
+	if ( '' !== $draft_id ) {
+		$result = $service->confirm_refund( $draft_id );
+	} else {
+		$order_id = isset( $payload['order_id'] ) ? absint( $payload['order_id'] ) : 0;
+		$amount = isset( $payload['amount'] ) ? (float) $payload['amount'] : null;
+		$reason = isset( $payload['reason'] ) ? sanitize_text_field( $payload['reason'] ) : '';
+		$restock_items = isset( $payload['restock_items'] ) ? (bool) $payload['restock_items'] : true;
 
-	return agentwp_test_response_from_ai( $result );
+		$result = $service->prepare_refund( $order_id, $amount, $reason, $restock_items );
+	}
+
+	if ( isset( $result['success'] ) && true === $result['success'] ) {
+		unset( $result['success'] );
+		return agentwp_test_success_response( $result );
+	}
+
+	$message = isset( $result['message'] ) ? (string) $result['message'] : 'Refund failed.';
+	return agentwp_test_error_response( $message, 400 );
 }
 
 function agentwp_test_status_update( WP_REST_Request $request ) {
 	$payload = $request->get_json_params();
 	$payload = is_array( $payload ) ? $payload : array();
 
-	if ( ! class_exists( OrderStatusHandler::class ) ) {
-		return new WP_Error( 'agentwp_test_missing_handler', 'Order status handler not available.' );
+	$service = agentwp_test_resolve( OrderStatusServiceInterface::class );
+	if ( is_wp_error( $service ) ) {
+		return agentwp_test_error_response( $service->get_error_message(), 500 );
 	}
 
-	$handler = new OrderStatusHandler();
-	$result  = $handler->handle( $payload );
+	$draft_id = isset( $payload['draft_id'] ) ? sanitize_text_field( $payload['draft_id'] ) : '';
+	if ( '' !== $draft_id ) {
+		$result = $service->confirm_update( $draft_id );
+	} else {
+		$order_id = isset( $payload['order_id'] ) ? absint( $payload['order_id'] ) : 0;
+		$new_status = isset( $payload['new_status'] ) ? sanitize_text_field( $payload['new_status'] ) : '';
+		$note = isset( $payload['note'] ) ? sanitize_text_field( $payload['note'] ) : '';
+		$notify_customer = isset( $payload['notify_customer'] ) ? (bool) $payload['notify_customer'] : false;
 
-	return agentwp_test_response_from_ai( $result );
+		$result = $service->prepare_update( $order_id, $new_status, $note, $notify_customer );
+	}
+
+	if ( isset( $result['success'] ) && true === $result['success'] ) {
+		unset( $result['success'] );
+		return agentwp_test_success_response( $result );
+	}
+
+	$message = $result['error'] ?? $result['message'] ?? 'Status update failed.';
+	$status  = isset( $result['code'] ) ? (int) $result['code'] : 400;
+
+	return agentwp_test_error_response( (string) $message, $status, $result );
 }
 
 function agentwp_test_stock_update( WP_REST_Request $request ) {
 	$payload = $request->get_json_params();
 	$payload = is_array( $payload ) ? $payload : array();
 
-	if ( ! class_exists( StockHandler::class ) ) {
-		return new WP_Error( 'agentwp_test_missing_handler', 'Stock handler not available.' );
+	$service = agentwp_test_resolve( ProductStockServiceInterface::class );
+	if ( is_wp_error( $service ) ) {
+		return agentwp_test_error_response( $service->get_error_message(), 500 );
 	}
 
-	$handler = new StockHandler();
-	$result  = $handler->handle( $payload );
+	$draft_id = isset( $payload['draft_id'] ) ? sanitize_text_field( $payload['draft_id'] ) : '';
+	if ( '' !== $draft_id ) {
+		$result = $service->confirm_update( $draft_id );
+	} else {
+		$product_id = isset( $payload['product_id'] ) ? absint( $payload['product_id'] ) : 0;
+		$quantity   = isset( $payload['quantity'] ) ? (int) $payload['quantity'] : 0;
+		$operation  = isset( $payload['operation'] ) ? sanitize_text_field( $payload['operation'] ) : '';
 
-	return agentwp_test_response_from_ai( $result );
+		if ( '' === $operation ) {
+			return agentwp_test_error_response( 'Missing operation.', 400 );
+		}
+
+		$result = $service->prepare_update( $product_id, $quantity, $operation );
+	}
+
+	if ( isset( $result['success'] ) && true === $result['success'] ) {
+		unset( $result['success'] );
+		return agentwp_test_success_response( $result );
+	}
+
+	$message = $result['error'] ?? $result['message'] ?? 'Stock update failed.';
+	$status  = isset( $result['code'] ) ? (int) $result['code'] : 400;
+
+	return agentwp_test_error_response( (string) $message, $status, $result );
 }
 
 function agentwp_test_email_draft( WP_REST_Request $request ) {
 	$payload = $request->get_json_params();
 	$payload = is_array( $payload ) ? $payload : array();
 
-	if ( ! class_exists( EmailDraftHandler::class ) ) {
-		return new WP_Error( 'agentwp_test_missing_handler', 'Email draft handler not available.' );
+	$client_factory = agentwp_test_resolve( AIClientFactoryInterface::class );
+	if ( is_wp_error( $client_factory ) ) {
+		return agentwp_test_error_response( $client_factory->get_error_message(), 500 );
 	}
 
-	$handler = new EmailDraftHandler();
-	$result  = $handler->handle( $payload );
+	$order_id = isset( $payload['order_id'] ) ? absint( $payload['order_id'] ) : 0;
+	$intent   = isset( $payload['intent'] ) ? sanitize_text_field( $payload['intent'] ) : '';
+	$tone     = isset( $payload['tone'] ) ? sanitize_text_field( $payload['tone'] ) : '';
 
-	return agentwp_test_response_from_ai( $result );
+	$client = $client_factory->create( Intent::EMAIL_DRAFT );
+	$result = $client->chat(
+		array(
+			array(
+				'role'    => 'system',
+				'content' => 'Return JSON with subject_line and email_body.',
+			),
+			array(
+				'role'    => 'user',
+				'content' => sprintf( 'Draft a %s email for order %d. Tone: %s.', $intent, $order_id, $tone ),
+			),
+		),
+		array()
+	);
+
+	if ( ! $result->is_success() ) {
+		return agentwp_test_response_from_ai( $result );
+	}
+
+	$data    = $result->get_data();
+	$content = isset( $data['content'] ) ? (string) $data['content'] : '';
+	$parsed  = json_decode( $content, true );
+
+	if ( ! is_array( $parsed ) ) {
+		return agentwp_test_error_response( 'Failed to parse email draft response.', 500, array( 'content' => $content ) );
+	}
+
+	return agentwp_test_success_response( $parsed );
 }
 
 function agentwp_test_intent_flow( WP_REST_Request $request ) {
@@ -333,50 +451,48 @@ function agentwp_test_intent_flow( WP_REST_Request $request ) {
 	$tone         = isset( $payload['tone'] ) ? sanitize_text_field( $payload['tone'] ) : 'friendly';
 
 	if ( '' === $prompt ) {
-		return new WP_Error( 'agentwp_test_missing_prompt', 'Intent flow requires a prompt.' );
+		return agentwp_test_error_response( 'Intent flow requires a prompt.', 400 );
 	}
 
 	if ( $order_id <= 0 ) {
-		return new WP_Error( 'agentwp_test_missing_order', 'Intent flow requires an order ID.' );
+		return agentwp_test_error_response( 'Intent flow requires an order ID.', 400 );
 	}
 
-	$engine = new Engine();
-	$engine_result = $engine->handle( $prompt, array() );
+	$engine = agentwp_test_resolve( Engine::class );
+	if ( is_wp_error( $engine ) ) {
+		return agentwp_test_error_response( $engine->get_error_message(), 500 );
+	}
+
+	$engine_result = $engine->handle(
+		$prompt,
+		array(
+			'order_id'     => $order_id,
+			'email_intent' => $email_intent,
+			'tone'         => $tone,
+		)
+	);
 	if ( ! $engine_result->is_success() ) {
 		return agentwp_test_response_from_ai( $engine_result );
 	}
 
-	$engine_data   = $engine_result->get_data();
-	$resolved_intent = isset( $engine_data['intent'] ) ? $engine_data['intent'] : '';
+	$engine_data = $engine_result->get_data();
+	$resolved_intent = isset( $engine_data['intent'] ) ? (string) $engine_data['intent'] : '';
 
 	if ( Intent::EMAIL_DRAFT !== $resolved_intent ) {
-		return new WP_Error( 'agentwp_test_intent_mismatch', 'Intent flow resolved to a non-email intent.' );
+		return agentwp_test_error_response( 'Intent flow resolved to a non-email intent.', 400, array( 'intent' => $resolved_intent ) );
 	}
 
-	if ( ! class_exists( EmailDraftHandler::class ) ) {
-		return new WP_Error( 'agentwp_test_missing_handler', 'Email draft handler not available.' );
+	$message = isset( $engine_data['message'] ) ? (string) $engine_data['message'] : '';
+	$draft   = json_decode( $message, true );
+
+	if ( ! is_array( $draft ) ) {
+		return agentwp_test_error_response( 'Failed to parse intent draft response.', 500, array( 'message' => $message ) );
 	}
 
-	$handler = new EmailDraftHandler();
-	$draft_result = $handler->draft_email(
+	return agentwp_test_success_response(
 		array(
-			'order_id' => $order_id,
-			'intent'   => $email_intent,
-			'tone'     => $tone,
-		)
-	);
-
-	if ( ! $draft_result->is_success() ) {
-		return agentwp_test_response_from_ai( $draft_result );
-	}
-
-	return rest_ensure_response(
-		array(
-			'success' => true,
-			'data'    => array(
-				'engine' => $engine_data,
-				'draft'  => $draft_result->get_data(),
-			),
+			'engine' => $engine_data,
+			'draft'  => $draft,
 		)
 	);
 }

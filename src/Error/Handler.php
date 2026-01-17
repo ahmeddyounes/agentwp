@@ -90,6 +90,8 @@ class Handler {
 	 * @return array Array of recovery suggestions with actionable steps.
 	 */
 	public static function suggestRecovery( string $errorType, string $message = '' ): array {
+		unset( $message );
+
 		$suggestions = array(
 			self::TYPE_RATE_LIMIT => array(
 				'wait_before_retry' => true,
@@ -157,10 +159,6 @@ class Handler {
 	 * @return void
 	 */
 	public static function logError( string $code, string $type, string $message, array $context = array() ): void {
-		if ( ! function_exists( 'error_log' ) ) {
-			return;
-		}
-
 		$log_entry = array(
 			'plugin'    => 'agentwp',
 			'timestamp' => gmdate( 'c' ),
@@ -170,7 +168,9 @@ class Handler {
 			'context'   => $context,
 		);
 
-		error_log( wp_json_encode( $log_entry ) );
+		if ( function_exists( 'do_action' ) ) {
+			do_action( 'agentwp_log_error', $log_entry );
+		}
 	}
 
 	/**

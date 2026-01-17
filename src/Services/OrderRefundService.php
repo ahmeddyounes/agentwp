@@ -128,13 +128,15 @@ class OrderRefundService implements OrderRefundServiceInterface {
 		$restock  = $data['restock_items'];
 
 		// Create the refund.
-		$result = wc_create_refund( array(
-			'amount'         => $amount,
-			'reason'         => $reason,
-			'order_id'       => $order_id,
-			'restock_items'  => $restock,
-			'refund_payment' => true, // Attempt gateway refund
-		));
+		$result = wc_create_refund(
+			array(
+				'amount'         => $amount,
+				'reason'         => $reason,
+				'order_id'       => $order_id,
+				'restock_items'  => $restock,
+				'refund_payment' => true, // Attempt gateway refund
+			)
+		);
 
 		if ( is_wp_error( $result ) ) {
 			return array(
@@ -143,10 +145,28 @@ class OrderRefundService implements OrderRefundServiceInterface {
 			);
 		}
 
+		$restocked_items = array();
+		if ( $restock ) {
+			$order = wc_get_order( $order_id );
+			if ( $order && method_exists( $order, 'get_items' ) ) {
+				foreach ( $order->get_items() as $item ) {
+					if ( is_object( $item ) && method_exists( $item, 'get_product_id' ) ) {
+						$product_id = (int) $item->get_product_id();
+						if ( $product_id > 0 ) {
+							$restocked_items[] = $product_id;
+						}
+					}
+				}
+			}
+		}
+
 		return array(
-			'success'   => true,
-			'refund_id' => $result->get_id(),
-			'message'   => "Refund #{$result->get_id()} processed successfully for Order #{$order_id}.",
+			'success'         => true,
+			'confirmed'       => true,
+			'order_id'        => $order_id,
+			'refund_id'       => $result->get_id(),
+			'restocked_items' => $restocked_items,
+			'message'         => "Refund #{$result->get_id()} processed successfully for Order #{$order_id}.",
 		);
 	}
 }

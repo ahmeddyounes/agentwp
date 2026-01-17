@@ -1,6 +1,10 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, type TouchEvent } from 'react';
 
-const StarIcon = ({ filled }) => (
+interface StarIconProps {
+  filled: boolean;
+}
+
+const StarIcon = ({ filled }: StarIconProps) => (
   <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
     <path
       d="M12 3.4l2.4 4.9 5.4.8-3.9 3.8.9 5.3-4.8-2.5-4.8 2.5.9-5.3-3.9-3.8 5.4-.8L12 3.4z"
@@ -25,9 +29,23 @@ const TrashIcon = () => (
   </svg>
 );
 
-const buildCommandKey = (entry) => `${entry?.raw_input || ''}::${entry?.parsed_intent || ''}`;
+export interface CommandHistoryEntry {
+  id: string | number;
+  timestamp: number;
+  raw_input: string;
+  parsed_intent?: string;
+  was_successful: boolean;
+}
 
-const formatTime = (timestamp) => {
+export interface MostUsedEntry {
+  raw_input: string;
+  count: number;
+}
+
+const buildCommandKey = (entry: Partial<CommandHistoryEntry>): string =>
+  `${entry?.raw_input || ''}::${entry?.parsed_intent || ''}`;
+
+const formatTime = (timestamp: number): string => {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) {
     return '';
@@ -38,14 +56,14 @@ const formatTime = (timestamp) => {
   });
 };
 
-const formatDayLabel = (timestamp, now) => {
+const formatDayLabel = (timestamp: number, now: Date): string => {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) {
     return 'Unknown date';
   }
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const diffDays = Math.round((startOfToday - startOfDate) / 86400000);
+  const diffDays = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86400000);
 
   if (diffDays === 0) {
     return 'Today';
@@ -60,8 +78,13 @@ const formatDayLabel = (timestamp, now) => {
   });
 };
 
-const groupHistory = (entries, now) => {
-  const groups = [];
+interface HistoryGroup {
+  label: string;
+  items: CommandHistoryEntry[];
+}
+
+const groupHistory = (entries: CommandHistoryEntry[], now: Date): HistoryGroup[] => {
+  const groups: HistoryGroup[] = [];
   entries.forEach((entry) => {
     const label = formatDayLabel(entry.timestamp, now);
     const existing = groups.find((group) => group.label === label);
@@ -77,18 +100,20 @@ const groupHistory = (entries, now) => {
 /**
  * Command history and favorites panel.
  *
- * @param {object} props Component props.
- * @param {Array} props.history History entries.
- * @param {number} [props.historyCount] Optional total count.
- * @param {Array} props.favorites Favorite entries.
- * @param {Array} props.mostUsed Most-used entries.
- * @param {Function} props.onRun Callback when a command is rerun.
- * @param {Function} props.onDelete Callback when a command is deleted.
- * @param {Function} props.onToggleFavorite Callback when a favorite is toggled.
- * @param {Function} props.onClearHistory Callback when history is cleared.
- * @param {Function} props.isFavorited Optional predicate for favorites.
  * @returns {JSX.Element}
  */
+export interface HistoryPanelProps {
+  history?: CommandHistoryEntry[];
+  historyCount?: number;
+  favorites?: CommandHistoryEntry[];
+  mostUsed?: MostUsedEntry[];
+  onRun?: (command: string) => void;
+  onDelete?: (entry: CommandHistoryEntry) => void;
+  onToggleFavorite?: (entry: CommandHistoryEntry) => void;
+  onClearHistory?: () => void;
+  isFavorited?: (entry: CommandHistoryEntry) => boolean;
+}
+
 export default function HistoryPanel({
   history = [],
   historyCount,
@@ -99,31 +124,37 @@ export default function HistoryPanel({
   onToggleFavorite,
   onClearHistory,
   isFavorited,
-}) {
+}: HistoryPanelProps) {
   const totalHistory = typeof historyCount === 'number' ? historyCount : history.length;
   const now = useMemo(() => new Date(), []);
   const groupedHistory = useMemo(() => groupHistory(history, now), [history, now]);
   const favoriteKeys = useMemo(
     () => new Set(favorites.map((entry) => buildCommandKey(entry))),
-    [favorites]
+    [favorites],
   );
-  const touchStartRef = useRef({});
+  const touchStartRef = useRef<Record<string, { x: number; y: number }>>({});
 
-  const handleTouchStart = (entryId) => (event) => {
+  const handleTouchStart = (entryId: string | number) => (event: TouchEvent) => {
     const touch = event.touches[0];
-    touchStartRef.current[entryId] = {
+    if (!touch) {
+      return;
+    }
+    touchStartRef.current[String(entryId)] = {
       x: touch.clientX,
       y: touch.clientY,
     };
   };
 
-  const handleTouchEnd = (entry) => (event) => {
-    const start = touchStartRef.current[entry.id];
+  const handleTouchEnd = (entry: CommandHistoryEntry) => (event: TouchEvent) => {
+    const start = touchStartRef.current[String(entry.id)];
     if (!start) {
       return;
     }
-    delete touchStartRef.current[entry.id];
+    delete touchStartRef.current[String(entry.id)];
     const touch = event.changedTouches[0];
+    if (!touch) {
+      return;
+    }
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
     if (deltaX < -60 && Math.abs(deltaY) < 40) {
@@ -131,7 +162,10 @@ export default function HistoryPanel({
     }
   };
 
-  const renderCommandRow = (entry, { showDelete }) => {
+  const renderCommandRow = (
+    entry: CommandHistoryEntry,
+    { showDelete }: { showDelete: boolean },
+  ) => {
     const isStarred = isFavorited ? isFavorited(entry) : favoriteKeys.has(buildCommandKey(entry));
     const canFavorite = entry.was_successful || isStarred;
     const timeLabel = formatTime(entry.timestamp);

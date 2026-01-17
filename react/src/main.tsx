@@ -5,24 +5,31 @@ const ADMIN_TRIGGER_SELECTORS = [
   '#agentwp-command-deck',
 ];
 
-const getHostElement = () => {
+const getHostElement = (): HTMLElement | null => {
   if (typeof document === 'undefined') {
     return null;
   }
   return document.getElementById('agentwp-root') || document.getElementById('root');
 };
 
-const ensureShadowNode = (shadowRoot, selector, createNode) => {
+const ensureShadowNode = <T extends Element>(
+  shadowRoot: ShadowRoot,
+  selector: string,
+  createNode: () => T,
+): T => {
   const existing = shadowRoot.querySelector(selector);
   if (existing) {
-    return existing;
+    return existing as T;
   }
   const node = createNode();
   shadowRoot.appendChild(node);
   return node;
 };
 
-const mountShadowApp = (hostElement, styles) => {
+const mountShadowApp = (
+  hostElement: HTMLElement,
+  styles: string,
+): { shadowRoot: ShadowRoot; appRoot: HTMLElement; portalRoot: HTMLElement } => {
   const shadowRoot = hostElement.shadowRoot || hostElement.attachShadow({ mode: 'open' });
   const styleNode = ensureShadowNode(shadowRoot, 'style[data-agentwp-shadow]', () => {
     const style = document.createElement('style');
@@ -43,7 +50,7 @@ const mountShadowApp = (hostElement, styles) => {
   return { shadowRoot, appRoot, portalRoot };
 };
 
-const isEditableTarget = (target) => {
+const isEditableTarget = (target: unknown): target is HTMLElement => {
   if (!(target instanceof HTMLElement)) {
     return false;
   }
@@ -57,7 +64,7 @@ const isEditableTarget = (target) => {
   return Boolean(target.closest('[contenteditable="true"]'));
 };
 
-const getComposedTarget = (event) => {
+const getComposedTarget = (event: Event | null): unknown => {
   if (!event) {
     return null;
   }
@@ -70,7 +77,7 @@ const getComposedTarget = (event) => {
   return event.target;
 };
 
-const markOpenState = (isOpen) => {
+const markOpenState = (isOpen: boolean) => {
   if (typeof window === 'undefined') {
     return;
   }
@@ -80,26 +87,26 @@ const markOpenState = (isOpen) => {
     } else {
       window.sessionStorage.removeItem(OPEN_STATE_KEY);
     }
-  } catch (error) {
+  } catch {
     // Ignore storage failures (private mode, strict policies).
   }
 };
 
-const shouldAutoLoad = () => {
+const shouldAutoLoad = (): boolean => {
   if (typeof window === 'undefined') {
     return false;
   }
   try {
     return window.sessionStorage.getItem(OPEN_STATE_KEY) === 'true';
-  } catch (error) {
+  } catch {
     return false;
   }
 };
 
-let appPromise = null;
+let appPromise: Promise<null> | null = null;
 let appLoaded = false;
 
-const loadCommandDeck = async (openOnLoad = false) => {
+const loadCommandDeck = (openOnLoad = false): Promise<null> | null => {
   if (openOnLoad) {
     markOpenState(true);
   }
@@ -129,12 +136,12 @@ const loadCommandDeck = async (openOnLoad = false) => {
     ] = await Promise.all([
       import('react'),
       import('react-dom/client'),
-      import('./App.tsx'),
-      import('../components/ErrorBoundary.jsx'),
+      import('./App'),
+      import('../components/ErrorBoundary'),
       import('@tanstack/react-query'),
       import('./index.css?inline'),
-      import('./theme.js'),
-    ]);
+      import('./theme'),
+    ] as const);
 
     const { StrictMode } = ReactModule;
     const App = AppModule.default;
@@ -178,7 +185,7 @@ const loadCommandDeck = async (openOnLoad = false) => {
   return appPromise;
 };
 
-const handleHotkey = (event) => {
+const handleHotkey = (event: KeyboardEvent) => {
   if (appLoaded) {
     return;
   }
@@ -198,7 +205,7 @@ const handleHotkey = (event) => {
   loadCommandDeck(true);
 };
 
-const handleAdminTrigger = (event) => {
+const handleAdminTrigger = (event: MouseEvent) => {
   if (appLoaded) {
     return;
   }

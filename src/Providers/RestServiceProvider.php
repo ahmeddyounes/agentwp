@@ -124,7 +124,7 @@ final class RestServiceProvider extends ServiceProvider {
 			if ( class_exists( $controllerClass ) ) {
 				$this->container->bind(
 					$controllerClass,
-					fn() => new $controllerClass()
+					$controllerClass
 				);
 
 				$this->container->tag( $controllerClass, 'rest.controller' );

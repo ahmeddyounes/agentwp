@@ -10,8 +10,8 @@ import { useModalStore } from './stores/useModalStore';
 import { useThemeStore } from './stores/useThemeStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { usePrefersDark } from './hooks/usePrefersDark';
-import { applyTheme } from './theme.js';
-import agentwpClient from './api/AgentWPClient.js';
+import { applyTheme } from './theme';
+import agentwpClient from './api/AgentWPClient';
 import { THEME_TRANSITION_MS } from './utils/constants';
 import 'shepherd.js/dist/css/shepherd.css';
 
@@ -69,8 +69,7 @@ export default function App({
       }, THEME_TRANSITION_MS);
     }
 
-    // Cast to satisfy JS function signature
-    (applyTheme as (theme: string, target: HTMLElement | null) => void)(theme, themeRoot);
+    applyTheme(theme, themeRoot);
     hasAppliedThemeRef.current = true;
 
     return () => {
@@ -93,14 +92,21 @@ export default function App({
 
   // Fetch settings (demo mode, budget limit) on mount
   const fetchSettings = useCallback(async () => {
+    type SettingsResponseData = {
+      settings?: {
+        budget_limit?: unknown;
+        demo_mode?: unknown;
+      };
+    };
+
     try {
-      const payload = await agentwpClient.getSettings();
-      if (!payload || payload.success === false) {
+      const payload = await agentwpClient.getSettings<SettingsResponseData>();
+      if (payload.success === false) {
         return;
       }
-      const settings = payload?.data?.settings;
+      const settings = payload.data.settings;
       if (settings) {
-        const limit = Number.parseFloat(settings.budget_limit ?? 0);
+        const limit = Number.parseFloat(String(settings.budget_limit ?? 0));
         setBudgetLimit(Number.isFinite(limit) && limit >= 0 ? limit : 0);
         setDemoMode(Boolean(settings.demo_mode));
       }

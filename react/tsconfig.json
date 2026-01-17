@@ -22,8 +22,7 @@
     "noUncheckedIndexedAccess": true,
 
     /* Gradual migration support */
-    "allowJs": true,
-    "checkJs": false,
+    "allowJs": false,
 
     /* Path aliases - include both with and without wildcards for proper resolution */
     "baseUrl": ".",

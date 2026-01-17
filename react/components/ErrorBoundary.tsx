@@ -1,4 +1,4 @@
-import React from 'react';
+import * as React from 'react';
 import { ErrorCard } from './cards';
 
 const IS_DEV = import.meta.env?.DEV ?? false;
@@ -6,8 +6,17 @@ const IS_DEV = import.meta.env?.DEV ?? false;
 /**
  * Error boundary for the AgentWP admin UI.
  */
-export default class ErrorBoundary extends React.Component {
-  constructor(props) {
+export interface ErrorBoundaryProps {
+  children?: React.ReactNode;
+  onError?: (error: unknown, info: React.ErrorInfo) => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false };
     this.handleReload = this.handleReload.bind(this);
@@ -17,7 +26,7 @@ export default class ErrorBoundary extends React.Component {
     return { hasError: true };
   }
 
-  componentDidCatch(error, info) {
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
     if (IS_DEV && typeof console !== 'undefined') {
       console.error('[AgentWP] Render error', error, info);
     }

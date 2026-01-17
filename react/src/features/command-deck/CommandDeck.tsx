@@ -12,12 +12,17 @@ import { useIsOnline } from '../../hooks/useHealthCheck';
 import { useDebouncedSearch } from '../../hooks/useSearch';
 import { useVoice } from '../../hooks/useVoice';
 import { buildErrorState } from '../../utils/error';
-import agentwpClient from '../../api/AgentWPClient.js';
+import agentwpClient from '../../api/AgentWPClient';
 import type { SearchResult } from '../../types';
 
 interface CommandDeckProps {
   onClose?: () => void;
 }
+
+type IntentResponseData = {
+  response?: string;
+  message?: string;
+};
 
 export function CommandDeck({ onClose }: CommandDeckProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -98,23 +103,25 @@ export function CommandDeck({ onClose }: CommandDeckProps) {
     setResponse('');
 
     try {
-      const result = await agentwpClient.processIntent(prompt);
+      const result = await agentwpClient.processIntent<IntentResponseData>(prompt);
 
-      if (result.success && result.data) {
-        setResponse(result.data.response || '');
-      } else {
-        const errorState = buildErrorState({
-          message: result.error?.message,
-          code: result.error?.code,
-          status: result.error?.status,
-          meta: result.error?.meta,
-        });
-        setError({
-          message: errorState.message,
-          code: errorState.code,
-          retryable: errorState.retryable,
-        });
+      if (result.success) {
+        const responseText = result.data.response || result.data.message || '';
+        setResponse(responseText);
+        return;
       }
+
+      const errorState = buildErrorState({
+        message: result.error.message,
+        code: result.error.code,
+        status: result.error.status,
+        meta: result.error.meta,
+      });
+      setError({
+        message: errorState.message,
+        code: errorState.code,
+        retryable: errorState.retryable,
+      });
     } catch (err) {
       const errorState = buildErrorState({
         message: err instanceof Error ? err.message : undefined,

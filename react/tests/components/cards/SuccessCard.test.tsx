@@ -1,8 +1,12 @@
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import SuccessCard from '../../../components/cards/SuccessCard.jsx';
+import SuccessCard from '../../../components/cards/SuccessCard';
+
+vi.mock('react', async () => {
+  const actual = await vi.importActual<typeof import('react')>('react');
+  return { ...actual, useId: () => 'test-id' };
+});
 
 describe('SuccessCard', () => {
   it('renders undo and star actions', async () => {
@@ -21,12 +25,10 @@ describe('SuccessCard', () => {
   });
 
   it('matches snapshot for action state', () => {
-    const idSpy = vi.spyOn(React, 'useId').mockReturnValue('test-id');
     const { container } = render(
       <SuccessCard summary="Done" onUndo={() => {}} onStar={() => {}} isStarred />,
     );
 
     expect(container).toMatchSnapshot();
-    idSpy.mockRestore();
   });
 });

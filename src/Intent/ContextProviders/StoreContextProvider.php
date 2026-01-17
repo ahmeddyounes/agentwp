@@ -21,6 +21,8 @@ class StoreContextProvider implements ContextProviderInterface {
 	 * @return array Store context data.
 	 */
 	public function provide( array $context, array $metadata ): array {
+		unset( $context, $metadata );
+
 		$timezone = $this->get_timezone();
 		$currency = $this->get_currency();
 
