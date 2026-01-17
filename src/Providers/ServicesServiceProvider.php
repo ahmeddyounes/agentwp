@@ -12,6 +12,7 @@ use AgentWP\Contracts\AnalyticsServiceInterface;
 use AgentWP\Contracts\CacheInterface;
 use AgentWP\Contracts\ClockInterface;
 use AgentWP\Contracts\CustomerServiceInterface;
+use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\EmailDraftServiceInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
@@ -27,8 +28,10 @@ use AgentWP\Contracts\WooCommerceStockGatewayInterface;
 use AgentWP\Infrastructure\WooCommerceOrderGateway;
 use AgentWP\Infrastructure\WooCommerceRefundGateway;
 use AgentWP\Infrastructure\WooCommerceStockGateway;
+use AgentWP\Plugin\SettingsManager;
 use AgentWP\Services\AnalyticsService;
 use AgentWP\Services\CustomerService;
+use AgentWP\Services\DraftManager;
 use AgentWP\Services\EmailDraftService;
 use AgentWP\Services\OrderRefundService;
 use AgentWP\Services\OrderSearch\ArgumentNormalizer;
@@ -52,6 +55,7 @@ final class ServicesServiceProvider extends ServiceProvider {
 	 */
 	public function register(): void {
 		$this->registerWooCommerceGateways();
+		$this->registerDraftManager();
 		$this->registerOrderRefundService();
 		$this->registerAnalyticsService();
 		$this->registerOrderStatusService();
@@ -59,6 +63,21 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->registerCustomerService();
 		$this->registerOrderSearchService();
 		$this->registerEmailDraftService();
+	}
+
+	/**
+	 * Register unified draft manager.
+	 *
+	 * @return void
+	 */
+	private function registerDraftManager(): void {
+		$this->container->singleton(
+			DraftManagerInterface::class,
+			fn( $c ) => new DraftManager(
+				$c->get( DraftStorageInterface::class ),
+				$c->get( SettingsManager::class )
+			)
+		);
 	}
 
 	/**
@@ -181,7 +200,7 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			ProductStockServiceInterface::class,
 			fn( $c ) => new ProductStockService(
-				$c->get( DraftStorageInterface::class ),
+				$c->get( DraftManagerInterface::class ),
 				$c->get( PolicyInterface::class ),
 				$c->get( WooCommerceStockGatewayInterface::class )
 			)
@@ -197,7 +216,7 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			OrderStatusServiceInterface::class,
 			fn( $c ) => new OrderStatusService(
-				$c->get( DraftStorageInterface::class ),
+				$c->get( DraftManagerInterface::class ),
 				$c->get( PolicyInterface::class ),
 				$c->get( WooCommerceOrderGatewayInterface::class )
 			)
@@ -225,7 +244,7 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			OrderRefundServiceInterface::class,
 			fn( $c ) => new OrderRefundService(
-				$c->get( DraftStorageInterface::class ),
+				$c->get( DraftManagerInterface::class ),
 				$c->get( PolicyInterface::class ),
 				$c->get( WooCommerceRefundGatewayInterface::class )
 			)

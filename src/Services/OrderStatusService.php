@@ -7,7 +7,7 @@
 
 namespace AgentWP\Services;
 
-use AgentWP\Contracts\DraftStorageInterface;
+use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\WooCommerceOrderGatewayInterface;
@@ -17,23 +17,23 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	const DRAFT_TYPE = 'status';
 	const MAX_BULK   = 50;
 
-	private DraftStorageInterface $draftStorage;
+	private DraftManagerInterface $draftManager;
 	private PolicyInterface $policy;
 	private WooCommerceOrderGatewayInterface $orderGateway;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param DraftStorageInterface            $draftStorage Draft storage implementation.
+	 * @param DraftManagerInterface            $draftManager Unified draft manager.
 	 * @param PolicyInterface                  $policy       Policy for capability checks.
 	 * @param WooCommerceOrderGatewayInterface $orderGateway WooCommerce order gateway.
 	 */
 	public function __construct(
-		DraftStorageInterface $draftStorage,
+		DraftManagerInterface $draftManager,
 		PolicyInterface $policy,
 		WooCommerceOrderGatewayInterface $orderGateway
 	) {
-		$this->draftStorage = $draftStorage;
+		$this->draftManager = $draftManager;
 		$this->policy       = $policy;
 		$this->orderGateway = $orderGateway;
 	}
@@ -74,31 +74,31 @@ class OrderStatusService implements OrderStatusServiceInterface {
 
 		$warning = $this->get_irreversible_warning( $new_status );
 
-		$draft_payload = array(
+		$payload = array(
 			'order_id'        => $order_id,
 			'current_status'  => $current_status,
 			'new_status'      => $new_status,
 			'note'            => $note,
 			'notify_customer' => $notify_customer,
 			'warning'         => $warning,
-			'preview'         => array(
-				'transition' => $current_status . ' -> ' . $new_status,
-				'warning'    => $warning,
-			),
 		);
 
-		$draft_id = $this->draftStorage->generate_id( self::DRAFT_TYPE );
-		$stored   = $this->draftStorage->store( self::DRAFT_TYPE, $draft_id, $draft_payload );
+		$preview = array(
+			'transition' => $current_status . ' -> ' . $new_status,
+			'warning'    => $warning,
+		);
 
-		if ( ! $stored ) {
-			return ServiceResult::operationFailed( 'Failed to save draft.' );
+		$result = $this->draftManager->create( self::DRAFT_TYPE, $payload, $preview );
+
+		if ( $result->isFailure() ) {
+			return $result;
 		}
 
 		return ServiceResult::success(
 			"Status update prepared for Order #{$order_id}: {$current_status} -> {$new_status}.",
 			array(
-				'draft_id' => $draft_id,
-				'draft'    => $draft_payload,
+				'draft_id' => $result->get( 'draft_id' ),
+				'draft'    => array_merge( $payload, array( 'preview' => $preview ) ),
 			)
 		);
 	}
@@ -148,25 +148,29 @@ class OrderStatusService implements OrderStatusServiceInterface {
 			);
 		}
 
-		$draft_payload = array(
+		$payload = array(
 			'order_ids'       => $order_ids,
 			'new_status'      => $new_status,
 			'notify_customer' => $notify_customer,
 			'warning'         => $warning,
-			'preview'         => array(
-				'count'   => count( $previews ),
-				'details' => $previews,
-			),
 		);
 
-		$draft_id = $this->draftStorage->generate_id( self::DRAFT_TYPE );
-		$this->draftStorage->store( self::DRAFT_TYPE, $draft_id, $draft_payload );
+		$preview = array(
+			'count'   => count( $previews ),
+			'details' => $previews,
+		);
+
+		$result = $this->draftManager->create( self::DRAFT_TYPE, $payload, $preview );
+
+		if ( $result->isFailure() ) {
+			return $result;
+		}
 
 		return ServiceResult::success(
 			"Bulk status update prepared for " . count( $order_ids ) . " orders to {$new_status}.",
 			array(
-				'draft_id' => $draft_id,
-				'draft'    => $draft_payload,
+				'draft_id' => $result->get( 'draft_id' ),
+				'draft'    => array_merge( $payload, array( 'preview' => $preview ) ),
 			)
 		);
 	}
@@ -182,12 +186,12 @@ class OrderStatusService implements OrderStatusServiceInterface {
 			return ServiceResult::permissionDenied();
 		}
 
-		$draft = $this->draftStorage->claim( self::DRAFT_TYPE, $draft_id );
-		if ( ! $draft ) {
+		$claimResult = $this->draftManager->claim( self::DRAFT_TYPE, $draft_id );
+		if ( $claimResult->isFailure() ) {
 			return ServiceResult::draftExpired( 'Draft not found or expired.' );
 		}
 
-		$payload = $draft['payload'] ?? $draft;
+		$payload = $claimResult->get( 'payload' );
 
 		// Handle Bulk
 		if ( isset( $payload['order_ids'] ) ) {

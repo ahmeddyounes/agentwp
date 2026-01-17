@@ -7,7 +7,7 @@
 
 namespace AgentWP\Services;
 
-use AgentWP\Contracts\DraftStorageInterface;
+use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\WooCommerceRefundGatewayInterface;
@@ -16,21 +16,21 @@ use AgentWP\DTO\ServiceResult;
 class OrderRefundService implements OrderRefundServiceInterface {
 	private const DRAFT_TYPE = 'refund';
 
-	private DraftStorageInterface $draftStorage;
+	private DraftManagerInterface $draftManager;
 	private PolicyInterface $policy;
 	private WooCommerceRefundGatewayInterface $refundGateway;
 
 	/**
-	 * @param DraftStorageInterface             $draftStorage  Draft storage implementation.
+	 * @param DraftManagerInterface             $draftManager  Unified draft manager.
 	 * @param PolicyInterface                   $policy        Policy for capability checks.
 	 * @param WooCommerceRefundGatewayInterface $refundGateway WooCommerce refund gateway.
 	 */
 	public function __construct(
-		DraftStorageInterface $draftStorage,
+		DraftManagerInterface $draftManager,
 		PolicyInterface $policy,
 		WooCommerceRefundGatewayInterface $refundGateway
 	) {
-		$this->draftStorage  = $draftStorage;
+		$this->draftManager  = $draftManager;
 		$this->policy        = $policy;
 		$this->refundGateway = $refundGateway;
 	}
@@ -71,31 +71,35 @@ class OrderRefundService implements OrderRefundServiceInterface {
 			);
 		}
 
-		$draft_id   = $this->draftStorage->generate_id( self::DRAFT_TYPE );
-		$draft_data = array(
-			'order_id'       => $order_id,
-			'amount'         => $refund_amount,
-			'reason'         => $reason,
-			'restock_items'  => $restock_items,
-			'created_at'     => time(),
-			'currency'       => $order->get_currency(),
-			'customer_name'  => $order->get_formatted_billing_full_name(),
+		$payload = array(
+			'order_id'      => $order_id,
+			'amount'        => $refund_amount,
+			'reason'        => $reason,
+			'restock_items' => $restock_items,
+			'currency'      => $order->get_currency(),
+			'customer_name' => $order->get_formatted_billing_full_name(),
 		);
 
-		$this->draftStorage->store( self::DRAFT_TYPE, $draft_id, $draft_data );
+		$preview = array(
+			'order_id'      => $order_id,
+			'amount'        => $refund_amount,
+			'currency'      => $order->get_currency(),
+			'reason'        => $reason,
+			'restock_items' => $restock_items,
+			'status'        => 'ready_to_confirm',
+		);
+
+		$result = $this->draftManager->create( self::DRAFT_TYPE, $payload, $preview );
+
+		if ( $result->isFailure() ) {
+			return $result;
+		}
 
 		return ServiceResult::success(
 			"Refund prepared for Order #{$order_id}. Amount: {$refund_amount} {$order->get_currency()}. Reply with confirmation to proceed.",
 			array(
-				'draft_id' => $draft_id,
-				'preview'  => array(
-					'order_id'      => $order_id,
-					'amount'        => $refund_amount,
-					'currency'      => $order->get_currency(),
-					'reason'        => $reason,
-					'restock_items' => $restock_items,
-					'status'        => 'ready_to_confirm',
-				),
+				'draft_id' => $result->get( 'draft_id' ),
+				'preview'  => $preview,
 			)
 		);
 	}
@@ -111,15 +115,16 @@ class OrderRefundService implements OrderRefundServiceInterface {
 			return ServiceResult::permissionDenied();
 		}
 
-		$data = $this->draftStorage->claim( self::DRAFT_TYPE, $draft_id );
-		if ( ! $data ) {
+		$claimResult = $this->draftManager->claim( self::DRAFT_TYPE, $draft_id );
+		if ( $claimResult->isFailure() ) {
 			return ServiceResult::draftExpired( 'Refund draft expired or invalid. Please request the refund again.' );
 		}
 
-		$order_id = $data['order_id'];
-		$amount   = $data['amount'];
-		$reason   = $data['reason'];
-		$restock  = $data['restock_items'];
+		$payload  = $claimResult->get( 'payload' );
+		$order_id = $payload['order_id'];
+		$amount   = $payload['amount'];
+		$reason   = $payload['reason'];
+		$restock  = $payload['restock_items'];
 
 		// Create the refund.
 		$result = $this->refundGateway->create_refund(

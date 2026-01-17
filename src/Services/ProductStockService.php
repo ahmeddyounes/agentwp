@@ -7,7 +7,7 @@
 
 namespace AgentWP\Services;
 
-use AgentWP\Contracts\DraftStorageInterface;
+use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
 use AgentWP\Contracts\WooCommerceStockGatewayInterface;
@@ -16,23 +16,23 @@ use AgentWP\DTO\ServiceResult;
 class ProductStockService implements ProductStockServiceInterface {
 	private const DRAFT_TYPE = 'stock';
 
-	private DraftStorageInterface $draftStorage;
+	private DraftManagerInterface $draftManager;
 	private PolicyInterface $policy;
 	private WooCommerceStockGatewayInterface $stockGateway;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param DraftStorageInterface            $draftStorage Draft storage implementation.
+	 * @param DraftManagerInterface            $draftManager Unified draft manager.
 	 * @param PolicyInterface                  $policy       Policy for capability checks.
 	 * @param WooCommerceStockGatewayInterface $stockGateway WooCommerce stock gateway.
 	 */
 	public function __construct(
-		DraftStorageInterface $draftStorage,
+		DraftManagerInterface $draftManager,
 		PolicyInterface $policy,
 		WooCommerceStockGatewayInterface $stockGateway
 	) {
-		$this->draftStorage = $draftStorage;
+		$this->draftManager = $draftManager;
 		$this->policy       = $policy;
 		$this->stockGateway = $stockGateway;
 	}
@@ -108,24 +108,28 @@ class ProductStockService implements ProductStockServiceInterface {
 			$new = max( 0, $current - $quantity );
 		}
 
-		$draft_payload = array(
+		$payload = array(
 			'product_id' => $product_id,
 			'quantity'   => $new, // Target quantity
 			'original'   => $current,
-			'preview'    => array(
-				'product' => $product->get_name(),
-				'change'  => "{$current} -> {$new}",
-			),
 		);
 
-		$draft_id = $this->draftStorage->generate_id( self::DRAFT_TYPE );
-		$this->draftStorage->store( self::DRAFT_TYPE, $draft_id, $draft_payload );
+		$preview = array(
+			'product' => $product->get_name(),
+			'change'  => "{$current} -> {$new}",
+		);
+
+		$result = $this->draftManager->create( self::DRAFT_TYPE, $payload, $preview );
+
+		if ( $result->isFailure() ) {
+			return $result;
+		}
 
 		return ServiceResult::success(
 			"Stock update prepared for {$product->get_name()}: {$current} -> {$new}.",
 			array(
-				'draft_id' => $draft_id,
-				'draft'    => $draft_payload,
+				'draft_id' => $result->get( 'draft_id' ),
+				'draft'    => array_merge( $payload, array( 'preview' => $preview ) ),
 			)
 		);
 	}
@@ -138,13 +142,14 @@ class ProductStockService implements ProductStockServiceInterface {
 			return ServiceResult::permissionDenied();
 		}
 
-		$draft = $this->draftStorage->claim( self::DRAFT_TYPE, $draft_id );
-		if ( ! $draft ) {
+		$claimResult = $this->draftManager->claim( self::DRAFT_TYPE, $draft_id );
+		if ( $claimResult->isFailure() ) {
 			return ServiceResult::draftExpired( 'Draft expired.' );
 		}
 
-		$product_id = $draft['product_id'];
-		$quantity   = $draft['quantity'];
+		$payload    = $claimResult->get( 'payload' );
+		$product_id = $payload['product_id'];
+		$quantity   = $payload['quantity'];
 
 		$product = $this->stockGateway->get_product( $product_id );
 		if ( ! $product ) {

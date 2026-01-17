@@ -20,6 +20,7 @@ use AgentWP\Contracts\CacheInterface;
 use AgentWP\Contracts\ClockInterface;
 use AgentWP\Contracts\ContextBuilderInterface;
 use AgentWP\Contracts\CustomerServiceInterface;
+use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\EmailDraftServiceInterface;
 use AgentWP\Contracts\HttpClientInterface;
@@ -157,6 +158,38 @@ class ContainerWiringTest extends TestCase {
 			$this->assertTrue(
 				$this->container->has( $binding ),
 				sprintf( 'InfrastructureServiceProvider should register %s', $binding )
+			);
+		}
+	}
+
+	/**
+	 * Test that ServicesServiceProvider registers expected bindings.
+	 */
+	public function test_services_service_provider_registers_expected_bindings(): void {
+		// Core and Infrastructure must be registered first.
+		$core = new CoreServiceProvider( $this->container );
+		$core->register();
+
+		$infra = new InfrastructureServiceProvider( $this->container );
+		$infra->register();
+
+		$provider = new ServicesServiceProvider( $this->container );
+		$provider->register();
+
+		$expected_bindings = array(
+			DraftManagerInterface::class,
+			OrderRefundServiceInterface::class,
+			OrderStatusServiceInterface::class,
+			ProductStockServiceInterface::class,
+			CustomerServiceInterface::class,
+			AnalyticsServiceInterface::class,
+			EmailDraftServiceInterface::class,
+		);
+
+		foreach ( $expected_bindings as $binding ) {
+			$this->assertTrue(
+				$this->container->has( $binding ),
+				sprintf( 'ServicesServiceProvider should register %s', $binding )
 			);
 		}
 	}
