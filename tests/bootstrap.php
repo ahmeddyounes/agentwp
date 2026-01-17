@@ -85,6 +85,12 @@ if ( ! function_exists( 'apply_filters' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_option' ) ) {
+	function get_option( $option, $default = false ) {
+		return $default;
+	}
+}
+
 require __DIR__ . '/Support/EncryptionFunctionOverrides.php';
 require __DIR__ . '/Support/encryption-functions.php';
 require __DIR__ . '/Support/ai-functions.php';
