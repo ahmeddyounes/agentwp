@@ -7,7 +7,7 @@
 
 namespace AgentWP\Demo;
 
-use AgentWP\Plugin;
+use AgentWP\Plugin\SettingsManager;
 use AgentWP\Security\Encryption;
 
 class Mode {
@@ -21,9 +21,9 @@ class Mode {
 			return false;
 		}
 
-		$settings = get_option( Plugin::OPTION_SETTINGS, array() );
+		$settings = get_option( SettingsManager::OPTION_SETTINGS, array() );
 		$settings = is_array( $settings ) ? $settings : array();
-		$settings = wp_parse_args( $settings, Plugin::get_default_settings() );
+		$settings = wp_parse_args( $settings, SettingsManager::getDefaults() );
 
 		return ! empty( $settings['demo_mode'] );
 	}
@@ -47,7 +47,7 @@ class Mode {
 			return '';
 		}
 
-		$stored = get_option( Plugin::OPTION_DEMO_API_KEY, '' );
+		$stored = get_option( SettingsManager::OPTION_DEMO_API_KEY, SettingsManager::DEFAULT_DEMO_API_KEY );
 		$stored = is_string( $stored ) ? $stored : '';
 		if ( '' === $stored ) {
 			return '';
@@ -85,8 +85,8 @@ class Mode {
 			return false;
 		}
 
-		update_option( Plugin::OPTION_DEMO_API_KEY, $encrypted, false );
-		update_option( Plugin::OPTION_DEMO_API_KEY_LAST4, substr( $api_key, -4 ), false );
+		update_option( SettingsManager::OPTION_DEMO_API_KEY, $encrypted, false );
+		update_option( SettingsManager::OPTION_DEMO_API_KEY_LAST4, substr( $api_key, -4 ), false );
 
 		return true;
 	}
@@ -101,7 +101,7 @@ class Mode {
 			return;
 		}
 
-		delete_option( Plugin::OPTION_DEMO_API_KEY );
-		delete_option( Plugin::OPTION_DEMO_API_KEY_LAST4 );
+		delete_option( SettingsManager::OPTION_DEMO_API_KEY );
+		delete_option( SettingsManager::OPTION_DEMO_API_KEY_LAST4 );
 	}
 }

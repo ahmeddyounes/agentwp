@@ -10,7 +10,7 @@ namespace AgentWP\Rest;
 use AgentWP\API\RestController;
 use AgentWP\Billing\UsageTracker;
 use AgentWP\Config\AgentWPConfig;
-use AgentWP\Plugin;
+use AgentWP\Plugin\SettingsManager;
 use AgentWP\Security\Encryption;
 use WP_Error;
 use WP_REST_Request;
@@ -77,8 +77,8 @@ class SettingsController extends RestController {
 		$this->maybe_rotate_api_key();
 
 		$settings = $this->read_settings();
-		$last4    = get_option( Plugin::OPTION_API_KEY_LAST4, '' );
-		$has_key  = ! empty( $last4 ) || ! empty( get_option( Plugin::OPTION_API_KEY ) );
+		$last4    = get_option( SettingsManager::OPTION_API_KEY_LAST4, SettingsManager::DEFAULT_API_KEY_LAST4 );
+		$has_key  = ! empty( $last4 ) || ! empty( get_option( SettingsManager::OPTION_API_KEY, SettingsManager::DEFAULT_API_KEY ) );
 
 		return $this->response_success(
 			array(
@@ -109,7 +109,7 @@ class SettingsController extends RestController {
 		$settings = $this->read_settings();
 		$updated  = $this->apply_settings_updates( $settings, $payload );
 
-		update_option( Plugin::OPTION_SETTINGS, $updated, false );
+		update_option( SettingsManager::OPTION_SETTINGS, $updated, false );
 
 		return $this->response_success(
 			array(
@@ -138,8 +138,8 @@ class SettingsController extends RestController {
 		$api_key = isset( $payload['api_key'] ) ? sanitize_text_field( wp_unslash( $payload['api_key'] ) ) : '';
 
 		if ( '' === $api_key ) {
-			delete_option( Plugin::OPTION_API_KEY );
-			delete_option( Plugin::OPTION_API_KEY_LAST4 );
+			delete_option( SettingsManager::OPTION_API_KEY );
+			delete_option( SettingsManager::OPTION_API_KEY_LAST4 );
 
 			return $this->response_success(
 				array(
@@ -163,10 +163,10 @@ class SettingsController extends RestController {
 			return $this->response_error( (string) $encrypted->get_error_code(), $encrypted->get_error_message(), 500 );
 		}
 
-		update_option( Plugin::OPTION_API_KEY, $encrypted, false );
+		update_option( SettingsManager::OPTION_API_KEY, $encrypted, false );
 
 		$last4 = substr( $api_key, -4 );
-		update_option( Plugin::OPTION_API_KEY_LAST4, $last4, false );
+		update_option( SettingsManager::OPTION_API_KEY_LAST4, $last4, false );
 
 		return $this->response_success(
 			array(
@@ -199,7 +199,7 @@ class SettingsController extends RestController {
 
 		$usage = class_exists( 'AgentWP\\Billing\\UsageTracker' )
 			? UsageTracker::get_usage_summary( $period )
-			: Plugin::get_default_usage_stats();
+			: SettingsManager::getDefaultUsageStats();
 
 		return $this->response_success(
 			array(
@@ -220,10 +220,10 @@ class SettingsController extends RestController {
 	 * @return array
 	 */
 	private function read_settings() {
-		$settings = get_option( Plugin::OPTION_SETTINGS, array() );
+		$settings = get_option( SettingsManager::OPTION_SETTINGS, array() );
 		$settings = is_array( $settings ) ? $settings : array();
 
-		return wp_parse_args( $settings, Plugin::get_default_settings() );
+		return wp_parse_args( $settings, SettingsManager::getDefaults() );
 	}
 
 	/**
@@ -345,7 +345,7 @@ class SettingsController extends RestController {
 	 * @return void
 	 */
 	private function maybe_rotate_api_key() {
-		$stored = get_option( Plugin::OPTION_API_KEY, '' );
+		$stored = get_option( SettingsManager::OPTION_API_KEY, SettingsManager::DEFAULT_API_KEY );
 		if ( '' === $stored ) {
 			return;
 		}
@@ -357,7 +357,7 @@ class SettingsController extends RestController {
 			return;
 		}
 
-		update_option( Plugin::OPTION_API_KEY, $rotated, false );
+		update_option( SettingsManager::OPTION_API_KEY, $rotated, false );
 	}
 
 	/**

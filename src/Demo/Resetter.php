@@ -7,7 +7,7 @@
 
 namespace AgentWP\Demo;
 
-use AgentWP\Plugin;
+use AgentWP\Plugin\SettingsManager;
 
 class Resetter {
 	/**
@@ -292,14 +292,14 @@ class Resetter {
 			return;
 		}
 
-		$settings              = Plugin::get_default_settings();
+		$settings              = SettingsManager::getDefaults();
 		$settings['demo_mode'] = true;
 
-		update_option( Plugin::OPTION_SETTINGS, $settings, false );
-		update_option( Plugin::OPTION_USAGE_STATS, Plugin::get_default_usage_stats(), false );
-		update_option( Plugin::OPTION_BUDGET_LIMIT, 0, false );
-		update_option( Plugin::OPTION_DRAFT_TTL, 10, false );
-		delete_option( Plugin::OPTION_API_KEY );
-		delete_option( Plugin::OPTION_API_KEY_LAST4 );
+		update_option( SettingsManager::OPTION_SETTINGS, $settings, false );
+		update_option( SettingsManager::OPTION_USAGE_STATS, SettingsManager::getDefaultUsageStats(), false );
+		update_option( SettingsManager::OPTION_BUDGET_LIMIT, SettingsManager::DEFAULT_BUDGET_LIMIT, false );
+		update_option( SettingsManager::OPTION_DRAFT_TTL, SettingsManager::DEFAULT_DRAFT_TTL, false );
+		delete_option( SettingsManager::OPTION_API_KEY );
+		delete_option( SettingsManager::OPTION_API_KEY_LAST4 );
 	}
 }

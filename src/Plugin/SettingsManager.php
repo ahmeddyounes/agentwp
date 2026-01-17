@@ -17,14 +17,24 @@ class SettingsManager {
 	/**
 	 * Option keys.
 	 */
-	public const OPTION_SETTINGS         = 'agentwp_settings';
-	public const OPTION_API_KEY          = 'agentwp_api_key';
-	public const OPTION_API_KEY_LAST4    = 'agentwp_api_key_last4';
-	public const OPTION_DEMO_API_KEY     = 'agentwp_demo_api_key';
+	public const OPTION_SETTINGS           = 'agentwp_settings';
+	public const OPTION_API_KEY            = 'agentwp_api_key';
+	public const OPTION_API_KEY_LAST4      = 'agentwp_api_key_last4';
+	public const OPTION_DEMO_API_KEY       = 'agentwp_demo_api_key';
 	public const OPTION_DEMO_API_KEY_LAST4 = 'agentwp_demo_api_key_last4';
-	public const OPTION_BUDGET_LIMIT     = 'agentwp_budget_limit';
-	public const OPTION_DRAFT_TTL        = 'agentwp_draft_ttl_minutes';
-	public const OPTION_USAGE_STATS      = 'agentwp_usage_stats';
+	public const OPTION_BUDGET_LIMIT       = 'agentwp_budget_limit';
+	public const OPTION_DRAFT_TTL          = 'agentwp_draft_ttl_minutes';
+	public const OPTION_USAGE_STATS        = 'agentwp_usage_stats';
+
+	/**
+	 * Default values for standalone options.
+	 */
+	public const DEFAULT_BUDGET_LIMIT       = 0;
+	public const DEFAULT_DRAFT_TTL          = 10;
+	public const DEFAULT_API_KEY            = '';
+	public const DEFAULT_API_KEY_LAST4      = '';
+	public const DEFAULT_DEMO_API_KEY       = '';
+	public const DEFAULT_DEMO_API_KEY_LAST4 = '';
 
 	/**
 	 * Options interface.
@@ -139,7 +149,7 @@ class SettingsManager {
 	 * @return float
 	 */
 	public function getBudgetLimit(): float {
-		return (float) $this->options->get( self::OPTION_BUDGET_LIMIT, 0 );
+		return (float) $this->options->get( self::OPTION_BUDGET_LIMIT, self::DEFAULT_BUDGET_LIMIT );
 	}
 
 	/**
@@ -158,7 +168,7 @@ class SettingsManager {
 	 * @return int
 	 */
 	public function getDraftTtl(): int {
-		return (int) $this->options->get( self::OPTION_DRAFT_TTL, 10 );
+		return (int) $this->options->get( self::OPTION_DRAFT_TTL, self::DEFAULT_DRAFT_TTL );
 	}
 
 	/**
@@ -201,27 +211,27 @@ class SettingsManager {
 		}
 
 		if ( ! $this->options->has( self::OPTION_BUDGET_LIMIT ) ) {
-			$this->options->set( self::OPTION_BUDGET_LIMIT, 0 );
+			$this->options->set( self::OPTION_BUDGET_LIMIT, self::DEFAULT_BUDGET_LIMIT );
 		}
 
 		if ( ! $this->options->has( self::OPTION_DRAFT_TTL ) ) {
-			$this->options->set( self::OPTION_DRAFT_TTL, 10 );
+			$this->options->set( self::OPTION_DRAFT_TTL, self::DEFAULT_DRAFT_TTL );
 		}
 
 		if ( ! $this->options->has( self::OPTION_API_KEY ) ) {
-			$this->options->set( self::OPTION_API_KEY, '' );
+			$this->options->set( self::OPTION_API_KEY, self::DEFAULT_API_KEY );
 		}
 
 		if ( ! $this->options->has( self::OPTION_API_KEY_LAST4 ) ) {
-			$this->options->set( self::OPTION_API_KEY_LAST4, '' );
+			$this->options->set( self::OPTION_API_KEY_LAST4, self::DEFAULT_API_KEY_LAST4 );
 		}
 
 		if ( ! $this->options->has( self::OPTION_DEMO_API_KEY ) ) {
-			$this->options->set( self::OPTION_DEMO_API_KEY, '' );
+			$this->options->set( self::OPTION_DEMO_API_KEY, self::DEFAULT_DEMO_API_KEY );
 		}
 
 		if ( ! $this->options->has( self::OPTION_DEMO_API_KEY_LAST4 ) ) {
-			$this->options->set( self::OPTION_DEMO_API_KEY_LAST4, '' );
+			$this->options->set( self::OPTION_DEMO_API_KEY_LAST4, self::DEFAULT_DEMO_API_KEY_LAST4 );
 		}
 	}
 

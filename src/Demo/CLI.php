@@ -7,7 +7,7 @@
 
 namespace AgentWP\Demo;
 
-use AgentWP\Plugin;
+use AgentWP\Plugin\SettingsManager;
 use WP_CLI;
 
 class CLI {
@@ -93,11 +93,11 @@ class CLI {
 	public static function enable( $args, $assoc_args ) {
 		unset( $args, $assoc_args );
 
-		$settings              = get_option( Plugin::OPTION_SETTINGS, array() );
+		$settings              = get_option( SettingsManager::OPTION_SETTINGS, array() );
 		$settings              = is_array( $settings ) ? $settings : array();
-		$settings              = wp_parse_args( $settings, Plugin::get_default_settings() );
+		$settings              = wp_parse_args( $settings, SettingsManager::getDefaults() );
 		$settings['demo_mode'] = true;
-		update_option( Plugin::OPTION_SETTINGS, $settings, false );
+		update_option( SettingsManager::OPTION_SETTINGS, $settings, false );
 		Manager::schedule_reset();
 
 		WP_CLI::success( 'Demo mode enabled.' );
