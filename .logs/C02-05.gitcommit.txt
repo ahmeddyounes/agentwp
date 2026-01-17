@@ -1,0 +1,15 @@
+[main f082965] C02-05: implement
+ 15 files changed, 1056 insertions(+), 15 deletions(-)
+ create mode 100644 .logs/C02-04.gitcommit.txt
+ create mode 100644 .logs/C02-05.claude.after1.last.md
+ create mode 100644 .logs/C02-05.claude.after1.raw.txt
+ create mode 100644 .logs/C02-05.claude.impl.last.md
+ create mode 100644 .logs/C02-05.claude.impl.raw.txt
+ create mode 100644 .plans/C02-05.md
+ create mode 100644 .t2/handoff/C02-05.md
+ create mode 100644 src/Demo/DemoClient.php
+ create mode 100644 src/Demo/DemoCredentials.php
+ create mode 100644 tests/Unit/Demo/DemoClientTest.php
+ create mode 100644 tests/Unit/Demo/DemoCredentialsTest.php
+
+→ No staged files match any configured task.
