@@ -25,6 +25,8 @@ use AgentWP\Intent\Handlers\EmailDraftHandler;
 use AgentWP\Intent\Handlers\OrderRefundHandler;
 use AgentWP\Intent\Handlers\OrderSearchHandler;
 use AgentWP\Intent\Handlers\OrderStatusHandler;
+use AgentWP\Intent\FunctionRegistry;
+use AgentWP\Intent\HandlerRegistry;
 use AgentWP\Intent\Handlers\ProductStockHandler;
 
 /**
@@ -41,6 +43,8 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->registerMemoryStore();
 		$this->registerContextBuilder();
 		$this->registerIntentClassifier();
+		$this->registerFunctionRegistry();
+		$this->registerHandlerRegistry();
 		$this->registerEngine();
 		$this->registerHandlerFactory();
 	}
@@ -100,6 +104,38 @@ final class IntentServiceProvider extends ServiceProvider {
 	}
 
 	/**
+	 * Register function registry.
+	 *
+	 * @return void
+	 */
+	private function registerFunctionRegistry(): void {
+		if ( ! class_exists( FunctionRegistry::class ) ) {
+			return;
+		}
+
+		$this->container->singleton(
+			FunctionRegistry::class,
+			fn() => new FunctionRegistry()
+		);
+	}
+
+	/**
+	 * Register handler registry.
+	 *
+	 * @return void
+	 */
+	private function registerHandlerRegistry(): void {
+		if ( ! class_exists( HandlerRegistry::class ) ) {
+			return;
+		}
+
+		$this->container->singleton(
+			HandlerRegistry::class,
+			fn() => new HandlerRegistry()
+		);
+	}
+
+	/**
 	 * Register intent engine.
 	 *
 	 * @return void
@@ -117,10 +153,11 @@ final class IntentServiceProvider extends ServiceProvider {
 				$handlers = $this->container->tagged( 'intent.handler' );
 				return new \AgentWP\Intent\Engine(
 					$handlers,
-					null, // registry
+					$this->container->get( FunctionRegistry::class ),
 					$this->container->get( ContextBuilderInterface::class ),
 					$this->container->get( IntentClassifierInterface::class ),
-					$this->container->get( MemoryStoreInterface::class )
+					$this->container->get( MemoryStoreInterface::class ),
+					$this->container->get( HandlerRegistry::class )
 				);
 			}
 		);
