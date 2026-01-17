@@ -30,28 +30,16 @@ class DemoClient implements OpenAIClientInterface {
 	private const DEMO_CONTENT = 'This is a demo response. In demo mode without an API key, responses are simulated for testing purposes. To use real AI capabilities, either configure a demo API key or disable demo mode and add your OpenAI API key.';
 
 	/**
-	 * Model to report in responses.
-	 *
-	 * @var string
-	 */
-	private string $model;
-
-	/**
-	 * Intent type for tracking.
-	 *
-	 * @var string
-	 */
-	private string $intent_type;
-
-	/**
 	 * Create a new DemoClient.
 	 *
-	 * @param string $model Model name.
-	 * @param array  $options Configuration options.
+	 * Constructor accepts parameters for interface compatibility but ignores them
+	 * since demo mode uses hard-coded stub responses.
+	 *
+	 * @param string $model Model name (unused in demo mode).
+	 * @param array  $options Configuration options (unused in demo mode).
 	 */
-	public function __construct( string $model = Model::GPT_4O_MINI, array $options = array() ) {
-		$this->model       = $model;
-		$this->intent_type = isset( $options['intent_type'] ) ? sanitize_text_field( $options['intent_type'] ) : '';
+	public function __construct( string $model = Model::GPT_4O_MINI, array $options = array() ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- Interface compatibility
+		// Intentionally empty - demo mode ignores model and options.
 	}
 
 	/**

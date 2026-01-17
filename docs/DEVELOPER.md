@@ -12,11 +12,51 @@ Key pieces:
 - **WooCommerce integrations**: Services in `src/Services` execute refunds, status updates, stock changes, and email drafts.
 - **React Command Deck**: Source in `react/`, built assets in `assets/`.
 
+### Single-path bootstrap architecture
+The plugin uses a consolidated bootstrap pattern. `src/Plugin.php` is the entry point but delegates all wiring to managers and service providers:
+
+- **Managers** (`src/Plugin/*`): `AdminManager`, `AssetsManager`, `MenuManager`, `RestManager` handle WordPress integration.
+- **Service Providers** (`src/Providers/*`): Register services, controllers, and handlers with the dependency injection container.
+- **Configuration**: All option keys and defaults are defined in `AgentWPConfig` constants. Never hardcode option names elsewhere.
+
+The flow:
+1. `agentwp.php` boots `Plugin::instance()`
+2. `Plugin` registers providers via the container
+3. Providers wire managers, controllers, and services
+4. Managers hook into WordPress lifecycle
+
+### API key management
+API keys are managed by `ApiKeyStorage` (`src/Security/ApiKeyStorage.php`):
+- Encrypts/decrypts keys using `Encryption` service
+- Stores encrypted keys and last-4 indicators as separate options
+- Supports key rotation via filters
+
+Never directly instantiate `Encryption` or manually manage key storage in controllers.
+
+### Demo mode behavior
+When demo mode is enabled (`AgentWPConfig::OPTION_DEMO_MODE`):
+- **With demo API key**: Real API calls are made using the demo key
+- **Without demo API key**: `DemoClient` returns stubbed responses for testing
+
+This ensures demo mode never accidentally uses a production key.
+
 Request flow:
 1. REST call hits `IntentController::create_intent`.
 2. `Engine` classifies the prompt and enriches context.
 3. A handler returns a `Response` object.
 4. REST response is normalized into the standard envelope.
+
+### Order search pipeline
+Order search uses a modular pipeline architecture (`src/Services/OrderSearch/*`):
+
+- `PipelineOrderSearchService` - Entry point implementing `OrderSearchServiceInterface`
+- `ArgumentNormalizer` - Normalizes and validates search arguments
+- `OrderSearchParser` - Parses natural language queries into structured parameters
+- `DateRangeParser` - Extracts date ranges from user input
+- `OrderQueryService` - Executes queries with caching
+- `OrderFormatter` - Formats order results for display
+
+The pipeline is wired via `ServicesServiceProvider`. When WooCommerce is not available, a stub implementation returns an error response.
 
 ## Local development
 - UI source lives in `react/` and is bundled with Vite.

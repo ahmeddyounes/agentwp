@@ -6,6 +6,10 @@ parameters:
   treatPhpDocTypesAsCertain: false
   ignoreErrors:
     - identifier: missingType.iterableValue
+    # DemoClient constructor has unused params for interface compatibility with OpenAIClientInterface.
+    -
+      identifier: constructor.unusedParameter
+      path: src/Demo/DemoClient.php
   parallel:
     maximumNumberOfProcesses: 0
   scanFiles:
