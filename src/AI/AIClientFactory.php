@@ -11,6 +11,7 @@
 namespace AgentWP\AI;
 
 use AgentWP\Contracts\AIClientFactoryInterface;
+use AgentWP\Contracts\HttpClientInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
 use AgentWP\Demo\DemoClient;
 use AgentWP\Demo\DemoCredentials;
@@ -27,6 +28,13 @@ use AgentWP\Plugin\SettingsManager;
  * IMPORTANT: Real API keys are NEVER used when demo mode is enabled.
  */
 class AIClientFactory implements AIClientFactoryInterface {
+
+	/**
+	 * HTTP client.
+	 *
+	 * @var HttpClientInterface
+	 */
+	private HttpClientInterface $http_client;
 
 	/**
 	 * Settings manager.
@@ -52,15 +60,18 @@ class AIClientFactory implements AIClientFactoryInterface {
 	/**
 	 * Create a new AIClientFactory.
 	 *
-	 * @param SettingsManager $settings Settings manager.
-	 * @param string          $default_model Default model.
-	 * @param DemoCredentials $demo_credentials Demo credentials manager.
+	 * @param HttpClientInterface $http_client HTTP client.
+	 * @param SettingsManager     $settings Settings manager.
+	 * @param string              $default_model Default model.
+	 * @param DemoCredentials     $demo_credentials Demo credentials manager.
 	 */
 	public function __construct(
+		HttpClientInterface $http_client,
 		SettingsManager $settings,
 		string $default_model,
 		DemoCredentials $demo_credentials
 	) {
+		$this->http_client      = $http_client;
 		$this->settings         = $settings;
 		$this->default_model    = $default_model;
 		$this->demo_credentials = $demo_credentials;
@@ -97,7 +108,7 @@ class AIClientFactory implements AIClientFactoryInterface {
 		// CRITICAL: This method enforces the rule that real keys are never used in demo mode.
 		$api_key = $this->demo_credentials->getEffectiveApiKey();
 
-		return new OpenAIClient( $api_key, $model, $client_options );
+		return new OpenAIClient( $this->http_client, $api_key, $model, $client_options );
 	}
 
 	/**

@@ -1,0 +1,15 @@
+[main 1e11f9f] C05-01: implement
+ 12 files changed, 163 insertions(+), 885 deletions(-)
+ create mode 100644 .logs/C04-07.gitcommit.txt
+ create mode 100644 .logs/C05-01.claude.impl.last.md
+ create mode 100644 .logs/C05-01.claude.impl.raw.txt
+ create mode 100644 .plans/C05-01.md
+ create mode 100644 .t2/handoff/C05-01.md
+ delete mode 100644 src/AI/Client/ParsedResponse.php
+ delete mode 100644 src/AI/Client/RequestBuilder.php
+ delete mode 100644 src/AI/Client/ResponseParser.php
+ delete mode 100644 src/AI/Client/StreamParser.php
+ delete mode 100644 src/AI/Client/ToolNormalizer.php
+ delete mode 100644 src/AI/Client/UsageEstimator.php
+
+→ No staged files match any configured task.

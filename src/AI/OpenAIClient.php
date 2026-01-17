@@ -9,7 +9,9 @@ namespace AgentWP\AI;
 
 use AgentWP\AI\Functions\FunctionSchema;
 use AgentWP\Billing\UsageTracker;
+use AgentWP\Contracts\HttpClientInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
+use AgentWP\DTO\HttpResponse;
 
 class OpenAIClient implements OpenAIClientInterface {
 	const API_BASE = 'https://api.openai.com/v1';
@@ -35,6 +37,7 @@ class OpenAIClient implements OpenAIClientInterface {
 	 */
 	const MAX_TOOL_ARGUMENTS_LENGTH = 102400;
 
+	private HttpClientInterface $http_client;
 	private string $api_key;
 	private string $model;
 	private int $timeout;
@@ -49,11 +52,13 @@ class OpenAIClient implements OpenAIClientInterface {
 	private string $intent_type;
 
 	/**
-	 * @param string $api_key OpenAI API key.
-	 * @param string $model Model name.
-	 * @param array  $options Optional overrides.
+	 * @param HttpClientInterface $http_client HTTP client for making requests.
+	 * @param string              $api_key OpenAI API key.
+	 * @param string              $model Model name.
+	 * @param array               $options Optional overrides.
 	 */
-	public function __construct( $api_key, $model = Model::GPT_4O_MINI, array $options = array() ) {
+	public function __construct( HttpClientInterface $http_client, $api_key, $model = Model::GPT_4O_MINI, array $options = array() ) {
+		$this->http_client   = $http_client;
 		$this->api_key       = is_string( $api_key ) ? $api_key : '';
 		$this->model         = Model::normalize( $model );
 		// Enforce timeout bounds: minimum 1 second, maximum 300 seconds.
@@ -185,26 +190,17 @@ class OpenAIClient implements OpenAIClientInterface {
 			return false;
 		}
 
-			$args = array(
-				'timeout'     => 3,
-				'redirection' => 0,
-				'headers'     => array(
-					'Authorization' => 'Bearer ' . $key,
-				),
-			);
+		$options = array(
+			'timeout'     => 3,
+			'redirection' => 0,
+			'headers'     => array(
+				'Authorization' => 'Bearer ' . $key,
+			),
+		);
 
-			if ( function_exists( 'vip_safe_wp_remote_get' ) ) {
-				$response = vip_safe_wp_remote_get( $this->base_url . '/models', $args );
-			} else {
-				// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.wp_remote_get_wp_remote_get -- Fallback when VIP helper is unavailable.
-				$response = wp_remote_get( $this->base_url . '/models', $args );
-			}
+		$response = $this->http_client->get( $this->base_url . '/models', $options );
 
-		if ( is_wp_error( $response ) ) {
-			return false;
-		}
-
-		return 200 === (int) wp_remote_retrieve_response_code( $response );
+		return $response->success && 200 === $response->statusCode;
 	}
 
 	/**
@@ -267,7 +263,7 @@ class OpenAIClient implements OpenAIClientInterface {
 			);
 		}
 
-		$args = array(
+		$options = array(
 			'timeout'     => $this->timeout,
 			'redirection' => 0,
 			'sslverify'   => true,
@@ -278,28 +274,40 @@ class OpenAIClient implements OpenAIClientInterface {
 			'body'        => $body,
 		);
 
-		$response = wp_remote_post( $this->base_url . '/chat/completions', $args );
-		if ( is_wp_error( $response ) ) {
+		$response = $this->http_client->post( $this->base_url . '/chat/completions', $options );
+
+		return $this->parse_http_response( $response );
+	}
+
+	/**
+	 * Parse HttpResponse into the internal result format.
+	 *
+	 * @param HttpResponse $response HTTP response.
+	 * @return array
+	 */
+	private function parse_http_response( HttpResponse $response ): array {
+		// Handle network/connection errors (status 0).
+		if ( ! $response->success && 0 === $response->statusCode ) {
 			return array(
 				'success'     => false,
 				'status'      => 0,
 				'body'        => '',
 				'headers'     => array(),
-				'error'       => $response->get_error_message(),
-				'error_code'  => $response->get_error_code(),
+				'error'       => $response->error ?? 'Request failed',
+				'error_code'  => $response->errorCode ?? '',
 				'error_type'  => '',
-				'retryable'   => $this->is_retryable_error( $response ),
+				'retryable'   => $response->isRetryable(),
 				'retry_after' => 0,
 			);
 		}
 
-			$status  = (int) wp_remote_retrieve_response_code( $response );
-			$body    = wp_remote_retrieve_body( $response );
-			$headers = $this->normalize_response_headers( wp_remote_retrieve_headers( $response ) );
-			$error       = '';
-			$error_code  = '';
-			$error_type  = '';
-			$header_retry = isset( $headers['retry-after'] ) ? $this->parse_retry_after( $headers['retry-after'] ) : 0;
+		$status       = $response->statusCode;
+		$body         = $response->body;
+		$headers      = $this->normalize_response_headers( $response->headers );
+		$error        = '';
+		$error_code   = '';
+		$error_type   = '';
+		$header_retry = $response->getRetryAfter() ?? 0;
 
 		if ( $status < 200 || $status >= 300 ) {
 			$error   = 'OpenAI API request failed.';
@@ -316,18 +324,18 @@ class OpenAIClient implements OpenAIClientInterface {
 			}
 		}
 
-			return array(
-				'success'     => $status >= 200 && $status < 300,
-				'status'      => $status,
-				'body'        => is_string( $body ) ? $body : '',
-				'headers'     => $headers,
-				'error'       => $error,
-				'error_code'  => $error_code,
-				'error_type'  => $error_type,
-				'retryable'   => $this->is_retryable_status( $status ),
-				'retry_after' => $header_retry,
-			);
-		}
+		return array(
+			'success'     => $status >= 200 && $status < 300,
+			'status'      => $status,
+			'body'        => $body,
+			'headers'     => $headers,
+			'error'       => $error,
+			'error_code'  => $error_code,
+			'error_type'  => $error_type,
+			'retryable'   => $response->isRetryable(),
+			'retry_after' => $header_retry,
+		);
+	}
 
 		/**
 		 * Normalize WordPress response headers to a plain array.
@@ -402,29 +410,6 @@ class OpenAIClient implements OpenAIClientInterface {
 	}
 
 	/**
-	 * @param int $status HTTP status.
-	 * @return bool
-	 */
-	private function is_retryable_status( $status ) {
-		return 429 === $status || ( $status >= 500 && $status < 600 );
-	}
-
-	/**
-	 * @param \WP_Error $error Error instance.
-	 * @return bool
-	 */
-	private function is_retryable_error( $error ) {
-		$code    = $error->get_error_code();
-		$message = strtolower( $error->get_error_message() );
-
-		if ( false !== strpos( $message, 'timed out' ) || false !== strpos( $message, 'timeout' ) ) {
-			return true;
-		}
-
-		return in_array( $code, array( 'http_request_failed', 'connection_failed' ), true );
-	}
-
-	/**
 	 * Sanitize error message to prevent API key exposure.
 	 *
 	 * @param string $message Raw error message.
@@ -461,51 +446,6 @@ class OpenAIClient implements OpenAIClientInterface {
 		$sleep  = $base + $jitter;
 
 		usleep( (int) round( $sleep * 1000000 ) );
-	}
-
-	/**
-	 * Parse Retry-After header value.
-	 *
-	 * Handles integer seconds, HTTP-date format, and array headers.
-	 *
-	 * @param mixed $value Retry-After header value (may be array from WordPress).
-	 * @return int Seconds to wait.
-	 */
-	private function parse_retry_after( $value ): int {
-		// Handle array headers (some servers send multiple, WordPress may return array).
-		if ( is_array( $value ) ) {
-			$value = reset( $value );
-			if ( false === $value || '' === $value ) {
-				return 0;
-			}
-		}
-
-		// Numeric value is seconds directly.
-		if ( is_numeric( $value ) ) {
-			$seconds = (int) $value;
-
-			// If it's a large number (Unix timestamp after Sep 2001), it's a timestamp.
-			// Any reasonable Retry-After in seconds would be much smaller (typically <7200).
-			if ( $seconds > 1000000000 ) {
-				return max( 0, $seconds - time() );
-			}
-
-			return max( 0, $seconds );
-		}
-
-		// Try to parse as HTTP-date format.
-		// HTTP dates are always in GMT/UTC, so parse with UTC context.
-		if ( is_string( $value ) ) {
-			try {
-				$date = new \DateTimeImmutable( $value, new \DateTimeZone( 'UTC' ) );
-				$now = new \DateTimeImmutable( 'now', new \DateTimeZone( 'UTC' ) );
-				return max( 0, $date->getTimestamp() - $now->getTimestamp() );
-			} catch ( \Exception $e ) {
-				// Invalid date format.
-			}
-		}
-
-		return 0;
 	}
 
 	/**

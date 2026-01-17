@@ -194,6 +194,7 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			AIClientFactory::class,
 			fn( $c ) => new AIClientFactory(
+				$c->get( HttpClientInterface::class ),
 				$c->get( SettingsManager::class ),
 				\AgentWP\AI\Model::GPT_4O_MINI,
 				$c->get( DemoCredentials::class )
