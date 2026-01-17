@@ -146,27 +146,74 @@ class ScorerRegistryTest extends TestCase {
 		$this->assertSame( Intent::ORDER_REFUND, $intent );
 	}
 
-	public function test_score_all_returns_all_scores(): void {
+	public function test_score_all_returns_weighted_scores(): void {
 		$registry = new ScorerRegistry();
 
 		$registry->registerMany(
 			array(
-				$this->createFixedScorer( Intent::ORDER_REFUND, 3 ),
-				$this->createFixedScorer( Intent::ORDER_STATUS, 1 ),
-				$this->createFixedScorer( Intent::ORDER_SEARCH, 0 ),
+				$this->createFixedScorer( Intent::ORDER_REFUND, 3, 1.0 ),
+				$this->createFixedScorer( Intent::ORDER_STATUS, 1, 1.0 ),
+				$this->createFixedScorer( Intent::ORDER_SEARCH, 0, 1.0 ),
 			)
 		);
 
 		$scores = $registry->scoreAll( 'test input' );
 
-		$this->assertSame(
+		// Scores are now floats (raw * weight).
+		$this->assertEquals( 3.0, $scores[ Intent::ORDER_REFUND ] );
+		$this->assertEquals( 1.0, $scores[ Intent::ORDER_STATUS ] );
+		$this->assertEquals( 0.0, $scores[ Intent::ORDER_SEARCH ] );
+	}
+
+	public function test_score_all_applies_weights(): void {
+		$registry = new ScorerRegistry();
+
+		// Same raw score but different weights.
+		$registry->registerMany(
 			array(
-				Intent::ORDER_REFUND => 3,
-				Intent::ORDER_STATUS => 1,
-				Intent::ORDER_SEARCH => 0,
-			),
-			$scores
+				$this->createFixedScorer( Intent::ORDER_REFUND, 2, 1.5 ),  // 2 * 1.5 = 3.0
+				$this->createFixedScorer( Intent::ORDER_STATUS, 2, 0.5 ), // 2 * 0.5 = 1.0
+			)
 		);
+
+		$scores = $registry->scoreAll( 'test input' );
+
+		$this->assertEquals( 3.0, $scores[ Intent::ORDER_REFUND ] );
+		$this->assertEquals( 1.0, $scores[ Intent::ORDER_STATUS ] );
+	}
+
+	public function test_score_all_raw_returns_unweighted_scores(): void {
+		$registry = new ScorerRegistry();
+
+		$registry->registerMany(
+			array(
+				$this->createFixedScorer( Intent::ORDER_REFUND, 3, 2.0 ),
+				$this->createFixedScorer( Intent::ORDER_STATUS, 1, 0.5 ),
+			)
+		);
+
+		$rawScores = $registry->scoreAllRaw( 'test input' );
+
+		// Raw scores ignore weights.
+		$this->assertSame( 3, $rawScores[ Intent::ORDER_REFUND ] );
+		$this->assertSame( 1, $rawScores[ Intent::ORDER_STATUS ] );
+	}
+
+	public function test_classify_uses_weighted_scores(): void {
+		$registry = new ScorerRegistry();
+
+		// Lower raw score but higher weight wins.
+		$registry->registerMany(
+			array(
+				$this->createFixedScorer( Intent::ORDER_REFUND, 2, 0.5 ), // 2 * 0.5 = 1.0
+				$this->createFixedScorer( Intent::ORDER_STATUS, 1, 3.0 ), // 1 * 3.0 = 3.0
+			)
+		);
+
+		$intent = $registry->classify( 'test input' );
+
+		// ORDER_STATUS wins due to higher weighted score.
+		$this->assertSame( Intent::ORDER_STATUS, $intent );
 	}
 
 	public function test_has_returns_false_for_unregistered_intent(): void {
@@ -258,8 +305,8 @@ class ScorerRegistryTest extends TestCase {
 	public function test_register_replaces_existing_scorer_for_same_intent(): void {
 		$registry = new ScorerRegistry();
 
-		$scorerA = $this->createFixedScorer( Intent::ORDER_REFUND, 1 );
-		$scorerB = $this->createFixedScorer( Intent::ORDER_REFUND, 10 );
+		$scorerA = $this->createFixedScorer( Intent::ORDER_REFUND, 1, 1.0 );
+		$scorerB = $this->createFixedScorer( Intent::ORDER_REFUND, 10, 1.0 );
 
 		$registry->register( $scorerA );
 		$registry->register( $scorerB );
@@ -267,24 +314,60 @@ class ScorerRegistryTest extends TestCase {
 		$this->assertSame( 1, $registry->count() );
 
 		$scores = $registry->scoreAll( 'test' );
-		$this->assertSame( 10, $scores[ Intent::ORDER_REFUND ] );
+		$this->assertEquals( 10.0, $scores[ Intent::ORDER_REFUND ] );
+	}
+
+	public function test_deterministic_tiebreaker_with_ksort(): void {
+		$registry = new ScorerRegistry();
+
+		// Register in reverse alphabetical order to verify ksort works.
+		$registry->registerMany(
+			array(
+				$this->createFixedScorer( 'ZEBRA_INTENT', 5, 1.0 ),
+				$this->createFixedScorer( 'ALPHA_INTENT', 5, 1.0 ),
+				$this->createFixedScorer( 'MIDDLE_INTENT', 5, 1.0 ),
+			)
+		);
+
+		// ALPHA_INTENT should win due to alphabetical ordering.
+		$this->assertSame( 'ALPHA_INTENT', $registry->classify( 'test' ) );
+	}
+
+	public function test_zero_weight_prevents_classification(): void {
+		$registry = new ScorerRegistry();
+
+		// High raw score but zero weight = no match.
+		$registry->registerMany(
+			array(
+				$this->createFixedScorer( Intent::ORDER_REFUND, 10, 0.0 ), // 10 * 0 = 0
+				$this->createFixedScorer( Intent::ORDER_STATUS, 1, 1.0 ),  // 1 * 1 = 1
+			)
+		);
+
+		$intent = $registry->classify( 'test input' );
+
+		// ORDER_STATUS wins because REFUND has zero weighted score.
+		$this->assertSame( Intent::ORDER_STATUS, $intent );
 	}
 
 	/**
-	 * Create a fixed scorer that always returns the same score.
+	 * Create a fixed scorer that always returns the same score with a configurable weight.
 	 *
 	 * @param string $intent The intent type.
 	 * @param int    $score  The fixed score to return.
+	 * @param float  $weight The weight multiplier (default 1.0).
 	 * @return IntentScorerInterface
 	 */
-	private function createFixedScorer( string $intent, int $score ): IntentScorerInterface {
-		return new class( $intent, $score ) implements IntentScorerInterface {
+	private function createFixedScorer( string $intent, int $score, float $weight = 1.0 ): IntentScorerInterface {
+		return new class( $intent, $score, $weight ) implements IntentScorerInterface {
 			private string $intent;
 			private int $score;
+			private float $weight;
 
-			public function __construct( string $intent, int $score ) {
+			public function __construct( string $intent, int $score, float $weight ) {
 				$this->intent = $intent;
 				$this->score  = $score;
+				$this->weight = $weight;
 			}
 
 			public function getIntent(): string {
@@ -293,6 +376,10 @@ class ScorerRegistryTest extends TestCase {
 
 			public function score( string $text, array $context = array() ): int {
 				return $this->score;
+			}
+
+			public function getWeight(): float {
+				return $this->weight;
 			}
 		};
 	}

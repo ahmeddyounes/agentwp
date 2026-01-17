@@ -27,4 +27,15 @@ interface IntentScorerInterface {
 	 * @return int Score (0 = no match, higher = stronger match).
 	 */
 	public function score( string $text, array $context = array() ): int;
+
+	/**
+	 * Get the configuration weight for this scorer's intent.
+	 *
+	 * The weight is applied by the ScorerRegistry when calculating
+	 * final weighted scores. Weights are configurable via AgentWPConfig
+	 * and WordPress filters.
+	 *
+	 * @return float Weight multiplier (default 1.0).
+	 */
+	public function getWeight(): float;
 }

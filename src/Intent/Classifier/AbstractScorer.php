@@ -7,10 +7,53 @@
 
 namespace AgentWP\Intent\Classifier;
 
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Intent\Intent;
+
 /**
  * Base class for intent scorers with common matching utilities.
+ *
+ * Scorers extend this class to inherit config-aware weighted scoring.
+ * The weight is applied by the ScorerRegistry when calculating final scores.
  */
 abstract class AbstractScorer implements IntentScorerInterface {
+
+	/**
+	 * Map of intent types to their config weight keys.
+	 *
+	 * @var array<string, string>
+	 */
+	private const INTENT_WEIGHT_KEYS = array(
+		Intent::ORDER_SEARCH    => 'intent.weight.order_search',
+		Intent::ORDER_REFUND    => 'intent.weight.order_refund',
+		Intent::ORDER_STATUS    => 'intent.weight.order_status',
+		Intent::PRODUCT_STOCK   => 'intent.weight.product_stock',
+		Intent::EMAIL_DRAFT     => 'intent.weight.email_draft',
+		Intent::ANALYTICS_QUERY => 'intent.weight.analytics_query',
+		Intent::CUSTOMER_LOOKUP => 'intent.weight.customer_lookup',
+	);
+
+	/**
+	 * Get the configuration weight for this scorer's intent.
+	 *
+	 * Retrieves the weight from AgentWPConfig, allowing customization via
+	 * WordPress filters (e.g., 'agentwp_config_intent_weight_order_search').
+	 *
+	 * @return float Weight multiplier (default 1.0).
+	 */
+	public function getWeight(): float {
+		$intent = $this->getIntent();
+		$key    = self::INTENT_WEIGHT_KEYS[ $intent ] ?? null;
+
+		if ( null === $key ) {
+			return 1.0;
+		}
+
+		$weight = AgentWPConfig::get( $key, 1.0 );
+
+		// Ensure weight is a valid positive number.
+		return is_numeric( $weight ) && $weight >= 0 ? (float) $weight : 1.0;
+	}
 
 	/**
 	 * Score based on phrase matching.

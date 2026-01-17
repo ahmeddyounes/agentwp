@@ -57,6 +57,13 @@ final class AgentWPConfig {
 	public const INTENT_SIMILARITY_THRESHOLD = 0.6;
 
 	/**
+	 * Intent minimum threshold.
+	 * Minimum weighted score required for an intent to be considered.
+	 * Set to 0 for backward compatibility (any positive score is valid).
+	 */
+	public const INTENT_MINIMUM_THRESHOLD = 0.0;
+
+	/**
 	 * Cache TTL settings (in seconds).
 	 */
 	public const CACHE_TTL_DEFAULT      = 3600; // 1 hour
@@ -200,6 +207,7 @@ final class AgentWPConfig {
 			'confidence.threshold.medium'    => self::CONFIDENCE_THRESHOLD_MEDIUM,
 			'confidence.threshold.low'       => self::CONFIDENCE_THRESHOLD_LOW,
 			'intent.similarity_threshold'    => self::INTENT_SIMILARITY_THRESHOLD,
+			'intent.minimum_threshold'       => self::INTENT_MINIMUM_THRESHOLD,
 		);
 
 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;

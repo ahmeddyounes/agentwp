@@ -7,6 +7,7 @@
 
 namespace AgentWP\Intent\Classifier;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\IntentClassifierInterface;
 use AgentWP\Infrastructure\WPFunctions;
 use AgentWP\Intent\Intent;
@@ -17,6 +18,11 @@ use AgentWP\Intent\Intent;
  * This registry is the canonical intent classification mechanism per ADR 0003.
  * It implements IntentClassifierInterface and supports extensibility via the
  * 'agentwp_intent_scorers' filter for third-party scorers.
+ *
+ * Scoring is config-aware:
+ * - Weights from AgentWPConfig are applied to raw scores
+ * - Minimum threshold filters out low-confidence matches
+ * - Deterministic tie-breaking uses alphabetical ordering
  */
 final class ScorerRegistry implements IntentClassifierInterface {
 
@@ -135,13 +141,37 @@ final class ScorerRegistry implements IntentClassifierInterface {
 	}
 
 	/**
-	 * Score all registered intents.
+	 * Score all registered intents with config-aware weighting.
+	 *
+	 * Each raw score is multiplied by the scorer's weight from AgentWPConfig.
+	 * This allows fine-tuning intent priorities via WordPress filters.
 	 *
 	 * @param string $text    Normalized text.
 	 * @param array  $context Additional context.
-	 * @return array<string, int> Intent => score mapping.
+	 * @return array<string, float> Intent => weighted score mapping.
 	 */
 	public function scoreAll( string $text, array $context = array() ): array {
+		$scores = array();
+
+		foreach ( $this->scorers as $intent => $scorer ) {
+			$rawScore         = $scorer->score( $text, $context );
+			$weight           = $scorer->getWeight();
+			$scores[ $intent ] = $rawScore * $weight;
+		}
+
+		return $scores;
+	}
+
+	/**
+	 * Get the raw (unweighted) scores for all registered intents.
+	 *
+	 * Useful for debugging or when weights should not be applied.
+	 *
+	 * @param string $text    Normalized text.
+	 * @param array  $context Additional context.
+	 * @return array<string, int> Intent => raw score mapping.
+	 */
+	public function scoreAllRaw( string $text, array $context = array() ): array {
 		$scores = array();
 
 		foreach ( $this->scorers as $intent => $scorer ) {
@@ -152,20 +182,35 @@ final class ScorerRegistry implements IntentClassifierInterface {
 	}
 
 	/**
-	 * Select the best intent from scores.
+	 * Select the best intent from weighted scores.
 	 *
-	 * Uses alphabetical ordering as tie-breaker for deterministic results.
+	 * Applies threshold filtering and uses alphabetical ordering as tie-breaker
+	 * for deterministic results. The minimum threshold is configurable via
+	 * the 'confidence.threshold.low' config key.
 	 *
-	 * @param array<string, int> $scores Intent => score mapping.
+	 * @param array<string, float> $scores Intent => weighted score mapping.
 	 * @return string Best intent or Intent::UNKNOWN.
 	 */
 	private function selectBestIntent( array $scores ): string {
 		$bestIntent = Intent::UNKNOWN;
-		$bestScore  = 0;
+		$bestScore  = 0.0;
+
+		// Get minimum threshold from config (default 0 for backward compatibility).
+		// Using 0 as default means any positive score will be considered.
+		$minThreshold = (float) AgentWPConfig::get( 'intent.minimum_threshold', 0.0 );
+
+		// Sort keys alphabetically first for deterministic tie-breaking.
+		// This ensures iteration order is consistent across PHP versions.
+		ksort( $scores );
 
 		foreach ( $scores as $intent => $score ) {
-			// Higher score wins, or alphabetically first on tie.
-			if ( $score > $bestScore || ( $score === $bestScore && $score > 0 && $intent < $bestIntent ) ) {
+			// Skip scores below the minimum threshold.
+			if ( $score < $minThreshold ) {
+				continue;
+			}
+
+			// Higher score wins; on tie, first alphabetically wins (already sorted).
+			if ( $score > $bestScore ) {
 				$bestScore  = $score;
 				$bestIntent = $intent;
 			}
