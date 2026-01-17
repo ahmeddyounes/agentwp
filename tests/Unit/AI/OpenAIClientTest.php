@@ -9,20 +9,25 @@ use AgentWP\AI\OpenAIClient;
 use AgentWP\AI\Functions\FunctionSchema;
 use AgentWP\AI\TokenCounter;
 use AgentWP\DTO\HttpResponse;
+use AgentWP\Retry\ExponentialBackoffPolicy;
 use AgentWP\Tests\Fakes\FakeHttpClient;
+use AgentWP\Tests\Fakes\FakeSleeper;
 use AgentWP\Tests\TestCase;
 
 class OpenAIClientTest extends TestCase {
 
 	private FakeHttpClient $http;
+	private FakeSleeper $sleeper;
 
 	public function setUp(): void {
 		parent::setUp();
-		$this->http = new FakeHttpClient();
+		$this->http    = new FakeHttpClient();
+		$this->sleeper = new FakeSleeper();
 	}
 
 	public function tearDown(): void {
 		$this->http->reset();
+		$this->sleeper->reset();
 		parent::tearDown();
 	}
 
@@ -291,7 +296,7 @@ class OpenAIClientTest extends TestCase {
 
 		// Queue a 500 error followed by a success.
 		$this->http->queueResponse(
-			HttpResponse::success( $error_fixture, 500 )
+			new HttpResponse( success: false, statusCode: 500, body: $error_fixture )
 		);
 		$this->http->queueSuccess( $ok_fixture, 200 );
 
@@ -302,7 +307,9 @@ class OpenAIClientTest extends TestCase {
 			array(
 				'max_retries'   => 1,
 				'token_counter' => $this->stub_token_counter(),
-			)
+			),
+			null,
+			$this->sleeper
 		);
 		$response = $client->chat( array( array( 'role' => 'user', 'content' => 'Hi' ) ), array() );
 
@@ -383,5 +390,216 @@ class OpenAIClientTest extends TestCase {
 		);
 
 		$this->assertFalse( $client->validateKey( 'invalid_key' ) );
+	}
+
+	public function test_chat_uses_centralized_retry_executor(): void {
+		$error_fixture = $this->fixture( 'chat-error.json' );
+		$ok_fixture    = $this->fixture( 'chat-success.json' );
+
+		// Queue 429 rate limit followed by success.
+		$this->http->queueResponse(
+			new HttpResponse(
+				success: false,
+				statusCode: 429,
+				body: $error_fixture,
+				headers: array( 'retry-after' => '2' )
+			)
+		);
+		$this->http->queueSuccess( $ok_fixture, 200 );
+
+		$client = new OpenAIClient(
+			$this->http,
+			'key',
+			'gpt-4o-mini',
+			array(
+				'max_retries'   => 3,
+				'token_counter' => $this->stub_token_counter(),
+			),
+			null, // Use default retry policy.
+			$this->sleeper // Inject fake sleeper for testing.
+		);
+
+		$response = $client->chat(
+			array( array( 'role' => 'user', 'content' => 'Hi' ) ),
+			array()
+		);
+
+		$this->assertTrue( $response->is_success() );
+		$this->assertSame( 1, $response->get_meta()['retries'] );
+		$this->assertSame( 2, $this->http->getRequestCount() );
+
+		// Verify sleep was called with retry-after value (2 seconds = 2000ms).
+		$this->assertSame( 1, $this->sleeper->getSleepCount() );
+		$this->assertSame( 2000, $this->sleeper->getLastSleep() );
+	}
+
+	public function test_chat_retries_on_429_with_exponential_backoff(): void {
+		$error_fixture = $this->fixture( 'chat-error.json' );
+		$ok_fixture    = $this->fixture( 'chat-success.json' );
+
+		// Queue multiple 429 errors followed by success.
+		$this->http->queueResponse(
+			new HttpResponse( success: false, statusCode: 429, body: $error_fixture )
+		);
+		$this->http->queueResponse(
+			new HttpResponse( success: false, statusCode: 429, body: $error_fixture )
+		);
+		$this->http->queueSuccess( $ok_fixture, 200 );
+
+		$policy = new ExponentialBackoffPolicy(
+			maxRetries: 3,
+			baseDelayMs: 1000,
+			maxDelayMs: 30000,
+			jitterFactor: 0.0 // No jitter for predictable testing.
+		);
+
+		$client = new OpenAIClient(
+			$this->http,
+			'key',
+			'gpt-4o-mini',
+			array( 'token_counter' => $this->stub_token_counter() ),
+			$policy,
+			$this->sleeper
+		);
+
+		$response = $client->chat(
+			array( array( 'role' => 'user', 'content' => 'Hi' ) ),
+			array()
+		);
+
+		$this->assertTrue( $response->is_success() );
+		$this->assertSame( 2, $response->get_meta()['retries'] );
+		$this->assertSame( 3, $this->http->getRequestCount() );
+
+		// Verify exponential backoff: 1000ms, 2000ms.
+		$sleepLog = $this->sleeper->getSleepLog();
+		$this->assertCount( 2, $sleepLog );
+		$this->assertSame( 1000, $sleepLog[0] );
+		$this->assertSame( 2000, $sleepLog[1] );
+	}
+
+	public function test_chat_does_not_retry_on_400_bad_request(): void {
+		$this->http->queueResponse(
+			new HttpResponse(
+				success: false,
+				statusCode: 400,
+				body: '{"error": {"message": "Bad request", "type": "invalid_request_error"}}'
+			)
+		);
+
+		$client = new OpenAIClient(
+			$this->http,
+			'key',
+			'gpt-4o-mini',
+			array(
+				'max_retries'   => 3,
+				'token_counter' => $this->stub_token_counter(),
+			),
+			null,
+			$this->sleeper
+		);
+
+		$response = $client->chat(
+			array( array( 'role' => 'user', 'content' => 'Hi' ) ),
+			array()
+		);
+
+		$this->assertFalse( $response->is_success() );
+		$this->assertSame( 400, $response->get_status() );
+		// Only 1 attempt, no retries for 400 errors.
+		$this->assertSame( 1, $this->http->getRequestCount() );
+		$this->assertSame( 0, $this->sleeper->getSleepCount() );
+	}
+
+	public function test_chat_retries_on_network_timeout(): void {
+		$ok_fixture = $this->fixture( 'chat-success.json' );
+
+		// Queue network error followed by success.
+		$this->http->queueError( 'Connection timed out', 'http_request_failed', 0 );
+		$this->http->queueSuccess( $ok_fixture, 200 );
+
+		$client = new OpenAIClient(
+			$this->http,
+			'key',
+			'gpt-4o-mini',
+			array(
+				'max_retries'   => 3,
+				'token_counter' => $this->stub_token_counter(),
+			),
+			null,
+			$this->sleeper
+		);
+
+		$response = $client->chat(
+			array( array( 'role' => 'user', 'content' => 'Hi' ) ),
+			array()
+		);
+
+		$this->assertTrue( $response->is_success() );
+		$this->assertSame( 1, $response->get_meta()['retries'] );
+	}
+
+	public function test_chat_accepts_custom_retry_policy(): void {
+		$ok_fixture = $this->fixture( 'chat-success.json' );
+
+		$this->http->queueResponse(
+			new HttpResponse( success: false, statusCode: 503, body: '{"error": "unavailable"}' )
+		);
+		$this->http->queueSuccess( $ok_fixture, 200 );
+
+		// Create custom conservative policy.
+		$policy = ExponentialBackoffPolicy::conservative();
+
+		$client = new OpenAIClient(
+			$this->http,
+			'key',
+			'gpt-4o-mini',
+			array( 'token_counter' => $this->stub_token_counter() ),
+			$policy,
+			$this->sleeper
+		);
+
+		$response = $client->chat(
+			array( array( 'role' => 'user', 'content' => 'Hi' ) ),
+			array()
+		);
+
+		$this->assertTrue( $response->is_success() );
+		$this->assertSame( 1, $response->get_meta()['retries'] );
+	}
+
+	public function test_chat_exhausts_retries_and_returns_last_error(): void {
+		$error_fixture = $this->fixture( 'chat-error.json' );
+
+		// Queue only 429 errors (more than max_retries).
+		$this->http->queueResponse(
+			new HttpResponse( success: false, statusCode: 429, body: $error_fixture )
+		);
+		$this->http->queueResponse(
+			new HttpResponse( success: false, statusCode: 429, body: $error_fixture )
+		);
+
+		$client = new OpenAIClient(
+			$this->http,
+			'key',
+			'gpt-4o-mini',
+			array(
+				'max_retries'   => 1, // Only 1 retry allowed.
+				'token_counter' => $this->stub_token_counter(),
+			),
+			null,
+			$this->sleeper
+		);
+
+		$response = $client->chat(
+			array( array( 'role' => 'user', 'content' => 'Hi' ) ),
+			array()
+		);
+
+		$this->assertFalse( $response->is_success() );
+		$this->assertSame( 429, $response->get_status() );
+		$this->assertSame( 1, $response->get_meta()['retries'] );
+		// 2 attempts total: initial + 1 retry.
+		$this->assertSame( 2, $this->http->getRequestCount() );
 	}
 }

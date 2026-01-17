@@ -11,7 +11,12 @@ use AgentWP\AI\Functions\FunctionSchema;
 use AgentWP\Billing\UsageTracker;
 use AgentWP\Contracts\HttpClientInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
+use AgentWP\Contracts\RetryPolicyInterface;
+use AgentWP\Contracts\SleeperInterface;
 use AgentWP\DTO\HttpResponse;
+use AgentWP\Infrastructure\RealSleeper;
+use AgentWP\Retry\ExponentialBackoffPolicy;
+use AgentWP\Retry\RetryExecutor;
 
 class OpenAIClient implements OpenAIClientInterface {
 	const API_BASE = 'https://api.openai.com/v1';
@@ -45,19 +50,26 @@ class OpenAIClient implements OpenAIClientInterface {
 	/** @var callable|null */
 	private $on_stream;
 	private TokenCounter $token_counter;
-	private int $max_retries;
-	private int $initial_delay;
-	private int $max_delay;
+	private RetryExecutor $retry_executor;
 	private string $base_url;
 	private string $intent_type;
 
 	/**
-	 * @param HttpClientInterface $http_client HTTP client for making requests.
-	 * @param string              $api_key OpenAI API key.
-	 * @param string              $model Model name.
-	 * @param array               $options Optional overrides.
+	 * @param HttpClientInterface       $http_client HTTP client for making requests.
+	 * @param string                    $api_key OpenAI API key.
+	 * @param string                    $model Model name.
+	 * @param array                     $options Optional overrides.
+	 * @param RetryPolicyInterface|null $retry_policy Optional custom retry policy.
+	 * @param SleeperInterface|null     $sleeper Optional custom sleeper for testing.
 	 */
-	public function __construct( HttpClientInterface $http_client, $api_key, $model = Model::GPT_4O_MINI, array $options = array() ) {
+	public function __construct(
+		HttpClientInterface $http_client,
+		$api_key,
+		$model = Model::GPT_4O_MINI,
+		array $options = array(),
+		?RetryPolicyInterface $retry_policy = null,
+		?SleeperInterface $sleeper = null
+	) {
 		$this->http_client   = $http_client;
 		$this->api_key       = is_string( $api_key ) ? $api_key : '';
 		$this->model         = Model::normalize( $model );
@@ -68,13 +80,51 @@ class OpenAIClient implements OpenAIClientInterface {
 		$this->token_counter = isset( $options['token_counter'] ) && $options['token_counter'] instanceof TokenCounter
 			? $options['token_counter']
 			: new TokenCounter();
-		$this->max_retries   = isset( $options['max_retries'] ) ? (int) $options['max_retries'] : 10;
-		$this->initial_delay = isset( $options['initial_delay'] ) ? (int) $options['initial_delay'] : 1;
-		$this->max_delay     = isset( $options['max_delay'] ) ? (int) $options['max_delay'] : 60;
 		$this->base_url      = isset( $options['base_url'] ) && is_string( $options['base_url'] )
 			? rtrim( $options['base_url'], '/' )
 			: self::API_BASE;
 		$this->intent_type   = isset( $options['intent_type'] ) ? sanitize_text_field( $options['intent_type'] ) : '';
+
+		// Build retry executor with injected or default dependencies.
+		$max_retries = isset( $options['max_retries'] ) ? (int) $options['max_retries'] : null;
+		$this->retry_executor = $this->buildRetryExecutor( $retry_policy, $sleeper, $max_retries );
+	}
+
+	/**
+	 * Build RetryExecutor with provided or default dependencies.
+	 *
+	 * @param RetryPolicyInterface|null $retry_policy Custom retry policy.
+	 * @param SleeperInterface|null     $sleeper Custom sleeper.
+	 * @param int|null                  $max_retries Max retries override.
+	 * @return RetryExecutor
+	 */
+	private function buildRetryExecutor(
+		?RetryPolicyInterface $retry_policy,
+		?SleeperInterface $sleeper,
+		?int $max_retries
+	): RetryExecutor {
+		// Use provided policy or create default OpenAI policy.
+		if ( null === $retry_policy ) {
+			// Create policy with max_retries override if provided.
+			if ( null !== $max_retries ) {
+				$retry_policy = new ExponentialBackoffPolicy(
+					maxRetries: $max_retries,
+					baseDelayMs: 1000,
+					maxDelayMs: 30000,
+					jitterFactor: 0.25,
+					retryableStatusCodes: array( 429, 500, 502, 503, 504, 520, 521, 522, 524 )
+				);
+			} else {
+				$retry_policy = ExponentialBackoffPolicy::forOpenAI();
+			}
+		}
+
+		// Use provided sleeper or create real one.
+		if ( null === $sleeper ) {
+			$sleeper = new RealSleeper();
+		}
+
+		return new RetryExecutor( $retry_policy, $sleeper );
 	}
 
 	/**
@@ -204,62 +254,50 @@ class OpenAIClient implements OpenAIClientInterface {
 	}
 
 	/**
+	 * Execute request with centralized retry logic via RetryExecutor.
+	 *
 	 * @param array $payload Request payload.
 	 * @return array
 	 */
 	private function request_with_retry( array $payload ) {
-		$attempt     = 0;
-		$delay       = $this->initial_delay;
-		$errors      = '';
-		$error_code  = '';
-		$error_type  = '';
-		$retry_after = 0;
+		$retries     = 0;
+		$lastResult  = null;
 
-		do {
-			$result = $this->send_request( $payload );
-			$retry  = $result['retryable'];
-
-			if ( $result['success'] || ! $retry || $attempt >= $this->max_retries ) {
-				$errors = $result['error'];
-				$error_code = isset( $result['error_code'] ) ? $result['error_code'] : '';
-				$error_type = isset( $result['error_type'] ) ? $result['error_type'] : '';
-				$retry_after = isset( $result['retry_after'] ) ? (int) $result['retry_after'] : 0;
-				break;
+		// Track retries via onRetry callback.
+		$this->retry_executor->onRetry(
+			function ( $attempt, $delayMs, $result ) use ( &$retries ) {
+				$retries = $attempt + 1;
 			}
+		);
 
-			$retry_after = $result['retry_after'];
-			$this->sleep_with_backoff( $delay, $retry_after );
-			$delay = min( $delay * 2, $this->max_delay );
-			$attempt++;
-		} while ( true );
+		// Use executeWithCheck to get final HttpResponse regardless of success/failure.
+		$response = $this->retry_executor->executeWithCheck(
+			fn() => $this->send_request_raw( $payload ),
+			fn( HttpResponse $r ) => $r->success
+		);
 
-		$result['retries']     = $attempt;
-		$result['error']       = $errors;
-		$result['error_code']  = $error_code;
-		$result['error_type']  = $error_type;
-		$result['retry_after'] = $retry_after;
+		// Parse the final HttpResponse into expected result format.
+		$result = $this->parse_http_response( $response );
+		$result['retries'] = $retries;
 
 		return $result;
 	}
 
 	/**
+	 * Send raw HTTP request and return HttpResponse directly.
+	 * Used by RetryExecutor for retry handling.
+	 *
 	 * @param array $payload Request payload.
-	 * @return array
+	 * @return HttpResponse
 	 */
-	private function send_request( array $payload ) {
+	private function send_request_raw( array $payload ): HttpResponse {
 		$body = wp_json_encode( $payload );
 
 		if ( false === $body ) {
-			return array(
-				'success'     => false,
-				'status'      => 0,
-				'body'        => '',
-				'headers'     => array(),
-				'error'       => 'Failed to encode request payload as JSON',
-				'error_code'  => 'json_encode_error',
-				'error_type'  => 'client_error',
-				'retryable'   => false,
-				'retry_after' => 0,
+			return HttpResponse::error(
+				'Failed to encode request payload as JSON',
+				'json_encode_error',
+				0
 			);
 		}
 
@@ -274,9 +312,7 @@ class OpenAIClient implements OpenAIClientInterface {
 			'body'        => $body,
 		);
 
-		$response = $this->http_client->post( $this->base_url . '/chat/completions', $options );
-
-		return $this->parse_http_response( $response );
+		return $this->http_client->post( $this->base_url . '/chat/completions', $options );
 	}
 
 	/**
@@ -427,25 +463,6 @@ class OpenAIClient implements OpenAIClientInterface {
 		$sanitized = preg_replace( '/Bearer\s+[a-zA-Z0-9_-]+/i', 'Bearer [REDACTED]', $sanitized );
 
 		return $sanitized;
-	}
-
-	/**
-	 * @param int $delay Base delay.
-	 * @param int $retry_after Retry-After header.
-	 * @return void
-	 */
-	private function sleep_with_backoff( $delay, $retry_after ) {
-		$base = (int) $delay;
-
-		if ( $retry_after > $base ) {
-			$base = (int) $retry_after;
-		}
-
-		$base   = min( $base, $this->max_delay );
-		$jitter = random_int( 0, 1000 ) / 1000;
-		$sleep  = $base + $jitter;
-
-		usleep( (int) round( $sleep * 1000000 ) );
 	}
 
 	/**
