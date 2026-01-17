@@ -10,8 +10,8 @@ namespace AgentWP\Services;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
+use AgentWP\Contracts\WooCommerceOrderGatewayInterface;
 use AgentWP\DTO\ServiceResult;
-use Exception;
 
 class OrderStatusService implements OrderStatusServiceInterface {
 	const DRAFT_TYPE = 'status';
@@ -19,16 +19,23 @@ class OrderStatusService implements OrderStatusServiceInterface {
 
 	private DraftStorageInterface $draftStorage;
 	private PolicyInterface $policy;
+	private WooCommerceOrderGatewayInterface $orderGateway;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param DraftStorageInterface $draftStorage Draft storage implementation.
-	 * @param PolicyInterface       $policy       Policy for capability checks.
+	 * @param DraftStorageInterface            $draftStorage Draft storage implementation.
+	 * @param PolicyInterface                  $policy       Policy for capability checks.
+	 * @param WooCommerceOrderGatewayInterface $orderGateway WooCommerce order gateway.
 	 */
-	public function __construct( DraftStorageInterface $draftStorage, PolicyInterface $policy ) {
+	public function __construct(
+		DraftStorageInterface $draftStorage,
+		PolicyInterface $policy,
+		WooCommerceOrderGatewayInterface $orderGateway
+	) {
 		$this->draftStorage = $draftStorage;
 		$this->policy       = $policy;
+		$this->orderGateway = $orderGateway;
 	}
 
 	/**
@@ -45,7 +52,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 			return ServiceResult::permissionDenied();
 		}
 
-		$order = wc_get_order( $order_id );
+		$order = $this->orderGateway->get_order( $order_id );
 		if ( ! $order ) {
 			return ServiceResult::notFound( 'Order', $order_id );
 		}
@@ -131,7 +138,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		$warning = $this->get_irreversible_warning( $new_status );
 
 		foreach ( $order_ids as $id ) {
-			$order = wc_get_order( $id );
+			$order = $this->orderGateway->get_order( $id );
 			if ( ! $order ) continue;
 
 			$previews[] = array(
@@ -193,7 +200,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		$note = $payload['note'] ?? '';
 		$notify = $payload['notify_customer'] ?? false;
 
-		$order = wc_get_order( $order_id );
+		$order = $this->orderGateway->get_order( $order_id );
 		if ( ! $order ) {
 			return ServiceResult::notFound( 'Order', $order_id );
 		}
@@ -223,9 +230,9 @@ class OrderStatusService implements OrderStatusServiceInterface {
 			return ServiceResult::invalidInput( 'Invalid bulk update payload.' );
 		}
 
-		// Batch filter handling
+		// Suppress emails for bulk updates when not notifying.
 		if ( ! $notify ) {
-			add_filter( 'woocommerce_email_enabled', '__return_false' );
+			$this->orderGateway->set_emails_enabled( false );
 		}
 
 		try {
@@ -235,23 +242,18 @@ class OrderStatusService implements OrderStatusServiceInterface {
 					continue;
 				}
 
-				$order = wc_get_order( $id );
+				$order = $this->orderGateway->get_order( $id );
 				if ( ! $order ) {
 					continue;
 				}
 
-				if ( method_exists( $order, 'update_status' ) ) {
-					try {
-						$order->update_status( $status, '' );
-						$updated[] = $id;
-					} catch ( Exception $e ) {
-						continue;
-					}
+				if ( $this->orderGateway->update_order_status( $order, $status, '' ) ) {
+					$updated[] = $id;
 				}
 			}
 		} finally {
 			if ( ! $notify ) {
-				remove_filter( 'woocommerce_email_enabled', '__return_false' );
+				$this->orderGateway->set_emails_enabled( true );
 			}
 		}
 
@@ -269,23 +271,16 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	 * Apply the status update.
 	 */
 	private function apply_status_update( object $order, string $new_status, string $note, bool $notify ): bool {
-		if ( ! method_exists( $order, 'update_status' ) ) {
-			return false;
-		}
-
-		// Bypass emails if not notifying.
+		// Suppress emails if not notifying.
 		if ( ! $notify ) {
-			add_filter( 'woocommerce_email_enabled', '__return_false' );
+			$this->orderGateway->set_emails_enabled( false );
 		}
 
 		try {
-			$order->update_status( $new_status, $note );
-			return true;
-		} catch ( Exception $e ) {
-			return false;
+			return $this->orderGateway->update_order_status( $order, $new_status, $note );
 		} finally {
 			if ( ! $notify ) {
-				remove_filter( 'woocommerce_email_enabled', '__return_false' );
+				$this->orderGateway->set_emails_enabled( true );
 			}
 		}
 	}
@@ -309,18 +304,17 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	 * @return string[]
 	 */
 	private function get_valid_statuses(): array {
-		if ( ! function_exists( 'wc_get_order_statuses' ) ) {
+		$statuses = $this->orderGateway->get_order_statuses();
+		if ( empty( $statuses ) ) {
 			return array();
 		}
 
 		// Strip 'wc-' prefix to match normalize_status() output.
-		$statuses = array_keys( wc_get_order_statuses() );
-
 		return array_map(
 			function ( $status ) {
 				return 0 === strpos( $status, 'wc-' ) ? substr( $status, 3 ) : $status;
 			},
-			$statuses
+			array_keys( $statuses )
 		);
 	}
 

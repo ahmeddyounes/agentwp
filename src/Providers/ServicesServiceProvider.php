@@ -21,7 +21,14 @@ use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
 use AgentWP\Contracts\TransientCacheInterface;
+use AgentWP\Contracts\WooCommerceOrderGatewayInterface;
+use AgentWP\Contracts\WooCommerceRefundGatewayInterface;
+use AgentWP\Contracts\WooCommerceStockGatewayInterface;
+use AgentWP\Infrastructure\WooCommerceOrderGateway;
+use AgentWP\Infrastructure\WooCommerceRefundGateway;
+use AgentWP\Infrastructure\WooCommerceStockGateway;
 use AgentWP\Services\AnalyticsService;
+use AgentWP\Services\CustomerService;
 use AgentWP\Services\EmailDraftService;
 use AgentWP\Services\OrderRefundService;
 use AgentWP\Services\OrderSearch\ArgumentNormalizer;
@@ -32,7 +39,6 @@ use AgentWP\Services\OrderSearch\OrderSearchParser;
 use AgentWP\Services\OrderSearch\PipelineOrderSearchService;
 use AgentWP\Services\OrderStatusService;
 use AgentWP\Services\ProductStockService;
-use AgentWP\Services\CustomerService;
 
 /**
  * Registers domain services.
@@ -45,6 +51,7 @@ final class ServicesServiceProvider extends ServiceProvider {
 	 * @return void
 	 */
 	public function register(): void {
+		$this->registerWooCommerceGateways();
 		$this->registerOrderRefundService();
 		$this->registerAnalyticsService();
 		$this->registerOrderStatusService();
@@ -52,6 +59,28 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->registerCustomerService();
 		$this->registerOrderSearchService();
 		$this->registerEmailDraftService();
+	}
+
+	/**
+	 * Register WooCommerce gateway interfaces.
+	 *
+	 * @return void
+	 */
+	private function registerWooCommerceGateways(): void {
+		$this->container->singleton(
+			WooCommerceRefundGatewayInterface::class,
+			fn() => new WooCommerceRefundGateway()
+		);
+
+		$this->container->singleton(
+			WooCommerceOrderGatewayInterface::class,
+			fn() => new WooCommerceOrderGateway()
+		);
+
+		$this->container->singleton(
+			WooCommerceStockGatewayInterface::class,
+			fn() => new WooCommerceStockGateway()
+		);
 	}
 
 	/**
@@ -153,7 +182,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 			ProductStockServiceInterface::class,
 			fn( $c ) => new ProductStockService(
 				$c->get( DraftStorageInterface::class ),
-				$c->get( PolicyInterface::class )
+				$c->get( PolicyInterface::class ),
+				$c->get( WooCommerceStockGatewayInterface::class )
 			)
 		);
 	}
@@ -168,7 +198,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 			OrderStatusServiceInterface::class,
 			fn( $c ) => new OrderStatusService(
 				$c->get( DraftStorageInterface::class ),
-				$c->get( PolicyInterface::class )
+				$c->get( PolicyInterface::class ),
+				$c->get( WooCommerceOrderGatewayInterface::class )
 			)
 		);
 	}
@@ -195,7 +226,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 			OrderRefundServiceInterface::class,
 			fn( $c ) => new OrderRefundService(
 				$c->get( DraftStorageInterface::class ),
-				$c->get( PolicyInterface::class )
+				$c->get( PolicyInterface::class ),
+				$c->get( WooCommerceRefundGatewayInterface::class )
 			)
 		);
 	}

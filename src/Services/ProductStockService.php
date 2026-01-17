@@ -10,6 +10,7 @@ namespace AgentWP\Services;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
+use AgentWP\Contracts\WooCommerceStockGatewayInterface;
 use AgentWP\DTO\ServiceResult;
 
 class ProductStockService implements ProductStockServiceInterface {
@@ -17,16 +18,23 @@ class ProductStockService implements ProductStockServiceInterface {
 
 	private DraftStorageInterface $draftStorage;
 	private PolicyInterface $policy;
+	private WooCommerceStockGatewayInterface $stockGateway;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param DraftStorageInterface $draftStorage Draft storage implementation.
-	 * @param PolicyInterface       $policy       Policy for capability checks.
+	 * @param DraftStorageInterface            $draftStorage Draft storage implementation.
+	 * @param PolicyInterface                  $policy       Policy for capability checks.
+	 * @param WooCommerceStockGatewayInterface $stockGateway WooCommerce stock gateway.
 	 */
-	public function __construct( DraftStorageInterface $draftStorage, PolicyInterface $policy ) {
+	public function __construct(
+		DraftStorageInterface $draftStorage,
+		PolicyInterface $policy,
+		WooCommerceStockGatewayInterface $stockGateway
+	) {
 		$this->draftStorage = $draftStorage;
 		$this->policy       = $policy;
+		$this->stockGateway = $stockGateway;
 	}
 
 	/**
@@ -36,20 +44,16 @@ class ProductStockService implements ProductStockServiceInterface {
 	 * @return array
 	 */
 	public function search_products( string $query ): array {
-		if ( ! function_exists( 'wc_get_products' ) ) {
-			return array();
-		}
-
 		$args = array(
 			'limit' => 5,
 			's'     => $query,
 		);
-		$products = wc_get_products( $args );
+		$products = $this->stockGateway->get_products( $args );
 		$results  = array();
 
 		foreach ( $products as $product ) {
-			if ( is_int( $product ) && function_exists( 'wc_get_product' ) ) {
-				$product = wc_get_product( $product );
+			if ( is_int( $product ) ) {
+				$product = $this->stockGateway->get_product( $product );
 			}
 
 			if ( ! $product instanceof \WC_Product ) {
@@ -87,7 +91,7 @@ class ProductStockService implements ProductStockServiceInterface {
 			return ServiceResult::invalidInput( 'Quantity cannot be negative.' );
 		}
 
-		$product = wc_get_product( $product_id );
+		$product = $this->stockGateway->get_product( $product_id );
 		if ( ! $product ) {
 			return ServiceResult::notFound( 'Product', $product_id );
 		}
@@ -142,16 +146,15 @@ class ProductStockService implements ProductStockServiceInterface {
 		$product_id = $draft['product_id'];
 		$quantity   = $draft['quantity'];
 
-		$product = wc_get_product( $product_id );
+		$product = $this->stockGateway->get_product( $product_id );
 		if ( ! $product ) {
 			return ServiceResult::notFound( 'Product', $product_id );
 		}
 
-		if ( ! function_exists( 'wc_update_product_stock' ) ) {
+		$result = $this->stockGateway->update_product_stock( $product, $quantity );
+		if ( false === $result ) {
 			return ServiceResult::operationFailed( 'Stock update unavailable.' );
 		}
-
-		wc_update_product_stock( $product, $quantity );
 
 		return ServiceResult::success(
 			"Stock updated for {$product->get_name()}.",

@@ -10,6 +10,7 @@ namespace AgentWP\Services;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
+use AgentWP\Contracts\WooCommerceRefundGatewayInterface;
 use AgentWP\DTO\ServiceResult;
 
 class OrderRefundService implements OrderRefundServiceInterface {
@@ -17,14 +18,21 @@ class OrderRefundService implements OrderRefundServiceInterface {
 
 	private DraftStorageInterface $draftStorage;
 	private PolicyInterface $policy;
+	private WooCommerceRefundGatewayInterface $refundGateway;
 
 	/**
-	 * @param DraftStorageInterface $draftStorage Draft storage implementation.
-	 * @param PolicyInterface       $policy       Policy for capability checks.
+	 * @param DraftStorageInterface             $draftStorage  Draft storage implementation.
+	 * @param PolicyInterface                   $policy        Policy for capability checks.
+	 * @param WooCommerceRefundGatewayInterface $refundGateway WooCommerce refund gateway.
 	 */
-	public function __construct( DraftStorageInterface $draftStorage, PolicyInterface $policy ) {
-		$this->draftStorage = $draftStorage;
-		$this->policy       = $policy;
+	public function __construct(
+		DraftStorageInterface $draftStorage,
+		PolicyInterface $policy,
+		WooCommerceRefundGatewayInterface $refundGateway
+	) {
+		$this->draftStorage  = $draftStorage;
+		$this->policy        = $policy;
+		$this->refundGateway = $refundGateway;
 	}
 
 	/**
@@ -45,7 +53,7 @@ class OrderRefundService implements OrderRefundServiceInterface {
 			return ServiceResult::invalidInput( 'Invalid order ID.' );
 		}
 
-		$order = wc_get_order( $order_id );
+		$order = $this->refundGateway->get_order( $order_id );
 		if ( ! $order ) {
 			return ServiceResult::notFound( 'Order', $order_id );
 		}
@@ -114,7 +122,7 @@ class OrderRefundService implements OrderRefundServiceInterface {
 		$restock  = $data['restock_items'];
 
 		// Create the refund.
-		$result = wc_create_refund(
+		$result = $this->refundGateway->create_refund(
 			array(
 				'amount'         => $amount,
 				'reason'         => $reason,
@@ -130,7 +138,7 @@ class OrderRefundService implements OrderRefundServiceInterface {
 
 		$restocked_items = array();
 		if ( $restock ) {
-			$order = wc_get_order( $order_id );
+			$order = $this->refundGateway->get_order( $order_id );
 			if ( $order && method_exists( $order, 'get_items' ) ) {
 				foreach ( $order->get_items() as $item ) {
 					if ( is_object( $item ) && method_exists( $item, 'get_product_id' ) ) {
