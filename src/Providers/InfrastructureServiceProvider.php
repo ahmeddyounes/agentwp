@@ -10,6 +10,7 @@ namespace AgentWP\Providers;
 use AgentWP\AI\AIClientFactory;
 use AgentWP\Container\ServiceProvider;
 use AgentWP\Contracts\AIClientFactoryInterface;
+use AgentWP\Demo\DemoCredentials;
 use AgentWP\Contracts\CacheInterface;
 use AgentWP\Contracts\ClockInterface;
 use AgentWP\Contracts\DraftStorageInterface;
@@ -53,6 +54,7 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->registerSession();
 		$this->registerRetry();
 		$this->registerOrderRepository();
+		$this->registerDemoCredentials();
 		$this->registerAIClientFactory();
 		$this->registerDraftStorage();
 		$this->registerApiKeyStorage();
@@ -169,6 +171,18 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 	}
 
 	/**
+	 * Register demo credentials.
+	 *
+	 * @return void
+	 */
+	private function registerDemoCredentials(): void {
+		$this->container->singleton(
+			DemoCredentials::class,
+			fn( $c ) => new DemoCredentials( $c->get( SettingsManager::class ) )
+		);
+	}
+
+	/**
 	 * Register AI client factory.
 	 *
 	 * @return void
@@ -176,7 +190,11 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 	private function registerAIClientFactory(): void {
 		$this->container->singleton(
 			AIClientFactory::class,
-			fn( $c ) => new AIClientFactory( $c->get( SettingsManager::class ) )
+			fn( $c ) => new AIClientFactory(
+				$c->get( SettingsManager::class ),
+				\AgentWP\AI\Model::GPT_4O_MINI,
+				$c->get( DemoCredentials::class )
+			)
 		);
 		$this->container->singleton(
 			AIClientFactoryInterface::class,
