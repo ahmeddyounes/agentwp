@@ -39,11 +39,14 @@ use AgentWP\Intent\Handlers\FallbackHandler;
 use AgentWP\Intent\Handlers\OrderRefundHandler;
 use AgentWP\Intent\Handlers\OrderSearchHandler;
 use AgentWP\Intent\Handlers\OrderStatusHandler;
+use AgentWP\Intent\Classifier\ScorerRegistry;
+use AgentWP\Intent\Classifier\Scorers;
 use AgentWP\Intent\FunctionRegistry;
 use AgentWP\Intent\Handler;
 use AgentWP\Intent\HandlerRegistry;
 use AgentWP\Intent\Handlers\ProductStockHandler;
 use AgentWP\Intent\ToolRegistry;
+use AgentWP\Infrastructure\WPFunctions;
 
 /**
  * Registers intent-related services.
@@ -115,18 +118,49 @@ final class IntentServiceProvider extends ServiceProvider {
 	/**
 	 * Register intent classifier.
 	 *
+	 * Uses ScorerRegistry as the canonical implementation per ADR 0003.
+	 * Third-party code can register custom scorers via the 'agentwp_intent_scorers' filter.
+	 *
 	 * @return void
 	 */
 	private function registerIntentClassifier(): void {
-		// Only register if class exists.
-		// Don't register null - let has() return false and get() throw NotFoundException.
-		if ( ! class_exists( 'AgentWP\\Intent\\IntentClassifier' ) ) {
+		if ( ! class_exists( ScorerRegistry::class ) ) {
 			return;
 		}
 
 		$this->container->singleton(
 			IntentClassifierInterface::class,
-			fn() => new \AgentWP\Intent\IntentClassifier()
+			function () {
+				// Get WPFunctions for filter/action hooks.
+				$wp = $this->container->has( WPFunctions::class )
+					? $this->container->get( WPFunctions::class )
+					: new WPFunctions();
+
+				$registry = new ScorerRegistry( $wp );
+
+				// Register default scorers.
+				$default_scorers = array(
+					new Scorers\RefundScorer(),
+					new Scorers\StatusScorer(),
+					new Scorers\StockScorer(),
+					new Scorers\EmailScorer(),
+					new Scorers\AnalyticsScorer(),
+					new Scorers\CustomerScorer(),
+					new Scorers\SearchScorer(),
+				);
+
+				// Apply filter for third-party scorers.
+				$scorers = $wp->applyFilters( 'agentwp_intent_scorers', $default_scorers );
+
+				// Validate that filter returned an array.
+				if ( ! is_array( $scorers ) ) {
+					$scorers = $default_scorers;
+				}
+
+				$registry->registerMany( $scorers );
+
+				return $registry;
+			}
 		);
 	}
 

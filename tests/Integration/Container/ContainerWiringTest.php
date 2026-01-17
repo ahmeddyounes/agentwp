@@ -49,6 +49,7 @@ use AgentWP\Intent\Handlers\OrderRefundHandler;
 use AgentWP\Intent\Handlers\OrderSearchHandler;
 use AgentWP\Intent\Handlers\OrderStatusHandler;
 use AgentWP\Intent\Handlers\ProductStockHandler;
+use AgentWP\Intent\Classifier\ScorerRegistry;
 use AgentWP\Intent\Intent;
 use AgentWP\Intent\IntentClassifier;
 use AgentWP\Intent\ToolRegistry;
@@ -586,6 +587,42 @@ class ContainerWiringTest extends TestCase {
 			$this->container->has( Engine::class ),
 			'Engine should not be registered without IntentServiceProvider'
 		);
+	}
+
+	/**
+	 * Test that IntentClassifierInterface is wired to ScorerRegistry per ADR 0003.
+	 */
+	public function test_intent_classifier_interface_wired_to_scorer_registry(): void {
+		$this->registerProvidersWithoutRest();
+
+		$classifier = $this->container->get( IntentClassifierInterface::class );
+
+		$this->assertInstanceOf(
+			ScorerRegistry::class,
+			$classifier,
+			'IntentClassifierInterface should be implemented by ScorerRegistry per ADR 0003'
+		);
+	}
+
+	/**
+	 * Test that ScorerRegistry has all default scorers registered.
+	 */
+	public function test_scorer_registry_has_all_default_scorers(): void {
+		$this->registerProvidersWithoutRest();
+
+		$classifier = $this->container->get( IntentClassifierInterface::class );
+
+		$this->assertInstanceOf( ScorerRegistry::class, $classifier );
+
+		// Verify all 7 default scorers are registered.
+		$this->assertTrue( $classifier->has( Intent::ORDER_REFUND ), 'Should have RefundScorer' );
+		$this->assertTrue( $classifier->has( Intent::ORDER_STATUS ), 'Should have StatusScorer' );
+		$this->assertTrue( $classifier->has( Intent::ORDER_SEARCH ), 'Should have SearchScorer' );
+		$this->assertTrue( $classifier->has( Intent::PRODUCT_STOCK ), 'Should have StockScorer' );
+		$this->assertTrue( $classifier->has( Intent::EMAIL_DRAFT ), 'Should have EmailScorer' );
+		$this->assertTrue( $classifier->has( Intent::ANALYTICS_QUERY ), 'Should have AnalyticsScorer' );
+		$this->assertTrue( $classifier->has( Intent::CUSTOMER_LOOKUP ), 'Should have CustomerScorer' );
+		$this->assertSame( 7, $classifier->count(), 'Should have exactly 7 default scorers' );
 	}
 
 	/**

@@ -7,12 +7,18 @@
 
 namespace AgentWP\Intent\Classifier;
 
+use AgentWP\Contracts\IntentClassifierInterface;
+use AgentWP\Infrastructure\WPFunctions;
 use AgentWP\Intent\Intent;
 
 /**
  * Manages and executes intent scorers.
+ *
+ * This registry is the canonical intent classification mechanism per ADR 0003.
+ * It implements IntentClassifierInterface and supports extensibility via the
+ * 'agentwp_intent_scorers' filter for third-party scorers.
  */
-final class ScorerRegistry {
+final class ScorerRegistry implements IntentClassifierInterface {
 
 	/**
 	 * Maximum input length to process (characters).
@@ -28,6 +34,25 @@ final class ScorerRegistry {
 	 * @var IntentScorerInterface[]
 	 */
 	private array $scorers = array();
+
+	/**
+	 * WordPress functions wrapper.
+	 *
+	 * Accepts any object with doAction() method for testability.
+	 *
+	 * @var WPFunctions|object|null
+	 */
+	private $wp = null;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param WPFunctions|object|null $wp WordPress functions wrapper for action/filter hooks.
+	 *                                    Accepts any object with doAction() method for testability.
+	 */
+	public function __construct( $wp = null ) {
+		$this->wp = $wp;
+	}
 
 	/**
 	 * Register a scorer.
@@ -55,6 +80,8 @@ final class ScorerRegistry {
 	/**
 	 * Classify input text by scoring all registered intents.
 	 *
+	 * Fires the 'agentwp_intent_classified' action after classification.
+	 *
 	 * @param string $input   User input.
 	 * @param array  $context Enriched context.
 	 * @return string The best matching intent or Intent::UNKNOWN.
@@ -65,6 +92,7 @@ final class ScorerRegistry {
 			$override = Intent::normalize( $context['intent'] );
 
 			if ( Intent::UNKNOWN !== $override ) {
+				$this->fireClassifiedAction( $override, array(), $input, $context );
 				return $override;
 			}
 		}
@@ -82,8 +110,28 @@ final class ScorerRegistry {
 		}
 
 		$scores = $this->scoreAll( $text, $context );
+		$intent = $this->selectBestIntent( $scores );
 
-		return $this->selectBestIntent( $scores );
+		$this->fireClassifiedAction( $intent, $scores, $input, $context );
+
+		return $intent;
+	}
+
+	/**
+	 * Fire the 'agentwp_intent_classified' action.
+	 *
+	 * @param string $intent  The classified intent constant.
+	 * @param array  $scores  All intent scores from scoreAll().
+	 * @param string $input   Original user input.
+	 * @param array  $context Classification context.
+	 * @return void
+	 */
+	private function fireClassifiedAction( string $intent, array $scores, string $input, array $context ): void {
+		if ( null === $this->wp ) {
+			return;
+		}
+
+		$this->wp->doAction( 'agentwp_intent_classified', $intent, $scores, $input, $context );
 	}
 
 	/**
