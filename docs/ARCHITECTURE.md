@@ -129,8 +129,11 @@ The following ADRs document key architectural decisions:
 - **[ADR 0003: Intent Classification Strategy](adr/0003-intent-classification-strategy.md)** — `ScorerRegistry` as the canonical classifier with pluggable scorers
 - **[ADR 0004: OpenAI Client Architecture](adr/0004-openai-client-architecture.md)** — Monolithic client with infrastructure abstractions for HTTP/retry
 - **[ADR 0005: REST Rate Limiting](adr/0005-rest-rate-limiting.md)** — Injected `RateLimiterInterface` for testable rate limiting
+- **[ADR 0006: Search Index Architecture](adr/0006-search-index-architecture.md)** — Static class design for MySQL fulltext search index
 
 For the improvement roadmap, see [ARCHITECTURE-IMPROVEMENT-PLAN.md](ARCHITECTURE-IMPROVEMENT-PLAN.md).
+
+For detailed search index documentation including troubleshooting and performance considerations, see [Search Index](search-index.md).
 
 ## 1.1) Service Layer Architecture
 

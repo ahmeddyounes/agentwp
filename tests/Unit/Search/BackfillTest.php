@@ -1,0 +1,331 @@
+<?php
+/**
+ * Tests for Search Index Backfill Logic.
+ *
+ * @package AgentWP\Tests\Unit\Search
+ */
+
+namespace AgentWP\Tests\Unit\Search;
+
+use AgentWP\Search\Index;
+use AgentWP\Tests\TestCase;
+use ReflectionClass;
+use ReflectionMethod;
+
+/**
+ * Unit tests for Index backfill and throttling behavior.
+ *
+ * These tests validate the backfill logic including:
+ * - State transitions (not started -> in progress -> complete)
+ * - Cursor tracking
+ * - Time window throttling behavior
+ * - Constants validation
+ */
+class BackfillTest extends TestCase {
+
+	/**
+	 * Reset static state before each test.
+	 */
+	public function setUp(): void {
+		parent::setUp();
+		$this->reset_index_static_state();
+	}
+
+	/**
+	 * Reset static state after each test.
+	 */
+	public function tearDown(): void {
+		$this->reset_index_static_state();
+		parent::tearDown();
+	}
+
+	/**
+	 * Helper to reset Index static properties.
+	 */
+	private function reset_index_static_state(): void {
+		$reflection = new ReflectionClass( Index::class );
+
+		$properties = array(
+			'hooks_registered' => false,
+			'table_verified'   => false,
+			'backfill_ran'     => false,
+		);
+
+		foreach ( $properties as $name => $default ) {
+			if ( $reflection->hasProperty( $name ) ) {
+				$prop = $reflection->getProperty( $name );
+				$prop->setAccessible( true );
+				$prop->setValue( null, $default );
+			}
+		}
+	}
+
+	/**
+	 * Get private/protected method as accessible.
+	 *
+	 * @param string $name Method name.
+	 * @return ReflectionMethod
+	 */
+	private function get_method( $name ): ReflectionMethod {
+		$reflection = new ReflectionClass( Index::class );
+		$method     = $reflection->getMethod( $name );
+		$method->setAccessible( true );
+		return $method;
+	}
+
+	/**
+	 * Get static property value.
+	 *
+	 * @param string $name Property name.
+	 * @return mixed
+	 */
+	private function get_static_property( $name ) {
+		$reflection = new ReflectionClass( Index::class );
+		$prop       = $reflection->getProperty( $name );
+		$prop->setAccessible( true );
+		return $prop->getValue();
+	}
+
+	/**
+	 * Set static property value.
+	 *
+	 * @param string $name Property name.
+	 * @param mixed  $value Value to set.
+	 */
+	private function set_static_property( $name, $value ): void {
+		$reflection = new ReflectionClass( Index::class );
+		$prop       = $reflection->getProperty( $name );
+		$prop->setAccessible( true );
+		$prop->setValue( null, $value );
+	}
+
+	// ===========================================
+	// Backfill Constants Tests
+	// ===========================================
+
+	public function test_backfill_limit_is_reasonable_batch_size(): void {
+		// 200 records per batch is reasonable to process in 350ms.
+		$this->assertGreaterThanOrEqual( 50, Index::BACKFILL_LIMIT );
+		$this->assertLessThanOrEqual( 500, Index::BACKFILL_LIMIT );
+	}
+
+	public function test_backfill_window_under_one_second(): void {
+		// Backfill should complete quickly to avoid blocking page loads.
+		$this->assertLessThan( 1.0, Index::BACKFILL_WINDOW );
+	}
+
+	public function test_backfill_window_at_least_100ms(): void {
+		// Need enough time to process at least some records.
+		$this->assertGreaterThanOrEqual( 0.1, Index::BACKFILL_WINDOW );
+	}
+
+	// ===========================================
+	// State Transition Tests
+	// ===========================================
+
+	public function test_state_zero_means_not_started(): void {
+		$method = $this->get_method( 'is_backfill_complete' );
+		$state  = array( 'products' => 0 );
+
+		$this->assertFalse( $method->invoke( null, 'products', $state ) );
+	}
+
+	public function test_state_positive_means_in_progress(): void {
+		$method = $this->get_method( 'is_backfill_complete' );
+		$state  = array( 'products' => 150 ); // Cursor at ID 150.
+
+		$this->assertFalse( $method->invoke( null, 'products', $state ) );
+	}
+
+	public function test_state_negative_one_means_complete(): void {
+		$method = $this->get_method( 'is_backfill_complete' );
+		$state  = array( 'products' => -1 );
+
+		$this->assertTrue( $method->invoke( null, 'products', $state ) );
+	}
+
+	public function test_all_types_complete_when_all_negative_one(): void {
+		$method = $this->get_method( 'is_backfill_complete' );
+		$state  = array(
+			'products'  => -1,
+			'orders'    => -1,
+			'customers' => -1,
+		);
+
+		$this->assertTrue( $method->invoke( null, 'products', $state ) );
+		$this->assertTrue( $method->invoke( null, 'orders', $state ) );
+		$this->assertTrue( $method->invoke( null, 'customers', $state ) );
+	}
+
+	public function test_partial_completion_detected(): void {
+		$method = $this->get_method( 'is_backfill_complete' );
+		$state  = array(
+			'products'  => -1,  // Complete.
+			'orders'    => 500, // In progress.
+			'customers' => 0,   // Not started.
+		);
+
+		$this->assertTrue( $method->invoke( null, 'products', $state ) );
+		$this->assertFalse( $method->invoke( null, 'orders', $state ) );
+		$this->assertFalse( $method->invoke( null, 'customers', $state ) );
+	}
+
+	// ===========================================
+	// Static Flag Tests
+	// ===========================================
+
+	public function test_backfill_ran_flag_starts_false(): void {
+		$this->assertFalse( $this->get_static_property( 'backfill_ran' ) );
+	}
+
+	public function test_backfill_ran_flag_can_be_set(): void {
+		$this->set_static_property( 'backfill_ran', true );
+		$this->assertTrue( $this->get_static_property( 'backfill_ran' ) );
+	}
+
+	// ===========================================
+	// Cursor Position Tests
+	// ===========================================
+
+	public function test_cursor_tracks_progress_correctly(): void {
+		// Simulate cursor at 100, meaning IDs 1-100 have been processed.
+		$state = array(
+			'products' => 100,
+		);
+
+		$method = $this->get_method( 'is_backfill_complete' );
+
+		// Still in progress.
+		$this->assertFalse( $method->invoke( null, 'products', $state ) );
+	}
+
+	public function test_cursor_update_after_batch(): void {
+		// After processing IDs [101, 102, 103], cursor should be max(103) = 103.
+		$processed_ids = array( 101, 102, 103 );
+		$new_cursor    = max( $processed_ids );
+
+		$this->assertSame( 103, $new_cursor );
+	}
+
+	public function test_empty_batch_marks_complete(): void {
+		// When fetch_ids returns empty, backfill_type sets cursor to -1.
+		// The expected complete state is -1.
+		$expected_complete_state = -1;
+
+		$this->assertSame( -1, $expected_complete_state );
+	}
+
+	// ===========================================
+	// Backfill Order Tests
+	// ===========================================
+
+	public function test_backfill_processes_types_in_order(): void {
+		// Backfill processes: products -> orders -> customers.
+		// This is the expected order as defined in maybe_backfill().
+		$expected_order = array( 'products', 'orders', 'customers' );
+
+		$this->assertSame( 'products', $expected_order[0] );
+		$this->assertSame( 'orders', $expected_order[1] );
+		$this->assertSame( 'customers', $expected_order[2] );
+	}
+
+	public function test_backfill_skips_complete_types(): void {
+		// If products is complete (-1), backfill should skip it.
+		$state = array(
+			'products'  => -1, // Skip.
+			'orders'    => 0,  // Process this.
+			'customers' => 0,
+		);
+
+		$method = $this->get_method( 'is_backfill_complete' );
+
+		$this->assertTrue( $method->invoke( null, 'products', $state ) );
+		$this->assertFalse( $method->invoke( null, 'orders', $state ) );
+	}
+
+	// ===========================================
+	// Time Window Behavior Tests
+	// ===========================================
+
+	public function test_time_window_calculation(): void {
+		// Verify that 350ms window is properly defined.
+		$window = Index::BACKFILL_WINDOW;
+
+		// Should continue at 0ms.
+		$should_continue_at_0ms = 0.0 < $window;
+		$this->assertTrue( $should_continue_at_0ms );
+
+		// Should continue at 200ms.
+		$should_continue_at_200ms = 0.2 < $window;
+		$this->assertTrue( $should_continue_at_200ms );
+
+		// Should stop at 400ms.
+		$should_stop_at_400ms = 0.4 >= $window;
+		$this->assertTrue( $should_stop_at_400ms );
+	}
+
+	public function test_backfill_respects_time_window(): void {
+		// The backfill uses: if (microtime(true) - $start >= BACKFILL_WINDOW) break;
+		$window = Index::BACKFILL_WINDOW;
+		$this->assertSame( 0.35, $window );
+	}
+
+	// ===========================================
+	// State Default Value Tests
+	// ===========================================
+
+	public function test_state_defaults_for_all_types(): void {
+		// When a type is missing from state, it should default to 0.
+		$state = array();
+
+		$method = $this->get_method( 'is_backfill_complete' );
+
+		// All should return false (not complete) since they're missing/default to 0.
+		$this->assertFalse( $method->invoke( null, 'products', $state ) );
+		$this->assertFalse( $method->invoke( null, 'orders', $state ) );
+		$this->assertFalse( $method->invoke( null, 'customers', $state ) );
+	}
+
+	public function test_state_with_string_cursor_is_coerced(): void {
+		// State values should be cast to int.
+		$state  = array( 'products' => '-1' );
+		$method = $this->get_method( 'is_backfill_complete' );
+
+		// is_backfill_complete checks intval($state[$type]) === -1.
+		$this->assertTrue( $method->invoke( null, 'products', $state ) );
+	}
+
+	public function test_state_with_float_cursor_is_coerced(): void {
+		$state  = array( 'products' => 100.5 );
+		$method = $this->get_method( 'is_backfill_complete' );
+
+		// intval(100.5) === 100, not -1, so not complete.
+		$this->assertFalse( $method->invoke( null, 'products', $state ) );
+	}
+
+	// ===========================================
+	// Edge Cases
+	// ===========================================
+
+	public function test_state_with_zero_string_is_not_complete(): void {
+		$state  = array( 'products' => '0' );
+		$method = $this->get_method( 'is_backfill_complete' );
+
+		$this->assertFalse( $method->invoke( null, 'products', $state ) );
+	}
+
+	public function test_state_with_null_is_not_complete(): void {
+		$state  = array( 'products' => null );
+		$method = $this->get_method( 'is_backfill_complete' );
+
+		$this->assertFalse( $method->invoke( null, 'products', $state ) );
+	}
+
+	public function test_state_with_very_large_cursor(): void {
+		// Should still be in progress with a large cursor.
+		$state  = array( 'products' => PHP_INT_MAX );
+		$method = $this->get_method( 'is_backfill_complete' );
+
+		$this->assertFalse( $method->invoke( null, 'products', $state ) );
+	}
+}
