@@ -1,5 +1,37 @@
 // Common types for the AgentWP React application
 
+/**
+ * Error type categories for error handling and display.
+ */
+export type ErrorType =
+  | 'network_error'
+  | 'rate_limit'
+  | 'auth_error'
+  | 'validation_error'
+  | 'api_error'
+  | 'unknown';
+
+/**
+ * Structured error state used throughout the application.
+ * This is the canonical error representation for UI display and error handling.
+ */
+export interface ErrorState {
+  /** Human-friendly error message for display */
+  message: string;
+  /** Error code identifier */
+  code: string;
+  /** Categorized error type */
+  type: ErrorType;
+  /** HTTP status code */
+  status: number;
+  /** Additional metadata from the error response */
+  meta: Record<string, unknown>;
+  /** Seconds to wait before retrying (for rate limit errors) */
+  retryAfter: number;
+  /** Whether this error can be retried */
+  retryable: boolean;
+}
+
 export interface UsageSummary {
   totalTokens: number;
   totalCostUsd: number;

@@ -9,7 +9,7 @@ import { useDemoTour } from '../demo-tour';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { ANALYTICS_DATA } from '../../utils/analytics-data';
 import { formatCurrencyValue } from '../../utils/formatters';
-import type { Period } from '../../types';
+import type { AnalyticsData, Period } from '../../types';
 
 interface LandingPageProps {
   demoMode?: boolean;
@@ -163,18 +163,8 @@ export function LandingPage({ demoMode = false, shadowRoot, budgetLimit = 0 }: L
   );
 }
 
-// Inline Analytics Chart
-interface AnalyticsChartData {
-  labels: string[];
-  current: number[];
-  previous?: number[];
-  categories?: {
-    labels: string[];
-    values: number[];
-  };
-}
-
-function AnalyticsChart({ data }: { data: AnalyticsChartData }) {
+// Inline Analytics Chart - uses shared AnalyticsData type
+function AnalyticsChart({ data }: { data: AnalyticsData }) {
   const maxValue = Math.max(...data.current, ...(data.previous || []));
   const normalizedCurrent = data.current.map((v) => (v / maxValue) * 100);
 

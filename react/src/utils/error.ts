@@ -2,6 +2,11 @@
  * Error handling utilities and error message constants.
  */
 
+import type { ErrorState, ErrorType } from '../types';
+
+// Re-export types for convenience (allows importing from either location)
+export type { ErrorState, ErrorType };
+
 // Error message constants
 export const DEFAULT_ERROR_MESSAGE = 'AgentWP ran into a problem. Please try again.';
 export const NETWORK_ERROR_MESSAGE =
@@ -51,14 +56,6 @@ export const AGENTWP_ERROR_MESSAGES: Record<string, string> = {
   agentwp_intent_failed: 'Failed to process your request. Please try again.',
 };
 
-export type ErrorType =
-  | 'network_error'
-  | 'rate_limit'
-  | 'auth_error'
-  | 'validation_error'
-  | 'api_error'
-  | 'unknown';
-
 interface ErrorInput {
   code?: string;
   type?: string;
@@ -70,16 +67,6 @@ interface ErrorInput {
     [key: string]: unknown;
   };
   retryAfter?: number | string;
-}
-
-export interface ErrorState {
-  message: string;
-  code: string;
-  type: ErrorType;
-  status: number;
-  meta: Record<string, unknown>;
-  retryAfter: number;
-  retryable: boolean;
 }
 
 const isStackTraceMessage = (value: unknown): boolean => {

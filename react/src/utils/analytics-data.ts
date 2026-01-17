@@ -2,6 +2,8 @@
  * Analytics mock data and utilities for demo mode.
  */
 
+import type { AnalyticsData, Period } from '../types';
+
 export const buildDayLabels = (days: number, prefix = 'Day'): string[] =>
   Array.from({ length: days }, (_, index) => `${prefix} ${index + 1}`);
 
@@ -27,23 +29,8 @@ export const hexToRgba = (hex: string, alpha: number): string => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-export interface AnalyticsPeriodData {
-  label: string;
-  labels: string[];
-  current: number[];
-  previous: number[];
-  metrics: {
-    labels: string[];
-    current: number[];
-    previous: number[];
-  };
-  categories: {
-    labels: string[];
-    values: number[];
-  };
-}
-
-export const ANALYTICS_DATA: Record<string, AnalyticsPeriodData> = {
+// Use shared AnalyticsData type from types/index.ts
+export const ANALYTICS_DATA: Record<Period, AnalyticsData> = {
   '7d': {
     label: 'Last 7 days',
     labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],

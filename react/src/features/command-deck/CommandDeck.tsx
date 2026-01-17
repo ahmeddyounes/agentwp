@@ -107,27 +107,21 @@ export function CommandDeck({ onClose }: CommandDeckProps) {
         return;
       }
 
-      const errorState = buildErrorState({
-        message: result.error.message,
-        code: result.error.code,
-        status: result.error.status,
-        meta: result.error.meta,
-      });
-      setError({
-        message: errorState.message,
-        code: errorState.code,
-        retryable: errorState.retryable,
-      });
+      setError(
+        buildErrorState({
+          message: result.error.message,
+          code: result.error.code,
+          status: result.error.status,
+          meta: result.error.meta,
+        }),
+      );
     } catch (err) {
-      const errorState = buildErrorState({
-        message: err instanceof Error ? err.message : undefined,
-        status: 0, // Network error
-      });
-      setError({
-        message: errorState.message,
-        code: errorState.code,
-        retryable: errorState.retryable,
-      });
+      setError(
+        buildErrorState({
+          message: err instanceof Error ? err.message : undefined,
+          status: 0, // Network error
+        }),
+      );
     } finally {
       setLoading(false);
     }

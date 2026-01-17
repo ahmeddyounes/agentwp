@@ -1,12 +1,6 @@
 import { create } from 'zustand';
-import type { Metrics } from '../types';
+import type { ErrorState, Metrics } from '../types';
 import { OPEN_STATE_KEY } from '../utils/constants';
-
-interface ErrorState {
-  message: string;
-  code?: string;
-  retryable?: boolean;
-}
 
 interface ModalState {
   isOpen: boolean;
