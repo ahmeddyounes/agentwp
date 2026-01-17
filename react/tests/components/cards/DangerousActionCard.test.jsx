@@ -1,13 +1,14 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
 import DangerousActionCard from '../../../components/cards/DangerousActionCard.jsx';
 
 describe('DangerousActionCard', () => {
   it('fires execute and cancel handlers', async () => {
     const user = userEvent.setup();
-    const onExecute = jest.fn();
-    const onCancel = jest.fn();
+    const onExecute = vi.fn();
+    const onCancel = vi.fn();
 
     render(
       <DangerousActionCard
@@ -17,7 +18,7 @@ describe('DangerousActionCard', () => {
         cancelLabel="Cancel"
         onExecute={onExecute}
         onCancel={onCancel}
-      />
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: 'Execute' }));
@@ -28,10 +29,8 @@ describe('DangerousActionCard', () => {
   });
 
   it('matches snapshot for action card', () => {
-    const idSpy = jest.spyOn(React, 'useId').mockReturnValue('test-id');
-    const { container } = render(
-      <DangerousActionCard title="Confirm" details="Delete item" />
-    );
+    const idSpy = vi.spyOn(React, 'useId').mockReturnValue('test-id');
+    const { container } = render(<DangerousActionCard title="Confirm" details="Delete item" />);
 
     expect(container).toMatchSnapshot();
     idSpy.mockRestore();

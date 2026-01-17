@@ -1,0 +1,66 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SuccessCard > matches snapshot for action state 1`] = `
+<div>
+  <section
+    aria-labelledby=":r1:"
+    class="agentwp-card agentwp-card--success agentwp-card--accent"
+    role="region"
+  >
+    <div
+      class="agentwp-card__header"
+    >
+      <div
+        class="agentwp-card__icon"
+      >
+        <svg
+          aria-hidden="true"
+          focusable="false"
+          height="20"
+          viewBox="0 0 24 24"
+          width="20"
+        >
+          <path
+            d="M9.2 16.6 4.8 12.2a1 1 0 0 1 1.4-1.4l3 3 8-8a1 1 0 1 1 1.4 1.4l-9.4 9.4a1 1 0 0 1-1.4 0z"
+            fill="currentColor"
+          />
+        </svg>
+      </div>
+      <div>
+        <h3
+          class="agentwp-card__title"
+          id=":r1:"
+        >
+          Action completed
+        </h3>
+      </div>
+    </div>
+    <div
+      class="agentwp-card__body"
+    >
+      <p
+        class="agentwp-card__text"
+      >
+        Done
+      </p>
+    </div>
+    <div
+      class="agentwp-card__actions"
+    >
+      <button
+        class="agentwp-card__link"
+        type="button"
+      >
+        Undo
+      </button>
+      <button
+        aria-pressed="true"
+        class="agentwp-card__link"
+        type="button"
+      >
+        Starred
+      </button>
+    </div>
+  </section>
+</div>
+`;

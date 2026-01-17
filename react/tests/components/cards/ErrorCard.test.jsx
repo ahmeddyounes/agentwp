@@ -1,12 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
 import ErrorCard from '../../../components/cards/ErrorCard.jsx';
 
 describe('ErrorCard', () => {
   it('renders retry and report actions', async () => {
     const user = userEvent.setup();
-    const onRetry = jest.fn();
-    const onReport = jest.fn();
+    const onRetry = vi.fn();
+    const onReport = vi.fn();
 
     render(
       <ErrorCard
@@ -16,7 +17,7 @@ describe('ErrorCard', () => {
         reportLabel="Report"
         onRetry={onRetry}
         onReport={onReport}
-      />
+      />,
     );
 
     expect(screen.getByText('Something broke')).toBeInTheDocument();

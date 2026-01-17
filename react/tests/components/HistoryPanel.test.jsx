@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
 import HistoryPanel from '../../components/HistoryPanel.jsx';
 
 describe('HistoryPanel', () => {
@@ -13,10 +14,10 @@ describe('HistoryPanel', () => {
 
   it('renders history and handles interactions', async () => {
     const user = userEvent.setup();
-    const onRun = jest.fn();
-    const onDelete = jest.fn();
-    const onToggleFavorite = jest.fn();
-    const onClearHistory = jest.fn();
+    const onRun = vi.fn();
+    const onDelete = vi.fn();
+    const onToggleFavorite = vi.fn();
+    const onClearHistory = vi.fn();
 
     render(
       <HistoryPanel
@@ -28,14 +29,17 @@ describe('HistoryPanel', () => {
         onDelete={onDelete}
         onToggleFavorite={onToggleFavorite}
         onClearHistory={onClearHistory}
-      />
+      />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Check order' }));
-    await user.click(screen.getByRole('button', { name: 'Remove favorite' }));
+    // Click the command button (entry appears in both favorites and history, get first)
+    const checkOrderButtons = screen.getAllByRole('button', { name: /Check order/ });
+    await user.click(checkOrderButtons[0]);
+    // Remove favorite button exists only in favorites section
+    await user.click(screen.getAllByRole('button', { name: 'Remove favorite' })[0]);
     await user.click(screen.getByRole('button', { name: 'Remove from history' }));
     await user.click(screen.getByRole('button', { name: 'Clear history' }));
-    await user.click(screen.getByRole('button', { name: 'Refund order' }));
+    await user.click(screen.getByRole('button', { name: /Refund order/ }));
 
     expect(onRun).toHaveBeenCalledWith('Check order');
     expect(onToggleFavorite).toHaveBeenCalledWith(entry);

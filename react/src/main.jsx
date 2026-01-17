@@ -123,13 +123,15 @@ const loadCommandDeck = async (openOnLoad = false) => {
       ReactDOM,
       AppModule,
       ErrorBoundaryModule,
+      ReactQueryModule,
       stylesModule,
       themeModule,
     ] = await Promise.all([
       import('react'),
       import('react-dom/client'),
-      import('./App.jsx'),
+      import('./App.tsx'),
       import('../components/ErrorBoundary.jsx'),
+      import('@tanstack/react-query'),
       import('./index.css?inline'),
       import('./theme.js'),
     ]);
@@ -137,6 +139,7 @@ const loadCommandDeck = async (openOnLoad = false) => {
     const { StrictMode } = ReactModule;
     const App = AppModule.default;
     const ErrorBoundary = ErrorBoundaryModule.default;
+    const { QueryClient, QueryClientProvider } = ReactQueryModule;
     const styles = stylesModule.default || '';
     const { applyTheme, getInitialThemePreference, getSystemTheme, resolveTheme } = themeModule;
 
@@ -145,12 +148,25 @@ const loadCommandDeck = async (openOnLoad = false) => {
     const resolvedTheme = resolveTheme(initialPreference, getSystemTheme() === 'dark');
     applyTheme(resolvedTheme, hostElement);
 
+    // Create React Query client with sensible defaults
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: 60 * 1000,
+          retry: 1,
+          refetchOnWindowFocus: false,
+        },
+      },
+    });
+
     ReactDOM.createRoot(appRoot).render(
       <StrictMode>
-        <ErrorBoundary>
-          <App shadowRoot={shadowRoot} portalRoot={portalRoot} themeTarget={hostElement} />
-        </ErrorBoundary>
-      </StrictMode>
+        <QueryClientProvider client={queryClient}>
+          <ErrorBoundary>
+            <App shadowRoot={shadowRoot} portalRoot={portalRoot} themeTarget={hostElement} />
+          </ErrorBoundary>
+        </QueryClientProvider>
+      </StrictMode>,
     );
 
     appLoaded = true;

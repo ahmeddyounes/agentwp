@@ -1,9 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
 import ChartCard from '../../../components/cards/ChartCard.jsx';
 
-jest.mock('chart.js', () => ({
-  Chart: { register: jest.fn() },
+vi.mock('chart.js', () => ({
+  Chart: { register: vi.fn() },
   CategoryScale: {},
   LinearScale: {},
   PointElement: {},
@@ -15,8 +16,8 @@ jest.mock('chart.js', () => ({
   Filler: {},
 }));
 
-jest.mock('react-chartjs-2', () => {
-  const ReactLocal = require('react');
+vi.mock('react-chartjs-2', async () => {
+  const ReactLocal = await import('react');
   const MockChart = ReactLocal.forwardRef((props, ref) => {
     ReactLocal.useImperativeHandle(ref, () => ({
       toBase64Image: () => 'data:image/png;base64,mock',
@@ -46,7 +47,7 @@ describe('ChartCard', () => {
         title="Sales"
         type="line"
         data={{ labels: ['A'], datasets: [{ label: 'X', data: [1] }] }}
-      />
+      />,
     );
 
     expect(screen.getByRole('img', { name: 'Sales' })).toBeInTheDocument();
