@@ -91,11 +91,12 @@ abstract class ServiceProvider {
 	/**
 	 * Helper to tag a service.
 	 *
-	 * @param string $id  Service identifier.
-	 * @param string $tag Tag name.
+	 * @param string      $id         Service identifier.
+	 * @param string      $tag        Tag name.
+	 * @param string|null $context_key Optional context key for taggedWithKeys retrieval.
 	 * @return void
 	 */
-	protected function tag( string $id, string $tag ): void {
-		$this->container->tag( $id, $tag );
+	protected function tag( string $id, string $tag, ?string $context_key = null ): void {
+		$this->container->tag( $id, $tag, $context_key );
 	}
 }

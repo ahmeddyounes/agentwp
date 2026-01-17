@@ -60,11 +60,12 @@ interface ContainerInterface {
 	/**
 	 * Tag a service with a tag name for group retrieval.
 	 *
-	 * @param string $id  Service identifier.
-	 * @param string $tag Tag name.
+	 * @param string      $id         Service identifier.
+	 * @param string      $tag        Tag name.
+	 * @param string|null $context_key Optional context key for taggedWithKeys retrieval.
 	 * @return void
 	 */
-	public function tag( string $id, string $tag ): void;
+	public function tag( string $id, string $tag, ?string $context_key = null ): void;
 
 	/**
 	 * Get all services tagged with a specific tag.
@@ -73,4 +74,16 @@ interface ContainerInterface {
 	 * @return array<mixed> Array of resolved services.
 	 */
 	public function tagged( string $tag ): array;
+
+	/**
+	 * Get all services tagged with a specific tag, keyed by context key.
+	 *
+	 * Returns an associative array where keys are the context keys
+	 * specified during tag registration, and values are the resolved services.
+	 * Order is deterministic based on registration order.
+	 *
+	 * @param string $tag Tag name.
+	 * @return array<string, mixed> Associative array of resolved services keyed by context key.
+	 */
+	public function taggedWithKeys( string $tag ): array;
 }

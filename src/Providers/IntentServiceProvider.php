@@ -70,6 +70,10 @@ final class IntentServiceProvider extends ServiceProvider {
 	/**
 	 * Register context builder.
 	 *
+	 * Wires the ContextBuilder with context providers registered via the
+	 * 'intent.context_provider' tag. Providers are retrieved with their
+	 * context keys for deterministic ordering.
+	 *
 	 * @return void
 	 */
 	private function registerContextBuilder(): void {
@@ -81,7 +85,12 @@ final class IntentServiceProvider extends ServiceProvider {
 
 		$this->container->singleton(
 			ContextBuilderInterface::class,
-			fn() => new \AgentWP\Intent\ContextBuilder()
+			function () {
+				// Get all context providers tagged with 'intent.context_provider'.
+				// Returns associative array keyed by context key (e.g., 'user', 'store').
+				$providers = $this->container->taggedWithKeys( 'intent.context_provider' );
+				return new \AgentWP\Intent\ContextBuilder( $providers );
+			}
 		);
 	}
 

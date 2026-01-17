@@ -138,11 +138,23 @@ final class CoreServiceProvider extends ServiceProvider {
 	/**
 	 * Register context providers.
 	 *
+	 * Each provider is tagged with 'intent.context_provider' and a context key
+	 * that determines its key in the enriched context array. Order of registration
+	 * determines order in the context array.
+	 *
 	 * @return void
 	 */
 	private function registerContextProviders(): void {
+		// Register and tag user context provider.
 		$this->container->singleton( UserContextProvider::class, fn() => new UserContextProvider() );
+		$this->container->tag( UserContextProvider::class, 'intent.context_provider', 'user' );
+
+		// Register and tag order context provider.
 		$this->container->singleton( OrderContextProvider::class, fn() => new OrderContextProvider() );
+		$this->container->tag( OrderContextProvider::class, 'intent.context_provider', 'recent_orders' );
+
+		// Register and tag store context provider.
 		$this->container->singleton( StoreContextProvider::class, fn() => new StoreContextProvider() );
+		$this->container->tag( StoreContextProvider::class, 'intent.context_provider', 'store' );
 	}
 }

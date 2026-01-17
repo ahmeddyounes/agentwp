@@ -1,0 +1,11 @@
+[main eea37d5] C03-04: implement
+ 9 files changed, 278 insertions(+), 5 deletions(-)
+ create mode 100644 .logs/C03-03.gitcommit.txt
+ create mode 100644 .logs/C03-04.claude.after1.last.md
+ create mode 100644 .logs/C03-04.claude.after1.raw.txt
+ create mode 100644 .logs/C03-04.claude.impl.last.md
+ create mode 100644 .logs/C03-04.claude.impl.raw.txt
+ create mode 100644 .plans/C03-04.md
+ create mode 100644 .t2/handoff/C03-04.md
+
+→ No staged files match any configured task.

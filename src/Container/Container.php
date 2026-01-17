@@ -40,6 +40,15 @@ class Container implements ContainerInterface {
 	private array $tags = array();
 
 	/**
+	 * Service tag context keys.
+	 *
+	 * Maps tag -> service id -> context key for deterministic retrieval.
+	 *
+	 * @var array<string, array<string, string>>
+	 */
+	private array $tag_keys = array();
+
+	/**
 	 * Currently resolving services (for circular dependency detection).
 	 *
 	 * @var array<string, bool>
@@ -134,14 +143,26 @@ class Container implements ContainerInterface {
 
 	/**
 	 * {@inheritDoc}
+	 *
+	 * @param string      $id         Service identifier.
+	 * @param string      $tag        Tag name.
+	 * @param string|null $context_key Optional context key for taggedWithKeys retrieval.
 	 */
-	public function tag( string $id, string $tag ): void {
+	public function tag( string $id, string $tag, ?string $context_key = null ): void {
 		if ( ! isset( $this->tags[ $tag ] ) ) {
 			$this->tags[ $tag ] = array();
 		}
 
 		if ( ! in_array( $id, $this->tags[ $tag ], true ) ) {
 			$this->tags[ $tag ][] = $id;
+		}
+
+		// Store context key if provided.
+		if ( null !== $context_key ) {
+			if ( ! isset( $this->tag_keys[ $tag ] ) ) {
+				$this->tag_keys[ $tag ] = array();
+			}
+			$this->tag_keys[ $tag ][ $id ] = $context_key;
 		}
 	}
 
@@ -156,6 +177,24 @@ class Container implements ContainerInterface {
 		$services = array();
 		foreach ( $this->tags[ $tag ] as $id ) {
 			$services[] = $this->get( $id );
+		}
+
+		return $services;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function taggedWithKeys( string $tag ): array {
+		if ( ! isset( $this->tags[ $tag ] ) ) {
+			return array();
+		}
+
+		$services = array();
+		foreach ( $this->tags[ $tag ] as $id ) {
+			// Use context key if available, otherwise use service id.
+			$key              = $this->tag_keys[ $tag ][ $id ] ?? $id;
+			$services[ $key ] = $this->get( $id );
 		}
 
 		return $services;
@@ -329,6 +368,7 @@ class Container implements ContainerInterface {
 		$this->bindings  = array();
 		$this->instances = array();
 		$this->tags      = array();
+		$this->tag_keys   = array();
 		$this->resolving = array();
 	}
 
