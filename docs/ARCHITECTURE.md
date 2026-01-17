@@ -2,6 +2,138 @@
 
 ## 1) System Overview
 
+### Boot/Composition Flow
+
+AgentWP follows a service provider pattern for composition, with a clear bootstrap sequence. A new contributor can trace the runtime wiring from entry point to request handling by following this flow:
+
+```mermaid
+flowchart TB
+    subgraph Bootstrap["1. Bootstrap (agentwp.php)"]
+        WP[WordPress loads plugin]
+        AUTO[Autoloader registered]
+        HOOKS[Activation/deactivation hooks]
+        COMPAT[Environment compatibility check]
+        INIT["Plugin::init()"]
+        WP --> AUTO --> HOOKS --> COMPAT --> INIT
+    end
+
+    subgraph Plugin["2. Plugin Singleton"]
+        CONTAINER[Container created]
+        REG_PROV[registerProviders]
+        BOOT_PROV[bootProviders]
+        INIT --> CONTAINER --> REG_PROV --> BOOT_PROV
+    end
+
+    subgraph Providers["3. Service Providers (register phase)"]
+        CORE[CoreServiceProvider]
+        INFRA[InfrastructureServiceProvider]
+        SERVICES[ServicesServiceProvider]
+        REST[RestServiceProvider]
+        INTENT[IntentServiceProvider]
+        REG_PROV --> CORE & INFRA & SERVICES & REST & INTENT
+    end
+
+    subgraph CoreReg["CoreServiceProvider registers:"]
+        OPT[OptionsInterface]
+        SETTINGS[SettingsManager]
+        THEME[ThemeManager]
+        MENU[AdminMenuManager]
+        ASSETS[AssetManager]
+        HREG[HandlerRegistry]
+        CTX_PROV[Context Providers]
+    end
+
+    subgraph RestReg["RestServiceProvider registers:"]
+        RATE[RateLimiterInterface]
+        FMT[ResponseFormatter]
+        ROUTE[RestRouteRegistrar]
+        CTRL[Controllers tagged rest.controller]
+    end
+
+    subgraph IntentReg["IntentServiceProvider registers:"]
+        MEM[MemoryStoreInterface]
+        CTX_BUILD[ContextBuilderInterface]
+        CLASS[IntentClassifierInterface]
+        ENGINE[Engine]
+        HANDLERS[Handlers tagged intent.handler]
+    end
+
+    CORE --> CoreReg
+    REST --> RestReg
+    INTENT --> IntentReg
+
+    subgraph Boot["4. Service Providers (boot phase)"]
+        MENU_REG[AdminMenuManager.register hooks]
+        ASSETS_REG[AssetManager.register hooks]
+        REST_REG[RestRouteRegistrar.register hooks]
+        FMT_REG[ResponseFormatter.register hooks]
+        BOOT_PROV --> MENU_REG & ASSETS_REG & REST_REG & FMT_REG
+    end
+
+    subgraph Runtime["5. Runtime Request Flow"]
+        REQ[REST Request /agentwp/v1/*]
+        AUTH[Permission check + rate limit]
+        CTRL_EXEC[Controller executes]
+        SVC[Service resolved from container]
+        RESP[ResponseFormatter normalizes]
+        REQ --> AUTH --> CTRL_EXEC --> SVC --> RESP
+    end
+```
+
+#### Bootstrap Sequence (Step-by-Step)
+
+1. **Entry Point** (`agentwp.php`):
+   - Defines constants (`AGENTWP_VERSION`, `AGENTWP_PLUGIN_DIR`, etc.)
+   - Registers PSR-4 autoloader (Composer or fallback)
+   - Registers activation/deactivation hooks
+   - On `plugins_loaded`, checks environment compatibility and calls `Plugin::init()`
+
+2. **Plugin Initialization** (`src/Plugin.php`):
+   - Creates singleton instance
+   - Instantiates DI container (`src/Container/Container.php`)
+   - Calls `registerProviders()` then `bootProviders()`
+   - Fires `agentwp_register_providers` and `agentwp_boot_providers` actions for extensions
+
+3. **Provider Registration** (register phase):
+   - Each provider registers services as singletons/bindings in the container
+   - Services are tagged for collection (e.g., `intent.handler`, `rest.controller`)
+   - No side effects—only container configuration
+
+4. **Provider Boot** (boot phase):
+   - `CoreServiceProvider`: Registers admin menu and asset hooks via managers
+   - `RestServiceProvider`: Registers REST route and response formatter hooks
+   - Side effects occur (WordPress hooks added)
+
+5. **Runtime Request** (e.g., `POST /wp-json/agentwp/v1/intent`):
+   - `RestRouteRegistrar` triggers controller route registration on `rest_api_init`
+   - Controller resolves dependencies from container (see [ADR 0001](adr/0001-rest-controller-dependency-resolution.md))
+   - Handler executes with injected services
+   - `ResponseFormatter` normalizes response envelope on `rest_post_dispatch`
+
+### Key Composition Components
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Container | `src/Container/Container.php` | PSR-11 style DI container |
+| ServiceProvider | `src/Container/ServiceProvider.php` | Base class for providers |
+| RestRouteRegistrar | `src/Plugin/RestRouteRegistrar.php` | Collects and registers controllers |
+| ResponseFormatter | `src/Plugin/ResponseFormatter.php` | Normalizes REST responses |
+| SettingsManager | `src/Plugin/SettingsManager.php` | Centralized settings access |
+
+### Architecture Decision Records
+
+The following ADRs document key architectural decisions:
+
+- **[ADR 0001: REST Controller Dependency Resolution](adr/0001-rest-controller-dependency-resolution.md)** — Controllers resolve dependencies via container, not direct instantiation
+- **[ADR 0002: Intent Handler Registration](adr/0002-intent-handler-registration.md)** — `#[HandlesIntent]` attributes and container tagging for handler discovery
+- **[ADR 0003: Intent Classification Strategy](adr/0003-intent-classification-strategy.md)** — `ScorerRegistry` as the canonical classifier with pluggable scorers
+- **[ADR 0004: OpenAI Client Architecture](adr/0004-openai-client-architecture.md)** — Monolithic client with infrastructure abstractions for HTTP/retry
+- **[ADR 0005: REST Rate Limiting](adr/0005-rest-rate-limiting.md)** — Injected `RateLimiterInterface` for testable rate limiting
+
+For the improvement roadmap, see [ARCHITECTURE-IMPROVEMENT-PLAN.md](ARCHITECTURE-IMPROVEMENT-PLAN.md).
+
+---
+
 AgentWP is a WordPress plugin that provides a React-powered admin UI (Command Deck) and a PHP backend that integrates with WooCommerce and the OpenAI API. The plugin exposes REST endpoints under `/wp-json/agentwp/v1` and uses standard WooCommerce tables plus `wp_options` for settings and encrypted BYOK storage.
 
 ```mermaid
