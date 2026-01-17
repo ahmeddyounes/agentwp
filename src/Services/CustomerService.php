@@ -8,14 +8,87 @@
 namespace AgentWP\Services;
 
 use AgentWP\Contracts\CustomerServiceInterface;
+use AgentWP\Contracts\OrderRepositoryInterface;
+use AgentWP\Contracts\WooCommerceConfigGatewayInterface;
+use AgentWP\Contracts\WooCommerceOrderGatewayInterface;
+use AgentWP\Contracts\WooCommercePriceFormatterInterface;
+use AgentWP\Contracts\WooCommerceProductCategoryGatewayInterface;
+use AgentWP\Contracts\WooCommerceUserGatewayInterface;
+use AgentWP\DTO\OrderQuery;
 
 class CustomerService implements CustomerServiceInterface {
-	const RECENT_LIMIT = 5;
-	const TOP_LIMIT    = 5;
-	const ORDER_BATCH  = 200;
+	const RECENT_LIMIT  = 5;
+	const TOP_LIMIT     = 5;
+	const ORDER_BATCH   = 200;
 	const MAX_ORDER_IDS = 2000;
-	const PRODUCT_CATEGORY_CACHE_GROUP = 'agentwp_product_categories';
-	const PRODUCT_CATEGORY_CACHE_TTL   = 3600;
+
+	/**
+	 * WooCommerce configuration gateway.
+	 *
+	 * @var WooCommerceConfigGatewayInterface
+	 */
+	private WooCommerceConfigGatewayInterface $configGateway;
+
+	/**
+	 * WooCommerce user gateway.
+	 *
+	 * @var WooCommerceUserGatewayInterface
+	 */
+	private WooCommerceUserGatewayInterface $userGateway;
+
+	/**
+	 * WooCommerce order gateway.
+	 *
+	 * @var WooCommerceOrderGatewayInterface
+	 */
+	private WooCommerceOrderGatewayInterface $orderGateway;
+
+	/**
+	 * Order repository.
+	 *
+	 * @var OrderRepositoryInterface|null
+	 */
+	private ?OrderRepositoryInterface $orderRepository;
+
+	/**
+	 * Product category gateway.
+	 *
+	 * @var WooCommerceProductCategoryGatewayInterface
+	 */
+	private WooCommerceProductCategoryGatewayInterface $categoryGateway;
+
+	/**
+	 * Price formatter.
+	 *
+	 * @var WooCommercePriceFormatterInterface
+	 */
+	private WooCommercePriceFormatterInterface $priceFormatter;
+
+	/**
+	 * Create a new CustomerService.
+	 *
+	 * @param WooCommerceConfigGatewayInterface          $configGateway   Config gateway.
+	 * @param WooCommerceUserGatewayInterface            $userGateway     User gateway.
+	 * @param WooCommerceOrderGatewayInterface           $orderGateway    Order gateway.
+	 * @param OrderRepositoryInterface|null              $orderRepository Order repository.
+	 * @param WooCommerceProductCategoryGatewayInterface $categoryGateway Product category gateway.
+	 * @param WooCommercePriceFormatterInterface         $priceFormatter  Price formatter.
+	 */
+	public function __construct(
+		WooCommerceConfigGatewayInterface $configGateway,
+		WooCommerceUserGatewayInterface $userGateway,
+		WooCommerceOrderGatewayInterface $orderGateway,
+		?OrderRepositoryInterface $orderRepository,
+		WooCommerceProductCategoryGatewayInterface $categoryGateway,
+		WooCommercePriceFormatterInterface $priceFormatter
+	) {
+		$this->configGateway   = $configGateway;
+		$this->userGateway     = $userGateway;
+		$this->orderGateway    = $orderGateway;
+		$this->orderRepository = $orderRepository;
+		$this->categoryGateway = $categoryGateway;
+		$this->priceFormatter  = $priceFormatter;
+	}
 
 	/**
 	 * Handle a customer profile request.
@@ -24,7 +97,7 @@ class CustomerService implements CustomerServiceInterface {
 	 * @return array
 	 */
 	public function handle( array $args ) {
-		if ( ! function_exists( 'wc_get_orders' ) ) {
+		if ( ! $this->configGateway->is_woocommerce_available() ) {
 			return array( 'error' => 'WooCommerce is required.', 'code' => 400 );
 		}
 
@@ -33,7 +106,7 @@ class CustomerService implements CustomerServiceInterface {
 			return array( 'error' => 'Provide a customer ID or email.', 'code' => 400 );
 		}
 
-		$paid_statuses = $this->get_paid_statuses();
+		$paid_statuses = $this->configGateway->get_paid_statuses();
 		$order_data    = $this->collect_order_ids( $normalized, $paid_statuses );
 		$order_ids     = $order_data['ids'];
 		$metrics       = $this->build_metrics( $order_ids );
@@ -61,10 +134,10 @@ class CustomerService implements CustomerServiceInterface {
 		$email       = isset( $args['email'] ) ? sanitize_email( $args['email'] ) : '';
 		$customer_id = isset( $args['customer_id'] ) ? absint( $args['customer_id'] ) : 0;
 
-		if ( '' === $email && $customer_id > 0 && function_exists( 'get_userdata' ) ) {
-			$user = get_userdata( $customer_id );
-			if ( $user && isset( $user->user_email ) ) {
-				$email = sanitize_email( $user->user_email );
+		if ( '' === $email && $customer_id > 0 ) {
+			$user_email = $this->userGateway->get_user_email( $customer_id );
+			if ( null !== $user_email ) {
+				$email = sanitize_email( $user_email );
 			}
 		}
 
@@ -130,31 +203,36 @@ class CustomerService implements CustomerServiceInterface {
 
 	/**
 	 * @param array $query_args Query arguments.
+	 * @param int   $remaining  Remaining allowed orders.
+	 * @param bool  $truncated  Whether results were truncated.
 	 * @return array
 	 */
-		private function query_order_ids( array $query_args, int $remaining, bool &$truncated ): array {
-			$ids   = array();
-			$page  = 1;
-			$limit = min( self::ORDER_BATCH, $remaining );
-			if ( $limit <= 0 ) {
-				$truncated = true;
+	private function query_order_ids( array $query_args, int $remaining, bool &$truncated ): array {
+		if ( null === $this->orderRepository ) {
+			return array();
+		}
+
+		$ids   = array();
+		$page  = 1;
+		$limit = min( self::ORDER_BATCH, $remaining );
+		if ( $limit <= 0 ) {
+			$truncated = true;
 			return $ids;
 		}
 
 		while ( true ) {
-			$args = array_merge(
-				$query_args,
-				array(
-					'limit'  => $limit,
-					'paged'  => $page,
-					'return' => 'ids',
-					'orderby' => 'date',
-					'order'   => 'DESC',
-				)
+			$query = new OrderQuery(
+				customerId: $query_args['customer'] ?? null,
+				email: $query_args['billing_email'] ?? null,
+				status: isset( $query_args['status'] ) ? implode( ',', (array) $query_args['status'] ) : null,
+				limit: $limit,
+				offset: ( $page - 1 ) * $limit,
+				orderBy: 'date',
+				order: 'DESC'
 			);
 
-			$batch = wc_get_orders( $args );
-			if ( ! is_array( $batch ) || empty( $batch ) ) {
+			$batch = $this->orderRepository->queryIds( $query );
+			if ( empty( $batch ) ) {
 				break;
 			}
 
@@ -183,7 +261,7 @@ class CustomerService implements CustomerServiceInterface {
 	 * @return array Array of order objects.
 	 */
 	private function batch_load_orders( array $order_ids ) {
-		if ( empty( $order_ids ) || ! function_exists( 'wc_get_orders' ) ) {
+		if ( empty( $order_ids ) ) {
 			return array();
 		}
 
@@ -191,16 +269,11 @@ class CustomerService implements CustomerServiceInterface {
 		$chunks = array_chunk( $order_ids, self::ORDER_BATCH );
 
 		foreach ( $chunks as $chunk ) {
-			$batch = wc_get_orders(
-				array(
-					'include' => $chunk,
-					'limit'   => count( $chunk ),
-					'orderby' => 'none',
-				)
-			);
-
-			if ( is_array( $batch ) ) {
-				$orders = array_merge( $orders, $batch );
+			foreach ( $chunk as $order_id ) {
+				$order = $this->orderGateway->get_order( $order_id );
+				if ( null !== $order ) {
+					$orders[] = $order;
+				}
 			}
 		}
 
@@ -221,27 +294,26 @@ class CustomerService implements CustomerServiceInterface {
 
 		$product_totals  = array();
 		$category_totals = array();
-		$category_cache  = array();
 
 		// Batch load orders to avoid N+1 queries.
 		$orders = $this->batch_load_orders( $order_ids );
 
-			foreach ( $orders as $order ) {
-				if ( ! is_object( $order ) ) {
-					continue;
-				}
+		foreach ( $orders as $order ) {
+			if ( ! is_object( $order ) ) {
+				continue;
+			}
 
-				if ( is_callable( array( $order, 'get_total' ) ) ) {
-					$total_spent += $this->normalize_amount( $order->get_total() );
-				}
+			if ( is_callable( array( $order, 'get_total' ) ) ) {
+				$total_spent += $this->priceFormatter->normalize_decimal( $order->get_total() );
+			}
 
-				$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
-				if ( is_object( $date_created ) && method_exists( $date_created, 'getTimestamp' ) ) {
-					$timestamp = $date_created->getTimestamp();
-					if ( null === $first_ts || $timestamp < $first_ts ) {
-						$first_ts   = $timestamp;
-						$first_date = $this->format_datetime( $date_created );
-					}
+			$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
+			if ( is_object( $date_created ) && method_exists( $date_created, 'getTimestamp' ) ) {
+				$timestamp = $date_created->getTimestamp();
+				if ( null === $first_ts || $timestamp < $first_ts ) {
+					$first_ts   = $timestamp;
+					$first_date = $this->format_datetime( $date_created );
+				}
 
 				if ( null === $last_ts || $timestamp > $last_ts ) {
 					$last_ts   = $timestamp;
@@ -249,31 +321,31 @@ class CustomerService implements CustomerServiceInterface {
 				}
 			}
 
-				$this->accumulate_item_totals( $order, $product_totals, $category_totals, $category_cache );
-			}
+			$this->accumulate_item_totals( $order, $product_totals, $category_totals );
+		}
 
 		$average_order_value = 0.0;
 		if ( $total_orders > 0 ) {
-			$average_order_value = $this->normalize_amount( $total_spent / $total_orders );
+			$average_order_value = $this->priceFormatter->normalize_decimal( $total_spent / $total_orders );
 		}
 
 		$days_since_last_order = $this->calculate_days_since( $last_ts );
 		$health_status         = $this->determine_health_status( $days_since_last_order, $total_orders );
-		$ltv_projection         = $this->calculate_ltv_projection( $total_orders, $average_order_value, $first_ts );
+		$ltv_projection        = $this->calculate_ltv_projection( $total_orders, $average_order_value, $first_ts );
 
 		return array(
 			'total_orders'                  => $total_orders,
-			'total_spent'                   => $this->normalize_amount( $total_spent ),
-			'total_spent_formatted'         => $this->format_currency( $total_spent ),
+			'total_spent'                   => $this->priceFormatter->normalize_decimal( $total_spent ),
+			'total_spent_formatted'         => $this->priceFormatter->format_price( $total_spent ),
 			'average_order_value'           => $average_order_value,
-			'average_order_value_formatted' => $this->format_currency( $average_order_value ),
+			'average_order_value_formatted' => $this->priceFormatter->format_price( $average_order_value ),
 			'first_order_date'              => $first_date,
 			'last_order_date'               => $last_date,
 			'days_since_last_order'         => $days_since_last_order,
 			'favorite_products'             => $this->format_top_products( $product_totals ),
 			'favorite_categories'           => $this->format_top_categories( $category_totals ),
 			'estimated_ltv'                 => $ltv_projection['estimated_ltv'],
-			'estimated_ltv_formatted'       => $this->format_currency( $ltv_projection['estimated_ltv'] ),
+			'estimated_ltv_formatted'       => $this->priceFormatter->format_price( $ltv_projection['estimated_ltv'] ),
 			'ltv_projection'                => $ltv_projection['projection'],
 			'health_status'                 => $health_status,
 		);
@@ -288,17 +360,17 @@ class CustomerService implements CustomerServiceInterface {
 		$name  = '';
 		$email = $normalized['email'];
 
-		if ( $normalized['customer_id'] > 0 && function_exists( 'get_userdata' ) ) {
-			$user = get_userdata( $normalized['customer_id'] );
-			if ( $user ) {
-				$first = isset( $user->first_name ) ? $user->first_name : '';
-				$last  = isset( $user->last_name ) ? $user->last_name : '';
+		if ( $normalized['customer_id'] > 0 ) {
+			$user = $this->userGateway->get_user( $normalized['customer_id'] );
+			if ( null !== $user ) {
+				$first = $user['first_name'];
+				$last  = $user['last_name'];
 				$name  = trim( $first . ' ' . $last );
-				if ( '' === $name && isset( $user->display_name ) ) {
-					$name = (string) $user->display_name;
+				if ( '' === $name ) {
+					$name = $user['display_name'];
 				}
-				if ( '' === $email && isset( $user->user_email ) ) {
-					$email = sanitize_email( $user->user_email );
+				if ( '' === $email && '' !== $user['email'] ) {
+					$email = sanitize_email( $user['email'] );
 				}
 			}
 		}
@@ -321,38 +393,33 @@ class CustomerService implements CustomerServiceInterface {
 	 * @return array
 	 */
 	private function get_recent_orders( array $normalized, array $statuses ) {
-		if ( ! function_exists( 'wc_get_orders' ) || ! function_exists( 'wc_get_order' ) ) {
+		if ( null === $this->orderRepository ) {
 			return array();
 		}
 
-		$args = array(
-			'limit'   => self::RECENT_LIMIT,
-			'orderby' => 'date',
-			'order'   => 'DESC',
-			'status'  => $statuses,
-			'return'  => 'ids',
+		$query = new OrderQuery(
+			customerId: $normalized['customer_id'] > 0 ? $normalized['customer_id'] : null,
+			email: '' !== $normalized['email'] && 0 === $normalized['customer_id'] ? $normalized['email'] : null,
+			status: implode( ',', $statuses ),
+			limit: self::RECENT_LIMIT,
+			orderBy: 'date',
+			order: 'DESC'
 		);
 
-		if ( $normalized['customer_id'] > 0 ) {
-			$args['customer'] = $normalized['customer_id'];
-		} elseif ( '' !== $normalized['email'] ) {
-			$args['billing_email'] = $normalized['email'];
-		}
-
-		$order_ids = wc_get_orders( $args );
-		if ( ! is_array( $order_ids ) ) {
+		$order_ids = $this->orderRepository->queryIds( $query );
+		if ( empty( $order_ids ) ) {
 			return array();
 		}
 
 		$recent = array();
-			foreach ( $order_ids as $order_id ) {
-				$order = wc_get_order( $order_id );
-				if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
-					continue;
-				}
-
-				$recent[] = $this->format_order_summary( $order );
+		foreach ( $order_ids as $order_id ) {
+			$order = $this->orderGateway->get_order( $order_id );
+			if ( null === $order || ! method_exists( $order, 'get_id' ) ) {
+				continue;
 			}
+
+			$recent[] = $this->format_order_summary( $order );
+		}
 
 		return $recent;
 	}
@@ -361,33 +428,33 @@ class CustomerService implements CustomerServiceInterface {
 	 * @param object $order Order instance.
 	 * @return array
 	 */
-		private function format_order_summary( $order ) {
-			if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
-				return array();
-			}
-
-			$order_id = absint( $order->get_id() );
-			if ( $order_id <= 0 ) {
-				return array();
-			}
-
-			$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
-			$total        = method_exists( $order, 'get_total' ) ? $this->normalize_amount( $order->get_total() ) : 0.0;
-			$status       = method_exists( $order, 'get_status' ) ? sanitize_text_field( $order->get_status() ) : '';
-			$currency     = method_exists( $order, 'get_currency' ) ? sanitize_text_field( $order->get_currency() ) : '';
-
-			return array(
-				'id'              => $order_id,
-				'status'          => $status,
-				'total'           => $total,
-				'total_formatted' => $this->format_currency( $total ),
-				'currency'        => $currency,
-				'date_created'    => $this->format_datetime( $date_created ),
-				'customer_name'   => $this->get_customer_name( $order ),
-				'customer_email'  => $this->get_customer_email( $order ),
-				'items_summary'   => $this->format_items_summary( $order ),
-			);
+	private function format_order_summary( $order ) {
+		if ( ! is_object( $order ) || ! method_exists( $order, 'get_id' ) ) {
+			return array();
 		}
+
+		$order_id = absint( $order->get_id() );
+		if ( $order_id <= 0 ) {
+			return array();
+		}
+
+		$date_created = method_exists( $order, 'get_date_created' ) ? $order->get_date_created() : null;
+		$total        = method_exists( $order, 'get_total' ) ? $this->priceFormatter->normalize_decimal( $order->get_total() ) : 0.0;
+		$status       = method_exists( $order, 'get_status' ) ? sanitize_text_field( $order->get_status() ) : '';
+		$currency     = method_exists( $order, 'get_currency' ) ? sanitize_text_field( $order->get_currency() ) : '';
+
+		return array(
+			'id'              => $order_id,
+			'status'          => $status,
+			'total'           => $total,
+			'total_formatted' => $this->priceFormatter->format_price( $total ),
+			'currency'        => $currency,
+			'date_created'    => $this->format_datetime( $date_created ),
+			'customer_name'   => $this->get_customer_name( $order ),
+			'customer_email'  => $this->get_customer_email( $order ),
+			'items_summary'   => $this->format_items_summary( $order ),
+		);
+	}
 
 	/**
 	 * @param object $order Order instance.
@@ -460,10 +527,9 @@ class CustomerService implements CustomerServiceInterface {
 	 * @param object $order Order instance.
 	 * @param array  $product_totals Product totals accumulator.
 	 * @param array  $category_totals Category totals accumulator.
-	 * @param array  $category_cache Category cache.
 	 * @return void
 	 */
-	private function accumulate_item_totals( $order, array &$product_totals, array &$category_totals, array &$category_cache ) {
+	private function accumulate_item_totals( $order, array &$product_totals, array &$category_totals ) {
 		if ( ! method_exists( $order, 'get_items' ) ) {
 			return;
 		}
@@ -488,18 +554,18 @@ class CustomerService implements CustomerServiceInterface {
 				continue;
 			}
 
-				if ( ! isset( $product_totals[ $product_id ] ) ) {
-					$name = method_exists( $item, 'get_name' ) ? (string) $item->get_name() : '';
-					$product_totals[ $product_id ] = array(
-						'product_id' => $product_id,
-						'name'       => sanitize_text_field( $name ),
-						'quantity'   => 0,
-					);
-				}
+			if ( ! isset( $product_totals[ $product_id ] ) ) {
+				$name = method_exists( $item, 'get_name' ) ? (string) $item->get_name() : '';
+				$product_totals[ $product_id ] = array(
+					'product_id' => $product_id,
+					'name'       => sanitize_text_field( $name ),
+					'quantity'   => 0,
+				);
+			}
 
 			$product_totals[ $product_id ]['quantity'] += $quantity;
 
-			$categories = $this->get_product_categories( $product_id, $category_cache );
+			$categories = $this->categoryGateway->get_product_categories( $product_id );
 			foreach ( $categories as $term_id => $name ) {
 				if ( ! isset( $category_totals[ $term_id ] ) ) {
 					$category_totals[ $term_id ] = array(
@@ -512,50 +578,6 @@ class CustomerService implements CustomerServiceInterface {
 				$category_totals[ $term_id ]['quantity'] += $quantity;
 			}
 		}
-	}
-
-	/**
-	 * @param int   $product_id Product ID.
-	 * @param array $cache Category cache.
-	 * @return array
-	 */
-	private function get_product_categories( $product_id, array &$cache ) {
-		$product_id = absint( $product_id );
-		if ( 0 === $product_id ) {
-			return array();
-		}
-
-		if ( isset( $cache[ $product_id ] ) ) {
-			return $cache[ $product_id ];
-		}
-
-		if ( function_exists( 'wp_cache_get' ) ) {
-			$cached = wp_cache_get( $product_id, self::PRODUCT_CATEGORY_CACHE_GROUP );
-			if ( is_array( $cached ) ) {
-				$cache[ $product_id ] = $cached;
-				return $cached;
-			}
-		}
-
-		$categories = array();
-		if ( function_exists( 'wc_get_product_terms' ) ) {
-			$terms = wc_get_product_terms( $product_id, 'product_cat', array( 'fields' => 'all' ) );
-			if ( is_array( $terms ) ) {
-					foreach ( $terms as $term ) {
-						if ( ! is_object( $term ) || ! isset( $term->term_id, $term->name ) ) {
-							continue;
-						}
-						$categories[ (int) $term->term_id ] = sanitize_text_field( $term->name );
-					}
-				}
-		}
-
-			$cache[ $product_id ] = $categories;
-			if ( function_exists( 'wp_cache_set' ) ) {
-				wp_cache_set( $product_id, $categories, self::PRODUCT_CATEGORY_CACHE_GROUP, 3600 );
-			}
-
-		return $categories;
 	}
 
 	/**
@@ -617,7 +639,7 @@ class CustomerService implements CustomerServiceInterface {
 			return null;
 		}
 
-		$now_ts  = $this->get_now_timestamp();
+		$now_ts  = $this->userGateway->get_current_timestamp();
 		$diff    = max( 0, $now_ts - $last_ts );
 		$seconds = defined( 'DAY_IN_SECONDS' ) ? DAY_IN_SECONDS : 86400;
 
@@ -637,7 +659,7 @@ class CustomerService implements CustomerServiceInterface {
 		$days_since_first = 0;
 
 		if ( $total_orders > 0 && null !== $first_ts ) {
-			$now_ts  = $this->get_now_timestamp();
+			$now_ts  = $this->userGateway->get_current_timestamp();
 			$diff    = max( 0, $now_ts - $first_ts );
 			$seconds = defined( 'DAY_IN_SECONDS' ) ? DAY_IN_SECONDS : 86400;
 			$days_since_first = (int) max( 1, floor( $diff / $seconds ) );
@@ -647,13 +669,13 @@ class CustomerService implements CustomerServiceInterface {
 
 		$orders_per_month = round( $orders_per_month, 2 );
 		$projection_months = 12;
-		$estimated_ltv = $this->normalize_amount( $average_order_value * $orders_per_month * $projection_months );
+		$estimated_ltv = $this->priceFormatter->normalize_decimal( $average_order_value * $orders_per_month * $projection_months );
 
 		return array(
 			'estimated_ltv' => $estimated_ltv,
 			'projection'    => array(
-				'projection_months'     => $projection_months,
-				'orders_per_month'      => $orders_per_month,
+				'projection_months'      => $projection_months,
+				'orders_per_month'       => $orders_per_month,
 				'days_since_first_order' => $days_since_first,
 			),
 		);
@@ -691,9 +713,7 @@ class CustomerService implements CustomerServiceInterface {
 			'at_risk' => 180,
 		);
 
-		if ( function_exists( 'apply_filters' ) ) {
-			$thresholds = apply_filters( 'agentwp_customer_health_thresholds', $thresholds );
-		}
+		$thresholds = $this->configGateway->apply_filters( 'agentwp_customer_health_thresholds', $thresholds );
 
 		$active  = isset( $thresholds['active'] ) ? absint( $thresholds['active'] ) : 60;
 		$at_risk = isset( $thresholds['at_risk'] ) ? absint( $thresholds['at_risk'] ) : 180;
@@ -713,77 +733,14 @@ class CustomerService implements CustomerServiceInterface {
 	}
 
 	/**
-	 * @return array
-	 */
-	private function get_paid_statuses() {
-		$statuses = function_exists( 'wc_get_is_paid_statuses' )
-			? wc_get_is_paid_statuses()
-			: array( 'processing', 'completed', 'on-hold' );
-
-		$statuses = array_filter( array_map( 'sanitize_text_field', (array) $statuses ) );
-		if ( empty( $statuses ) ) {
-			return array( 'processing', 'completed', 'on-hold' );
-		}
-
-		return array_values( array_unique( $statuses ) );
-	}
-
-	/**
-	 * @param mixed $amount Amount input.
-	 * @return float
-	 */
-	private function normalize_amount( $amount ) {
-		if ( function_exists( 'wc_format_decimal' ) ) {
-			return (float) wc_format_decimal( $amount, $this->get_price_decimals() );
-		}
-
-		return (float) $amount;
-	}
-
-	/**
-	 * @return int
-	 */
-	private function get_price_decimals() {
-		if ( function_exists( 'wc_get_price_decimals' ) ) {
-			return (int) wc_get_price_decimals();
-		}
-
-		return 2;
-	}
-
-	/**
-	 * @param float $value Currency amount.
-	 * @return string
-	 */
-	private function format_currency( $value ) {
-		$amount = $this->normalize_amount( $value );
-		if ( function_exists( 'wc_price' ) ) {
-			return wc_price( $amount );
-		}
-
-		return number_format( $amount, $this->get_price_decimals(), '.', '' );
-	}
-
-	/**
 	 * @param mixed $date Date instance.
 	 * @return string
 	 */
-		private function format_datetime( $date ) {
-			if ( ! is_object( $date ) || ! method_exists( $date, 'format' ) ) {
-				return '';
-			}
-
-			return $date->format( 'c' );
+	private function format_datetime( $date ) {
+		if ( ! is_object( $date ) || ! method_exists( $date, 'format' ) ) {
+			return '';
 		}
 
-	/**
-	 * @return int
-	 */
-	private function get_now_timestamp() {
-		if ( function_exists( 'current_datetime' ) ) {
-			return current_datetime()->getTimestamp();
-		}
-
-		return time();
+		return $date->format( 'c' );
 	}
 }

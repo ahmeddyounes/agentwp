@@ -15,6 +15,7 @@ use AgentWP\Contracts\CustomerServiceInterface;
 use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\EmailDraftServiceInterface;
+use AgentWP\Contracts\OptionsInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Contracts\OrderRepositoryInterface;
 use AgentWP\Contracts\OrderSearchServiceInterface;
@@ -22,9 +23,13 @@ use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
 use AgentWP\Contracts\TransientCacheInterface;
+use AgentWP\Contracts\WooCommerceConfigGatewayInterface;
 use AgentWP\Contracts\WooCommerceOrderGatewayInterface;
+use AgentWP\Contracts\WooCommercePriceFormatterInterface;
+use AgentWP\Contracts\WooCommerceProductCategoryGatewayInterface;
 use AgentWP\Contracts\WooCommerceRefundGatewayInterface;
 use AgentWP\Contracts\WooCommerceStockGatewayInterface;
+use AgentWP\Contracts\WooCommerceUserGatewayInterface;
 use AgentWP\Infrastructure\WooCommerceOrderGateway;
 use AgentWP\Infrastructure\WooCommerceRefundGateway;
 use AgentWP\Infrastructure\WooCommerceStockGateway;
@@ -150,7 +155,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 					$c->get( OrderRepositoryInterface::class ),
 					$c->get( TransientCacheInterface::class ),
 					$c->get( CacheInterface::class ),
-					$c->get( OrderFormatter::class )
+					$c->get( OrderFormatter::class ),
+					$c->get( OptionsInterface::class )
 				);
 			}
 		);
@@ -187,7 +193,14 @@ final class ServicesServiceProvider extends ServiceProvider {
 	private function registerCustomerService(): void {
 		$this->container->singleton(
 			CustomerServiceInterface::class,
-			fn() => new CustomerService()
+			fn( $c ) => new CustomerService(
+				$c->get( WooCommerceConfigGatewayInterface::class ),
+				$c->get( WooCommerceUserGatewayInterface::class ),
+				$c->get( WooCommerceOrderGatewayInterface::class ),
+				$c->has( OrderRepositoryInterface::class ) ? $c->get( OrderRepositoryInterface::class ) : null,
+				$c->get( WooCommerceProductCategoryGatewayInterface::class ),
+				$c->get( WooCommercePriceFormatterInterface::class )
+			)
 		);
 	}
 
@@ -231,7 +244,11 @@ final class ServicesServiceProvider extends ServiceProvider {
 	private function registerAnalyticsService(): void {
 		$this->container->singleton(
 			AnalyticsServiceInterface::class,
-			fn() => new AnalyticsService()
+			fn( $c ) => new AnalyticsService(
+				$c->has( OrderRepositoryInterface::class ) ? $c->get( OrderRepositoryInterface::class ) : null,
+				$c->get( WooCommerceOrderGatewayInterface::class ),
+				$c->get( ClockInterface::class )
+			)
 		);
 	}
 

@@ -8,10 +8,54 @@
 namespace AgentWP\Services;
 
 use AgentWP\Contracts\AnalyticsServiceInterface;
+use AgentWP\Contracts\ClockInterface;
+use AgentWP\Contracts\OrderRepositoryInterface;
+use AgentWP\Contracts\WooCommerceOrderGatewayInterface;
+use AgentWP\DTO\DateRange;
+use AgentWP\DTO\OrderQuery;
 use DateTime;
+use DateTimeImmutable;
 use DateTimeZone;
 
 class AnalyticsService implements AnalyticsServiceInterface {
+
+	/**
+	 * Order repository.
+	 *
+	 * @var OrderRepositoryInterface|null
+	 */
+	private ?OrderRepositoryInterface $orderRepository;
+
+	/**
+	 * Order gateway for loading full order objects.
+	 *
+	 * @var WooCommerceOrderGatewayInterface
+	 */
+	private WooCommerceOrderGatewayInterface $orderGateway;
+
+	/**
+	 * Clock service for timezone-aware time operations.
+	 *
+	 * @var ClockInterface
+	 */
+	private ClockInterface $clock;
+
+	/**
+	 * Create a new AnalyticsService.
+	 *
+	 * @param OrderRepositoryInterface|null    $orderRepository Order repository.
+	 * @param WooCommerceOrderGatewayInterface $orderGateway    Order gateway.
+	 * @param ClockInterface                   $clock           Clock service.
+	 */
+	public function __construct(
+		?OrderRepositoryInterface $orderRepository,
+		WooCommerceOrderGatewayInterface $orderGateway,
+		ClockInterface $clock
+	) {
+		$this->orderRepository = $orderRepository;
+		$this->orderGateway    = $orderGateway;
+		$this->clock           = $clock;
+	}
 
 	/**
 	 * Get analytics data for a specific period.
@@ -54,7 +98,7 @@ class AnalyticsService implements AnalyticsServiceInterface {
 					$previous_data['total_refunds'],
 				),
 			),
-			// Categories are harder to aggregate efficiently without complex queries. 
+			// Categories are harder to aggregate efficiently without complex queries.
 			// Sending empty/mock for now to avoid massive performance hit on large stores.
 			'categories' => array(
 				'labels' => array( 'General' ),
@@ -78,7 +122,7 @@ class AnalyticsService implements AnalyticsServiceInterface {
 		if ( strlen( $end ) === 10 ) {
 			$end .= ' 23:59:59';
 		}
-		
+
 		return $this->query_period( $start, $end );
 	}
 
@@ -109,10 +153,10 @@ class AnalyticsService implements AnalyticsServiceInterface {
 	private function generate_date_labels( $days ) {
 		$labels = array();
 		$now    = new DateTime( 'now', new DateTimeZone( 'UTC' ) );
-		
+
 		// Go back $days and step forward
 		$start = clone $now;
-		$start->modify( "-" . ($days - 1) . " days" );
+		$start->modify( '-' . ( $days - 1 ) . ' days' );
 
 		for ( $i = 0; $i < $days; $i++ ) {
 			if ( $days <= 7 ) {
@@ -133,15 +177,24 @@ class AnalyticsService implements AnalyticsServiceInterface {
 	 * @return array
 	 */
 	protected function query_period( $start, $end ) {
-		$args = array(
-			'date_created' => $start . '...' . $end,
-			'limit'        => 500,
-			'type'         => 'shop_order',
-			'status'       => array( 'wc-completed', 'wc-processing', 'wc-on-hold' ),
-			'return'       => 'ids',
+		if ( null === $this->orderRepository ) {
+			return array(
+				'daily'         => array(),
+				'total_sales'   => 0,
+				'order_count'   => 0,
+				'total_refunds' => 0,
+			);
+		}
+
+		// Build an OrderQuery with date range
+		$dateRange = $this->buildDateRange( $start, $end );
+		$query     = new OrderQuery(
+			status: 'wc-completed,wc-processing,wc-on-hold',
+			limit: 500,
+			dateRange: $dateRange
 		);
 
-		$order_ids = wc_get_orders( $args );
+		$order_ids = $this->orderRepository->queryIds( $query );
 
 		if ( empty( $order_ids ) ) {
 			return array(
@@ -153,13 +206,13 @@ class AnalyticsService implements AnalyticsServiceInterface {
 		}
 
 		// Batch load orders to avoid N+1 query.
-		$orders = wc_get_orders(
-			array(
-				'include' => $order_ids,
-				'limit'   => count( $order_ids ),
-				'orderby' => 'none',
-			)
-		);
+		$orders = array();
+		foreach ( $order_ids as $order_id ) {
+			$order = $this->orderGateway->get_order( $order_id );
+			if ( null !== $order ) {
+				$orders[] = $order;
+			}
+		}
 
 		$daily_totals  = array();
 		$total_sales   = 0.0;
@@ -198,6 +251,24 @@ class AnalyticsService implements AnalyticsServiceInterface {
 	}
 
 	/**
+	 * Build a DateRange object from start/end strings.
+	 *
+	 * @param string $start Start date string.
+	 * @param string $end   End date string.
+	 * @return DateRange|null
+	 */
+	private function buildDateRange( string $start, string $end ): ?DateRange {
+		try {
+			$tz      = new DateTimeZone( 'UTC' );
+			$startDt = new DateTimeImmutable( $start, $tz );
+			$endDt   = new DateTimeImmutable( $end, $tz );
+			return new DateRange( $startDt, $endDt );
+		} catch ( \Exception $e ) {
+			return null;
+		}
+	}
+
+	/**
 	 * Map daily totals to the labels array.
 	 *
 	 * @param array $daily_data Key-value date->total.
@@ -209,7 +280,7 @@ class AnalyticsService implements AnalyticsServiceInterface {
 		$now  = new DateTime( 'now', new DateTimeZone( 'UTC' ) );
 
 		$start = clone $now;
-		$start->modify( "-" . ($days - 1) . " days" );
+		$start->modify( '-' . ( $days - 1 ) . ' days' );
 
 		for ( $i = 0; $i < $days; $i++ ) {
 			$date_key = $start->format( 'Y-m-d' );
@@ -297,12 +368,13 @@ class AnalyticsService implements AnalyticsServiceInterface {
 	/**
 	 * Get the timezone to use for date calculations.
 	 *
+	 * Uses the injected clock service which is configured with WordPress timezone.
+	 *
 	 * @return DateTimeZone
 	 */
 	private function get_timezone(): DateTimeZone {
-		if ( function_exists( 'wp_timezone' ) ) {
-			return wp_timezone();
-		}
-		return new DateTimeZone( 'UTC' );
+		// Get current time from clock and extract its timezone
+		$now = $this->clock->now();
+		return $now->getTimezone();
 	}
 }

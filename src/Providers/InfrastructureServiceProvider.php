@@ -24,6 +24,10 @@ use AgentWP\Contracts\SleeperInterface;
 use AgentWP\Contracts\TransientCacheInterface;
 use AgentWP\Contracts\OptionsInterface;
 use AgentWP\Contracts\OpenAIKeyValidatorInterface;
+use AgentWP\Contracts\WooCommerceConfigGatewayInterface;
+use AgentWP\Contracts\WooCommercePriceFormatterInterface;
+use AgentWP\Contracts\WooCommerceProductCategoryGatewayInterface;
+use AgentWP\Contracts\WooCommerceUserGatewayInterface;
 use AgentWP\Plugin\SettingsManager;
 use AgentWP\Security\ApiKeyStorage;
 use AgentWP\Security\Encryption;
@@ -32,7 +36,11 @@ use AgentWP\Infrastructure\PhpSessionHandler;
 use AgentWP\Infrastructure\RealSleeper;
 use AgentWP\Infrastructure\SystemClock;
 use AgentWP\Infrastructure\TransientDraftStorage;
+use AgentWP\Infrastructure\WooCommerceConfigGateway;
 use AgentWP\Infrastructure\WooCommerceOrderRepository;
+use AgentWP\Infrastructure\WooCommercePriceFormatter;
+use AgentWP\Infrastructure\WooCommerceProductCategoryGateway;
+use AgentWP\Infrastructure\WooCommerceUserGateway;
 use AgentWP\Infrastructure\WordPressHttpClient;
 use AgentWP\Infrastructure\WordPressObjectCache;
 use AgentWP\Infrastructure\WordPressTransientCache;
@@ -61,6 +69,7 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->registerSession();
 		$this->registerRetry();
 		$this->registerOrderRepository();
+		$this->registerWooCommerceGateways();
 		$this->registerDemoCredentials();
 		$this->registerAIClientFactory();
 		$this->registerDraftStorage();
@@ -176,6 +185,37 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			OrderRepositoryInterface::class,
 			fn() => new WooCommerceOrderRepository()
+		);
+	}
+
+	/**
+	 * Register WooCommerce-related gateways for DI.
+	 *
+	 * These gateways abstract WooCommerce globals so services can remain testable.
+	 *
+	 * @return void
+	 */
+	private function registerWooCommerceGateways(): void {
+		$this->container->singleton(
+			WooCommerceConfigGatewayInterface::class,
+			fn() => new WooCommerceConfigGateway()
+		);
+
+		$this->container->singleton(
+			WooCommerceUserGatewayInterface::class,
+			fn() => new WooCommerceUserGateway()
+		);
+
+		$this->container->singleton(
+			WooCommerceProductCategoryGatewayInterface::class,
+			fn( $c ) => new WooCommerceProductCategoryGateway(
+				$c->get( CacheInterface::class )
+			)
+		);
+
+		$this->container->singleton(
+			WooCommercePriceFormatterInterface::class,
+			fn() => new WooCommercePriceFormatter()
 		);
 	}
 

@@ -8,6 +8,7 @@
 namespace AgentWP\Services\OrderSearch;
 
 use AgentWP\Contracts\CacheInterface;
+use AgentWP\Contracts\OptionsInterface;
 use AgentWP\Contracts\OrderRepositoryInterface;
 use AgentWP\Contracts\TransientCacheInterface;
 use AgentWP\DTO\OrderDTO;
@@ -34,9 +35,9 @@ final class OrderQueryService {
 	public const CACHE_PREFIX = 'order_search_';
 
 	/**
-	 * Option key for cache version.
+	 * Option key for cache version (without prefix - OptionsInterface adds prefix).
 	 */
-	private const VERSION_OPTION = 'agentwp_order_cache_version';
+	private const VERSION_OPTION = 'order_cache_version';
 
 	/**
 	 * Order repository.
@@ -67,23 +68,33 @@ final class OrderQueryService {
 	private OrderFormatter $formatter;
 
 	/**
+	 * Options storage.
+	 *
+	 * @var OptionsInterface
+	 */
+	private OptionsInterface $options;
+
+	/**
 	 * Create a new OrderQueryService.
 	 *
 	 * @param OrderRepositoryInterface $repository  Order repository.
 	 * @param TransientCacheInterface  $resultCache Transient cache for results.
 	 * @param CacheInterface           $orderCache  Object cache for orders.
 	 * @param OrderFormatter           $formatter   Order formatter.
+	 * @param OptionsInterface         $options     Options storage.
 	 */
 	public function __construct(
 		OrderRepositoryInterface $repository,
 		TransientCacheInterface $resultCache,
 		CacheInterface $orderCache,
-		OrderFormatter $formatter
+		OrderFormatter $formatter,
+		OptionsInterface $options
 	) {
 		$this->repository  = $repository;
 		$this->resultCache = $resultCache;
 		$this->orderCache  = $orderCache;
 		$this->formatter   = $formatter;
+		$this->options     = $options;
 	}
 
 	/**
@@ -215,7 +226,7 @@ final class OrderQueryService {
 		$options = defined( 'JSON_INVALID_UTF8_SUBSTITUTE' )
 			? JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR
 			: 0;
-		$encoded = wp_json_encode( $parts, $options );
+		$encoded = json_encode( $parts, $options );
 
 		if ( false === $encoded ) {
 			$fallback = '';
@@ -236,11 +247,7 @@ final class OrderQueryService {
 	 * @return int
 	 */
 	private function getCacheVersion(): int {
-		if ( ! function_exists( 'get_option' ) ) {
-			return 1;
-		}
-
-		$version = get_option( self::VERSION_OPTION, 1 );
+		$version = $this->options->get( self::VERSION_OPTION, 1 );
 
 		return is_numeric( $version ) ? (int) $version : 1;
 	}
@@ -251,12 +258,8 @@ final class OrderQueryService {
 	 * @return void
 	 */
 	private function incrementCacheVersion(): void {
-		if ( ! function_exists( 'update_option' ) ) {
-			return;
-		}
-
 		$current = $this->getCacheVersion();
-		update_option( self::VERSION_OPTION, $current + 1, false );
+		$this->options->set( self::VERSION_OPTION, $current + 1, false );
 	}
 
 	/**
