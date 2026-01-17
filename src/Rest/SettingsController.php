@@ -11,7 +11,7 @@ use AgentWP\API\RestController;
 use AgentWP\Billing\UsageTracker;
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Plugin\SettingsManager;
-use AgentWP\Security\Encryption;
+use AgentWP\Security\ApiKeyStorage;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -74,16 +74,19 @@ class SettingsController extends RestController {
 	public function get_settings( $request ) {
 		unset( $request );
 
-		$this->maybe_rotate_api_key();
+		$storage = $this->getApiKeyStorage();
+		if ( $storage ) {
+			$storage->rotatePrimary();
+		}
 
 		$settings = $this->read_settings();
-		$last4    = get_option( SettingsManager::OPTION_API_KEY_LAST4, SettingsManager::DEFAULT_API_KEY_LAST4 );
-		$has_key  = ! empty( $last4 ) || ! empty( get_option( SettingsManager::OPTION_API_KEY, SettingsManager::DEFAULT_API_KEY ) );
+		$last4    = $storage ? $storage->getPrimaryLast4() : '';
+		$has_key  = $storage ? $storage->hasPrimaryKey() : false;
 
 		return $this->response_success(
 			array(
 				'settings'       => $settings,
-				'api_key_last4'  => $last4 ? $last4 : '',
+				'api_key_last4'  => $last4,
 				'has_api_key'    => $has_key,
 				'api_key_status' => $has_key ? 'stored' : 'missing',
 			)
@@ -133,13 +136,17 @@ class SettingsController extends RestController {
 			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_REQUEST, $validation->get_error_message(), 400 );
 		}
 
+		$storage = $this->getApiKeyStorage();
+		if ( ! $storage ) {
+			return $this->response_error( AgentWPConfig::ERROR_CODE_ENCRYPTION_FAILED, __( 'API key storage service unavailable.', 'agentwp' ), 500 );
+		}
+
 		$payload = $request->get_json_params();
 		$payload = is_array( $payload ) ? $payload : array();
 		$api_key = isset( $payload['api_key'] ) ? sanitize_text_field( wp_unslash( $payload['api_key'] ) ) : '';
 
 		if ( '' === $api_key ) {
-			delete_option( SettingsManager::OPTION_API_KEY );
-			delete_option( SettingsManager::OPTION_API_KEY_LAST4 );
+			$storage->deletePrimary();
 
 			return $this->response_success(
 				array(
@@ -153,25 +160,20 @@ class SettingsController extends RestController {
 			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_KEY, __( 'API key format looks invalid.', 'agentwp' ), 400 );
 		}
 
-		$validation = $this->validate_openai_api_key( $api_key );
-		if ( is_wp_error( $validation ) ) {
-			return $this->response_error( (string) $validation->get_error_code(), $validation->get_error_message(), 400 );
+		$openai_validation = $this->validate_openai_api_key( $api_key );
+		if ( is_wp_error( $openai_validation ) ) {
+			return $this->response_error( (string) $openai_validation->get_error_code(), $openai_validation->get_error_message(), 400 );
 		}
 
-		$encrypted = $this->encrypt_api_key( $api_key );
-		if ( is_wp_error( $encrypted ) ) {
-			return $this->response_error( (string) $encrypted->get_error_code(), $encrypted->get_error_message(), 500 );
+		$result = $storage->storePrimary( $api_key );
+		if ( is_wp_error( $result ) ) {
+			return $this->response_error( AgentWPConfig::ERROR_CODE_ENCRYPTION_FAILED, $result->get_error_message(), 500 );
 		}
-
-		update_option( SettingsManager::OPTION_API_KEY, $encrypted, false );
-
-		$last4 = substr( $api_key, -4 );
-		update_option( SettingsManager::OPTION_API_KEY_LAST4, $last4, false );
 
 		return $this->response_success(
 			array(
 				'stored' => true,
-				'last4'  => $last4,
+				'last4'  => $storage->extractLast4( $api_key ),
 			)
 		);
 	}
@@ -323,41 +325,13 @@ class SettingsController extends RestController {
 	}
 
 	/**
-	 * Encrypt API key at rest.
+	 * Get the ApiKeyStorage service from the container.
 	 *
-	 * @param string $api_key API key.
-	 * @return string|WP_Error
+	 * @return ApiKeyStorage|null
 	 */
-	private function encrypt_api_key( $api_key ) {
-		$encryption = new Encryption();
-		$encrypted  = $encryption->encrypt( $api_key );
-
-		if ( '' === $encrypted ) {
-			return new WP_Error( AgentWPConfig::ERROR_CODE_ENCRYPTION_FAILED, __( 'Unable to encrypt the API key.', 'agentwp' ) );
-		}
-
-		return $encrypted;
-	}
-
-	/**
-	 * Re-encrypt stored API key with current salts when needed.
-	 *
-	 * @return void
-	 */
-	private function maybe_rotate_api_key() {
-		$stored = get_option( SettingsManager::OPTION_API_KEY, SettingsManager::DEFAULT_API_KEY );
-		if ( '' === $stored ) {
-			return;
-		}
-
-		$encryption = new Encryption();
-		$rotated    = $encryption->rotate( $stored );
-
-		if ( '' === $rotated || $rotated === $stored ) {
-			return;
-		}
-
-		update_option( SettingsManager::OPTION_API_KEY, $rotated, false );
+	private function getApiKeyStorage(): ?ApiKeyStorage {
+		$storage = $this->resolve( ApiKeyStorage::class );
+		return $storage instanceof ApiKeyStorage ? $storage : null;
 	}
 
 	/**

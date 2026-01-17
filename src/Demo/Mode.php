@@ -7,8 +7,9 @@
 
 namespace AgentWP\Demo;
 
+use AgentWP\Plugin;
 use AgentWP\Plugin\SettingsManager;
-use AgentWP\Security\Encryption;
+use AgentWP\Security\ApiKeyStorage;
 
 class Mode {
 	/**
@@ -43,24 +44,12 @@ class Mode {
 			return $env_key;
 		}
 
-		if ( ! function_exists( 'get_option' ) ) {
+		$storage = self::getApiKeyStorage();
+		if ( ! $storage ) {
 			return '';
 		}
 
-		$stored = get_option( SettingsManager::OPTION_DEMO_API_KEY, SettingsManager::DEFAULT_DEMO_API_KEY );
-		$stored = is_string( $stored ) ? $stored : '';
-		if ( '' === $stored ) {
-			return '';
-		}
-
-		$encryption = new Encryption();
-		$decrypted  = $encryption->decrypt( $stored );
-
-		if ( '' !== $decrypted ) {
-			return $decrypted;
-		}
-
-		return $encryption->isEncrypted( $stored ) ? '' : $stored;
+		return $storage->retrieveDemo();
 	}
 
 	/**
@@ -70,7 +59,7 @@ class Mode {
 	 * @return bool
 	 */
 	public static function store_demo_api_key( $api_key ) {
-		if ( '' === $api_key || ! function_exists( 'update_option' ) ) {
+		if ( '' === $api_key ) {
 			return false;
 		}
 
@@ -79,16 +68,13 @@ class Mode {
 			return false;
 		}
 
-		$encryption = new Encryption();
-		$encrypted  = $encryption->encrypt( $api_key );
-		if ( '' === $encrypted ) {
+		$storage = self::getApiKeyStorage();
+		if ( ! $storage ) {
 			return false;
 		}
 
-		update_option( SettingsManager::OPTION_DEMO_API_KEY, $encrypted, false );
-		update_option( SettingsManager::OPTION_DEMO_API_KEY_LAST4, substr( $api_key, -4 ), false );
-
-		return true;
+		$result = $storage->storeDemo( $api_key );
+		return true === $result;
 	}
 
 	/**
@@ -97,11 +83,30 @@ class Mode {
 	 * @return void
 	 */
 	public static function clear_demo_api_key() {
-		if ( ! function_exists( 'delete_option' ) ) {
+		$storage = self::getApiKeyStorage();
+		if ( ! $storage ) {
 			return;
 		}
 
-		delete_option( SettingsManager::OPTION_DEMO_API_KEY );
-		delete_option( SettingsManager::OPTION_DEMO_API_KEY_LAST4 );
+		$storage->deleteDemo();
+	}
+
+	/**
+	 * Get the ApiKeyStorage service from the container.
+	 *
+	 * @return ApiKeyStorage|null
+	 */
+	private static function getApiKeyStorage(): ?ApiKeyStorage {
+		$container = Plugin::container();
+		if ( ! $container || ! $container->has( ApiKeyStorage::class ) ) {
+			return null;
+		}
+
+		try {
+			$storage = $container->get( ApiKeyStorage::class );
+			return $storage instanceof ApiKeyStorage ? $storage : null;
+		} catch ( \Throwable $e ) {
+			return null;
+		}
 	}
 }

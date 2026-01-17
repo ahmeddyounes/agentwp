@@ -8,6 +8,7 @@
 namespace AgentWP\Plugin;
 
 use AgentWP\Contracts\OptionsInterface;
+use AgentWP\Security\ApiKeyStorage;
 
 /**
  * Manages plugin settings and defaults.
@@ -44,12 +45,21 @@ class SettingsManager {
 	private OptionsInterface $options;
 
 	/**
+	 * API key storage service.
+	 *
+	 * @var ApiKeyStorage|null
+	 */
+	private ?ApiKeyStorage $apiKeyStorage = null;
+
+	/**
 	 * Create a new SettingsManager.
 	 *
-	 * @param OptionsInterface $options Options interface.
+	 * @param OptionsInterface    $options       Options interface.
+	 * @param ApiKeyStorage|null  $apiKeyStorage API key storage service.
 	 */
-	public function __construct( OptionsInterface $options ) {
-		$this->options = $options;
+	public function __construct( OptionsInterface $options, ?ApiKeyStorage $apiKeyStorage = null ) {
+		$this->options       = $options;
+		$this->apiKeyStorage = $apiKeyStorage;
 	}
 
 	/**
@@ -102,21 +112,31 @@ class SettingsManager {
 	}
 
 	/**
-	 * Get the API key.
+	 * Get the decrypted API key.
 	 *
 	 * @return string
 	 */
 	public function getApiKey(): string {
+		if ( $this->apiKeyStorage ) {
+			return $this->apiKeyStorage->retrievePrimary();
+		}
+
 		return (string) $this->options->get( self::OPTION_API_KEY, '' );
 	}
 
 	/**
-	 * Set the API key.
+	 * Store the API key (encrypts and manages last4).
 	 *
-	 * @param string $key API key.
+	 * @param string $key Plaintext API key.
 	 * @return bool
 	 */
 	public function setApiKey( string $key ): bool {
+		if ( $this->apiKeyStorage ) {
+			$result = $this->apiKeyStorage->storePrimary( $key );
+			return true === $result;
+		}
+
+		// Fallback to raw storage (unencrypted) when no storage service.
 		$last4 = strlen( $key ) >= 4 ? substr( $key, -4 ) : '';
 
 		$last4Saved = $this->options->set( self::OPTION_API_KEY_LAST4, $last4 );
@@ -126,11 +146,15 @@ class SettingsManager {
 	}
 
 	/**
-	 * Get the demo API key.
+	 * Get the decrypted demo API key.
 	 *
 	 * @return string
 	 */
 	public function getDemoApiKey(): string {
+		if ( $this->apiKeyStorage ) {
+			return $this->apiKeyStorage->retrieveDemo();
+		}
+
 		return (string) $this->options->get( self::OPTION_DEMO_API_KEY, '' );
 	}
 

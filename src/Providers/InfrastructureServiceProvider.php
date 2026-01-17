@@ -19,7 +19,10 @@ use AgentWP\Contracts\RetryPolicyInterface;
 use AgentWP\Contracts\SessionHandlerInterface;
 use AgentWP\Contracts\SleeperInterface;
 use AgentWP\Contracts\TransientCacheInterface;
+use AgentWP\Contracts\OptionsInterface;
 use AgentWP\Plugin\SettingsManager;
+use AgentWP\Security\ApiKeyStorage;
+use AgentWP\Security\Encryption;
 use AgentWP\Infrastructure\PhpSessionHandler;
 use AgentWP\Infrastructure\RealSleeper;
 use AgentWP\Infrastructure\SystemClock;
@@ -52,6 +55,7 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->registerOrderRepository();
 		$this->registerAIClientFactory();
 		$this->registerDraftStorage();
+		$this->registerApiKeyStorage();
 	}
 
 	/**
@@ -189,6 +193,26 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			DraftStorageInterface::class,
 			fn() => new TransientDraftStorage()
+		);
+	}
+
+	/**
+	 * Register API key storage.
+	 *
+	 * @return void
+	 */
+	private function registerApiKeyStorage(): void {
+		$this->container->singleton(
+			Encryption::class,
+			fn() => new Encryption()
+		);
+
+		$this->container->singleton(
+			ApiKeyStorage::class,
+			fn( $c ) => new ApiKeyStorage(
+				$c->get( Encryption::class ),
+				$c->get( OptionsInterface::class )
+			)
 		);
 	}
 }

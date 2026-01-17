@@ -19,6 +19,7 @@ use AgentWP\Plugin\AdminMenuManager;
 use AgentWP\Plugin\AssetManager;
 use AgentWP\Plugin\SettingsManager;
 use AgentWP\Plugin\ThemeManager;
+use AgentWP\Security\ApiKeyStorage;
 
 /**
  * Registers core plugin services.
@@ -75,8 +76,9 @@ final class CoreServiceProvider extends ServiceProvider {
 	private function registerSettings(): void {
 		$this->container->singleton(
 			SettingsManager::class,
-			fn() => new SettingsManager(
-				$this->container->get( OptionsInterface::class )
+			fn( $c ) => new SettingsManager(
+				$c->get( OptionsInterface::class ),
+				$c->has( ApiKeyStorage::class ) ? $c->get( ApiKeyStorage::class ) : null
 			)
 		);
 	}

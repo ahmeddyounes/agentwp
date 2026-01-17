@@ -7,7 +7,9 @@
 
 namespace AgentWP\Demo;
 
+use AgentWP\Plugin;
 use AgentWP\Plugin\SettingsManager;
+use AgentWP\Security\ApiKeyStorage;
 
 class Resetter {
 	/**
@@ -299,7 +301,33 @@ class Resetter {
 		update_option( SettingsManager::OPTION_USAGE_STATS, SettingsManager::getDefaultUsageStats(), false );
 		update_option( SettingsManager::OPTION_BUDGET_LIMIT, SettingsManager::DEFAULT_BUDGET_LIMIT, false );
 		update_option( SettingsManager::OPTION_DRAFT_TTL, SettingsManager::DEFAULT_DRAFT_TTL, false );
-		delete_option( SettingsManager::OPTION_API_KEY );
-		delete_option( SettingsManager::OPTION_API_KEY_LAST4 );
+
+		$storage = self::getApiKeyStorage();
+		if ( $storage ) {
+			$storage->deletePrimary();
+		} else {
+			// Fallback if container not available.
+			delete_option( SettingsManager::OPTION_API_KEY );
+			delete_option( SettingsManager::OPTION_API_KEY_LAST4 );
+		}
+	}
+
+	/**
+	 * Get the ApiKeyStorage service from the container.
+	 *
+	 * @return ApiKeyStorage|null
+	 */
+	private static function getApiKeyStorage(): ?ApiKeyStorage {
+		$container = Plugin::container();
+		if ( ! $container || ! $container->has( ApiKeyStorage::class ) ) {
+			return null;
+		}
+
+		try {
+			$storage = $container->get( ApiKeyStorage::class );
+			return $storage instanceof ApiKeyStorage ? $storage : null;
+		} catch ( \Throwable $e ) {
+			return null;
+		}
 	}
 }
