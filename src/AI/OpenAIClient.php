@@ -9,6 +9,7 @@ namespace AgentWP\AI;
 
 use AgentWP\AI\Functions\FunctionSchema;
 use AgentWP\Billing\UsageTracker;
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\HttpClientInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
 use AgentWP\Contracts\RetryPolicyInterface;
@@ -19,26 +20,39 @@ use AgentWP\Retry\ExponentialBackoffPolicy;
 use AgentWP\Retry\RetryExecutor;
 
 class OpenAIClient implements OpenAIClientInterface {
+	/**
+	 * Default API base URL (legacy constant for backward compatibility).
+	 *
+	 * @deprecated Use AgentWPConfig::OPENAI_API_BASE_URL instead.
+	 */
 	const API_BASE = 'https://api.openai.com/v1';
 
 	/**
 	 * Maximum content length for stream responses (1MB).
 	 * Prevents memory exhaustion from malicious or malfunctioning streams.
+	 *
+	 * @deprecated Use AgentWPConfig::STREAM_MAX_CONTENT_LENGTH instead.
 	 */
 	const MAX_STREAM_CONTENT_LENGTH = 1048576;
 
 	/**
 	 * Maximum number of tool calls in a stream response.
+	 *
+	 * @deprecated Use AgentWPConfig::STREAM_MAX_TOOL_CALLS instead.
 	 */
 	const MAX_STREAM_TOOL_CALLS = 50;
 
 	/**
 	 * Maximum number of raw chunks to store.
+	 *
+	 * @deprecated Use AgentWPConfig::STREAM_MAX_RAW_CHUNKS instead.
 	 */
 	const MAX_STREAM_RAW_CHUNKS = 100;
 
 	/**
 	 * Maximum length for tool call arguments (100KB).
+	 *
+	 * @deprecated Use AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH instead.
 	 */
 	const MAX_TOOL_ARGUMENTS_LENGTH = 102400;
 
@@ -73,16 +87,27 @@ class OpenAIClient implements OpenAIClientInterface {
 		$this->http_client   = $http_client;
 		$this->api_key       = is_string( $api_key ) ? $api_key : '';
 		$this->model         = Model::normalize( $model );
-		// Enforce timeout bounds: minimum 1 second, maximum 300 seconds.
-		$this->timeout       = isset( $options['timeout'] ) ? min( max( 1, (int) $options['timeout'] ), 300 ) : 60;
+
+		// Get timeout bounds from centralized config with filter support.
+		$timeout_min     = (int) AgentWPConfig::get( 'openai.timeout.min', AgentWPConfig::OPENAI_TIMEOUT_MIN );
+		$timeout_max     = (int) AgentWPConfig::get( 'openai.timeout.max', AgentWPConfig::OPENAI_TIMEOUT_MAX );
+		$timeout_default = (int) AgentWPConfig::get( 'openai.timeout.default', AgentWPConfig::OPENAI_TIMEOUT_DEFAULT );
+
+		// Enforce timeout bounds: minimum and maximum from config.
+		$this->timeout       = isset( $options['timeout'] )
+			? min( max( $timeout_min, (int) $options['timeout'] ), $timeout_max )
+			: $timeout_default;
 		$this->stream        = ! empty( $options['stream'] );
 		$this->on_stream     = isset( $options['on_stream'] ) && is_callable( $options['on_stream'] ) ? $options['on_stream'] : null;
 		$this->token_counter = isset( $options['token_counter'] ) && $options['token_counter'] instanceof TokenCounter
 			? $options['token_counter']
 			: new TokenCounter();
-		$this->base_url      = isset( $options['base_url'] ) && is_string( $options['base_url'] )
+
+		// Get base URL from centralized config with filter support.
+		$config_base_url = AgentWPConfig::get( 'openai.api_base_url', AgentWPConfig::OPENAI_API_BASE_URL );
+		$this->base_url  = isset( $options['base_url'] ) && is_string( $options['base_url'] )
 			? rtrim( $options['base_url'], '/' )
-			: self::API_BASE;
+			: rtrim( $config_base_url, '/' );
 		$this->intent_type   = isset( $options['intent_type'] ) ? sanitize_text_field( $options['intent_type'] ) : '';
 
 		// Build retry executor with injected or default dependencies.
@@ -105,18 +130,21 @@ class OpenAIClient implements OpenAIClientInterface {
 	): RetryExecutor {
 		// Use provided policy or create default OpenAI policy.
 		if ( null === $retry_policy ) {
-			// Create policy with max_retries override if provided.
-			if ( null !== $max_retries ) {
-				$retry_policy = new ExponentialBackoffPolicy(
-					maxRetries: $max_retries,
-					baseDelayMs: 1000,
-					maxDelayMs: 30000,
-					jitterFactor: 0.25,
-					retryableStatusCodes: array( 429, 500, 502, 503, 504, 520, 521, 522, 524 )
-				);
-			} else {
-				$retry_policy = ExponentialBackoffPolicy::forOpenAI();
-			}
+			// Get retry configuration from centralized config with filter support.
+			$config_max_retries  = (int) AgentWPConfig::get( 'openai.max_retries', AgentWPConfig::OPENAI_MAX_RETRIES );
+			$config_base_delay   = (int) AgentWPConfig::get( 'openai.base_delay_ms', AgentWPConfig::OPENAI_BASE_DELAY_MS );
+			$config_max_delay    = (int) AgentWPConfig::get( 'openai.max_delay_ms', AgentWPConfig::OPENAI_MAX_DELAY_MS );
+			$config_jitter       = (float) AgentWPConfig::get( 'openai.jitter_factor', AgentWPConfig::OPENAI_JITTER_FACTOR );
+			$config_retry_codes  = AgentWPConfig::get( 'openai.retryable_codes', AgentWPConfig::OPENAI_RETRYABLE_CODES );
+
+			// Create policy with max_retries override if provided, otherwise use config.
+			$retry_policy = new ExponentialBackoffPolicy(
+				maxRetries: $max_retries ?? $config_max_retries,
+				baseDelayMs: $config_base_delay,
+				maxDelayMs: $config_max_delay,
+				jitterFactor: $config_jitter,
+				retryableStatusCodes: is_array( $config_retry_codes ) ? $config_retry_codes : AgentWPConfig::OPENAI_RETRYABLE_CODES
+			);
 		}
 
 		// Use provided sleeper or create real one.
@@ -525,6 +553,11 @@ class OpenAIClient implements OpenAIClientInterface {
 		$raw        = array();
 		$model      = '';
 
+		// Get stream limits from centralized config.
+		$max_content_length = AgentWPConfig::STREAM_MAX_CONTENT_LENGTH;
+		$max_tool_calls     = AgentWPConfig::STREAM_MAX_TOOL_CALLS;
+		$max_raw_chunks     = AgentWPConfig::STREAM_MAX_RAW_CHUNKS;
+
 		// Track limits to prevent memory exhaustion.
 		$content_length    = 0;
 		$content_truncated = false;
@@ -552,7 +585,7 @@ class OpenAIClient implements OpenAIClientInterface {
 			}
 
 			// Limit raw chunks to prevent unbounded memory growth.
-			if ( count( $raw ) < self::MAX_STREAM_RAW_CHUNKS ) {
+			if ( count( $raw ) < $max_raw_chunks ) {
 				$raw[] = $chunk;
 			}
 			if ( is_callable( $this->on_stream ) ) {
@@ -577,11 +610,11 @@ class OpenAIClient implements OpenAIClientInterface {
 				$delta_content = $delta['content'];
 				$delta_length  = strlen( $delta_content );
 
-				if ( $content_length + $delta_length > self::MAX_STREAM_CONTENT_LENGTH ) {
+				if ( $content_length + $delta_length > $max_content_length ) {
 					// Truncate to stay within limit.
-					$remaining         = self::MAX_STREAM_CONTENT_LENGTH - $content_length;
+					$remaining         = $max_content_length - $content_length;
 					$content          .= substr( $delta_content, 0, $remaining );
-					$content_length    = self::MAX_STREAM_CONTENT_LENGTH;
+					$content_length    = $max_content_length;
 					$content_truncated = true;
 				} else {
 					$content        .= $delta_content;
@@ -592,9 +625,9 @@ class OpenAIClient implements OpenAIClientInterface {
 			// Accumulate tool calls with count limit.
 			if ( isset( $delta['tool_calls'] ) && is_array( $delta['tool_calls'] ) && ! $tools_truncated ) {
 				$tool_calls = $this->merge_tool_call_deltas( $tool_calls, $delta['tool_calls'] );
-				if ( count( $tool_calls ) > self::MAX_STREAM_TOOL_CALLS ) {
+				if ( count( $tool_calls ) > $max_tool_calls ) {
 					// Truncate to limit.
-					$tool_calls      = array_slice( $tool_calls, 0, self::MAX_STREAM_TOOL_CALLS, true );
+					$tool_calls      = array_slice( $tool_calls, 0, $max_tool_calls, true );
 					$tools_truncated = true;
 				}
 			}
@@ -610,8 +643,8 @@ class OpenAIClient implements OpenAIClientInterface {
 						),
 					)
 				);
-				if ( count( $tool_calls ) > self::MAX_STREAM_TOOL_CALLS ) {
-					$tool_calls      = array_slice( $tool_calls, 0, self::MAX_STREAM_TOOL_CALLS, true );
+				if ( count( $tool_calls ) > $max_tool_calls ) {
+					$tool_calls      = array_slice( $tool_calls, 0, $max_tool_calls, true );
 					$tools_truncated = true;
 				}
 			}
@@ -634,6 +667,9 @@ class OpenAIClient implements OpenAIClientInterface {
 	 * @return array
 	 */
 	private function merge_tool_call_deltas( array $tool_calls, array $deltas ) {
+		// Get tool arguments length limit from centralized config.
+		$max_tool_arg_length = AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH;
+
 		foreach ( $deltas as $delta ) {
 			$index = isset( $delta['index'] ) ? (int) $delta['index'] : 0;
 
@@ -664,9 +700,9 @@ class OpenAIClient implements OpenAIClientInterface {
 				// Accumulate arguments with length limit to prevent memory exhaustion.
 				if ( isset( $delta['function']['arguments'] ) ) {
 					$current_length = strlen( $tool_calls[ $index ]['function']['arguments'] );
-					if ( $current_length < self::MAX_TOOL_ARGUMENTS_LENGTH ) {
+					if ( $current_length < $max_tool_arg_length ) {
 						$delta_args = $delta['function']['arguments'];
-						$remaining  = self::MAX_TOOL_ARGUMENTS_LENGTH - $current_length;
+						$remaining  = $max_tool_arg_length - $current_length;
 						if ( strlen( $delta_args ) > $remaining ) {
 							$delta_args = substr( $delta_args, 0, $remaining );
 						}

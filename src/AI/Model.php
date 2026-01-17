@@ -7,6 +7,8 @@
 
 namespace AgentWP\AI;
 
+use AgentWP\Config\AgentWPConfig;
+
 class Model {
 	const GPT_4O = 'gpt-4o';
 	const GPT_4O_MINI = 'gpt-4o-mini';
@@ -26,6 +28,8 @@ class Model {
 	/**
 	 * Normalize a model value to a supported identifier.
 	 *
+	 * Falls back to centralized config default model if the provided model is invalid.
+	 *
 	 * @param string $model Model name.
 	 * @return string
 	 */
@@ -36,6 +40,7 @@ class Model {
 			return $model;
 		}
 
-		return self::GPT_4O_MINI;
+		// Use centralized config for default model with filter support.
+		return AgentWPConfig::get( 'openai.default_model', AgentWPConfig::OPENAI_DEFAULT_MODEL );
 	}
 }

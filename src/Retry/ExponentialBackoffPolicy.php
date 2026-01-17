@@ -7,6 +7,7 @@
 
 namespace AgentWP\Retry;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\RetryPolicyInterface;
 use AgentWP\DTO\HttpResponse;
 
@@ -189,15 +190,24 @@ final class ExponentialBackoffPolicy implements RetryPolicyInterface {
 	/**
 	 * Create a policy for OpenAI API calls.
 	 *
+	 * Uses centralized configuration from AgentWPConfig with filter support.
+	 *
 	 * @return self
 	 */
 	public static function forOpenAI(): self {
+		// Get retry configuration from centralized config with filter support.
+		$max_retries  = (int) AgentWPConfig::get( 'openai.max_retries', AgentWPConfig::OPENAI_MAX_RETRIES );
+		$base_delay   = (int) AgentWPConfig::get( 'openai.base_delay_ms', AgentWPConfig::OPENAI_BASE_DELAY_MS );
+		$max_delay    = (int) AgentWPConfig::get( 'openai.max_delay_ms', AgentWPConfig::OPENAI_MAX_DELAY_MS );
+		$jitter       = (float) AgentWPConfig::get( 'openai.jitter_factor', AgentWPConfig::OPENAI_JITTER_FACTOR );
+		$retry_codes  = AgentWPConfig::get( 'openai.retryable_codes', AgentWPConfig::OPENAI_RETRYABLE_CODES );
+
 		return new self(
-			maxRetries: 3,
-			baseDelayMs: 1000,
-			maxDelayMs: 30000,
-			jitterFactor: 0.25,
-			retryableStatusCodes: array( 429, 500, 502, 503, 504, 520, 521, 522, 524 )
+			maxRetries: $max_retries,
+			baseDelayMs: $base_delay,
+			maxDelayMs: $max_delay,
+			jitterFactor: $jitter,
+			retryableStatusCodes: is_array( $retry_codes ) ? $retry_codes : AgentWPConfig::OPENAI_RETRYABLE_CODES
 		);
 	}
 

@@ -10,6 +10,7 @@
 
 namespace AgentWP\AI;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\HttpClientInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
@@ -90,7 +91,10 @@ class AIClientFactory implements AIClientFactoryInterface {
 	 * @return OpenAIClientInterface
 	 */
 	public function create( string $intent, array $options = array() ): OpenAIClientInterface {
-		$model = isset( $options['model'] ) ? $options['model'] : $this->default_model;
+		// Get model from options, settings, or centralized config (in that order).
+		$model = isset( $options['model'] )
+			? $options['model']
+			: ( $this->default_model ?: AgentWPConfig::get( 'openai.default_model', AgentWPConfig::OPENAI_DEFAULT_MODEL ) );
 
 		$client_options = array_merge(
 			array(

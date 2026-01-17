@@ -7,6 +7,7 @@
 
 namespace AgentWP\Plugin;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\OptionsInterface;
 use AgentWP\Security\ApiKeyStorage;
 
@@ -312,11 +313,13 @@ class SettingsManager {
 	/**
 	 * Get default settings.
 	 *
+	 * Uses centralized configuration from AgentWPConfig for default model.
+	 *
 	 * @return array
 	 */
 	public static function getDefaults(): array {
 		return array(
-			'model'             => 'gpt-4o-mini',
+			'model'             => AgentWPConfig::OPENAI_DEFAULT_MODEL,
 			'budget_limit'      => 0,
 			'draft_ttl_minutes' => 10,
 			'hotkey'            => 'Cmd+K / Ctrl+K',

@@ -101,6 +101,21 @@ final class AgentWPConfig {
 	public const API_MAX_DELAY       = 60;
 
 	/**
+	 * OpenAI API configuration.
+	 */
+	public const OPENAI_API_BASE_URL       = 'https://api.openai.com/v1';
+	public const OPENAI_DEFAULT_MODEL      = 'gpt-4o-mini';
+	public const OPENAI_TIMEOUT_DEFAULT    = 60;
+	public const OPENAI_TIMEOUT_MIN        = 1;
+	public const OPENAI_TIMEOUT_MAX        = 300;
+	public const OPENAI_VALIDATION_TIMEOUT = 3;
+	public const OPENAI_MAX_RETRIES        = 3;
+	public const OPENAI_BASE_DELAY_MS      = 1000;
+	public const OPENAI_MAX_DELAY_MS       = 30000;
+	public const OPENAI_JITTER_FACTOR      = 0.25;
+	public const OPENAI_RETRYABLE_CODES    = array( 429, 500, 502, 503, 504, 520, 521, 522, 524 );
+
+	/**
 	 * Stream response limits.
 	 */
 	public const STREAM_MAX_CONTENT_LENGTH    = 1048576; // 1MB
@@ -190,6 +205,18 @@ final class AgentWPConfig {
 			'api.initial_delay'              => self::API_INITIAL_DELAY,
 			'api.max_delay'                  => self::API_MAX_DELAY,
 			'order_status.max_bulk'          => self::ORDER_STATUS_MAX_BULK,
+			// OpenAI API configuration.
+			'openai.api_base_url'            => self::OPENAI_API_BASE_URL,
+			'openai.default_model'           => self::OPENAI_DEFAULT_MODEL,
+			'openai.timeout.default'         => self::OPENAI_TIMEOUT_DEFAULT,
+			'openai.timeout.min'             => self::OPENAI_TIMEOUT_MIN,
+			'openai.timeout.max'             => self::OPENAI_TIMEOUT_MAX,
+			'openai.validation_timeout'      => self::OPENAI_VALIDATION_TIMEOUT,
+			'openai.max_retries'             => self::OPENAI_MAX_RETRIES,
+			'openai.base_delay_ms'           => self::OPENAI_BASE_DELAY_MS,
+			'openai.max_delay_ms'            => self::OPENAI_MAX_DELAY_MS,
+			'openai.jitter_factor'           => self::OPENAI_JITTER_FACTOR,
+			'openai.retryable_codes'         => self::OPENAI_RETRYABLE_CODES,
 			// Intent classification weights.
 			'intent.weight.order_search'     => self::INTENT_WEIGHT_ORDER_SEARCH,
 			'intent.weight.order_refund'     => self::INTENT_WEIGHT_ORDER_REFUND,

@@ -8,6 +8,7 @@
 namespace AgentWP\Providers;
 
 use AgentWP\AI\AIClientFactory;
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Container\ServiceProvider;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Demo\DemoCredentials;
@@ -193,12 +194,19 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 	private function registerAIClientFactory(): void {
 		$this->container->singleton(
 			AIClientFactory::class,
-			fn( $c ) => new AIClientFactory(
-				$c->get( HttpClientInterface::class ),
-				$c->get( SettingsManager::class ),
-				\AgentWP\AI\Model::GPT_4O_MINI,
-				$c->get( DemoCredentials::class )
-			)
+			function ( $c ) {
+				$settings = $c->get( SettingsManager::class );
+				// Get model from settings, or fall back to centralized config.
+				$default_model = $settings->get( 'model' )
+					?: AgentWPConfig::get( 'openai.default_model', AgentWPConfig::OPENAI_DEFAULT_MODEL );
+
+				return new AIClientFactory(
+					$c->get( HttpClientInterface::class ),
+					$settings,
+					$default_model,
+					$c->get( DemoCredentials::class )
+				);
+			}
 		);
 		$this->container->singleton(
 			AIClientFactoryInterface::class,

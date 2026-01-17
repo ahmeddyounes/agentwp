@@ -19,11 +19,15 @@ final class OpenAIKeyValidator implements OpenAIKeyValidatorInterface {
 
 	/**
 	 * OpenAI models endpoint.
+	 *
+	 * @deprecated Use AgentWPConfig::OPENAI_API_BASE_URL . '/models' instead.
 	 */
 	private const OPENAI_MODELS_URL = 'https://api.openai.com/v1/models';
 
 	/**
 	 * Validation timeout in seconds.
+	 *
+	 * @deprecated Use AgentWPConfig::OPENAI_VALIDATION_TIMEOUT instead.
 	 */
 	private const VALIDATION_TIMEOUT = 3;
 
@@ -47,10 +51,14 @@ final class OpenAIKeyValidator implements OpenAIKeyValidatorInterface {
 	 * {@inheritDoc}
 	 */
 	public function validate( string $api_key ): bool|WP_Error {
+		// Get base URL and timeout from centralized config with filter support.
+		$base_url = AgentWPConfig::get( 'openai.api_base_url', AgentWPConfig::OPENAI_API_BASE_URL );
+		$timeout  = (int) AgentWPConfig::get( 'openai.validation_timeout', AgentWPConfig::OPENAI_VALIDATION_TIMEOUT );
+
 		$response = $this->httpClient->get(
-			self::OPENAI_MODELS_URL,
+			rtrim( $base_url, '/' ) . '/models',
 			array(
-				'timeout'     => self::VALIDATION_TIMEOUT,
+				'timeout'     => $timeout,
 				'redirection' => 0,
 				'sslverify'   => true,
 				'headers'     => array(
