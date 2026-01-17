@@ -132,6 +132,139 @@ The following ADRs document key architectural decisions:
 
 For the improvement roadmap, see [ARCHITECTURE-IMPROVEMENT-PLAN.md](ARCHITECTURE-IMPROVEMENT-PLAN.md).
 
+## 1.1) Service Layer Architecture
+
+The service layer follows a clean architecture pattern with clear separation of concerns:
+
+```mermaid
+flowchart TB
+    subgraph Controllers["REST Controllers"]
+        RC[RestController]
+        IC[IntentController]
+    end
+
+    subgraph Services["Application Services"]
+        ORS[OrderRefundService]
+        OSS[OrderStatusService]
+        PSS[ProductStockService]
+        EDS[EmailDraftService]
+    end
+
+    subgraph Policy["Policy Layer"]
+        WCP[WooCommercePolicy]
+    end
+
+    subgraph Draft["Draft Management"]
+        DM[DraftManager]
+        DS[DraftStorageInterface]
+    end
+
+    subgraph Gateways["Infrastructure Gateways"]
+        RFG[WooCommerceRefundGateway]
+        OGW[WooCommerceOrderGateway]
+        SGW[WooCommerceStockGateway]
+    end
+
+    subgraph External["External Systems"]
+        WC[(WooCommerce)]
+        WP[(WordPress)]
+    end
+
+    RC --> ORS & OSS & PSS & EDS
+    IC --> ORS & OSS & PSS & EDS
+    ORS & OSS & PSS & EDS --> WCP
+    ORS & OSS & PSS & EDS --> DM
+    DM --> DS
+    ORS --> RFG
+    OSS --> OGW
+    PSS --> SGW
+    RFG & OGW & SGW --> WC
+    WCP --> WP
+```
+
+### Policy Layer
+
+The policy layer (`src/Security/Policy/`) centralizes all capability checks, keeping domain services free of direct WordPress function calls:
+
+| Interface | Implementation | Purpose |
+|-----------|----------------|---------|
+| `PolicyInterface` | `WooCommercePolicy` | Abstracts `current_user_can()` calls |
+
+**Available permission checks:**
+- `canManageOrders()` — Manage WooCommerce orders
+- `canManageProducts()` — Manage WooCommerce products
+- `canRefundOrders()` — Issue refunds
+- `canUpdateOrderStatus()` — Update order statuses
+- `canManageStock()` — Manage product stock
+- `canDraftEmails()` — Draft customer emails
+
+Services inject `PolicyInterface` and delegate capability checks:
+
+```php
+public function prepare_refund( int $order_id, ... ): ServiceResult {
+    if ( ! $this->policy->canRefundOrders() ) {
+        return ServiceResult::permissionDenied();
+    }
+    // ... proceed with operation
+}
+```
+
+### ServiceResult Standard
+
+All application services return `ServiceResult` (`src/DTO/ServiceResult.php`), an immutable value object providing uniform outcomes:
+
+```php
+// Success with payload
+ServiceResult::success( 'Refund processed.', array( 'refund_id' => 123 ) );
+
+// Typed failure constructors
+ServiceResult::permissionDenied();                    // 403
+ServiceResult::notFound( 'Order', $id );             // 404
+ServiceResult::invalidInput( 'Invalid amount.' );   // 400
+ServiceResult::invalidState( 'Already refunded.' ); // 409
+ServiceResult::draftExpired();                       // 410
+ServiceResult::operationFailed( 'Gateway error.' ); // 500
+```
+
+**Standard result codes:**
+| Code | Constant | HTTP Status |
+|------|----------|-------------|
+| `success` | `CODE_SUCCESS` | 200 |
+| `permission_denied` | `CODE_PERMISSION_DENIED` | 403 |
+| `not_found` | `CODE_NOT_FOUND` | 404 |
+| `invalid_input` | `CODE_INVALID_INPUT` | 400 |
+| `invalid_state` | `CODE_INVALID_STATE` | 409 |
+| `draft_expired` | `CODE_DRAFT_EXPIRED` | 410 |
+| `operation_failed` | `CODE_OPERATION_FAILED` | 500 |
+
+Controllers map `ServiceResult` to REST responses:
+
+```php
+$result = $this->service->prepare_refund( $order_id, $amount );
+
+if ( $result->isFailure() ) {
+    return new WP_REST_Response( $result->toArray(), $result->httpStatus );
+}
+
+return new WP_REST_Response( array( 'success' => true, 'data' => $result->data ), 200 );
+```
+
+### WooCommerce Gateway Abstractions
+
+Services do not call WooCommerce functions directly. Instead, gateway interfaces (`src/Contracts/`) abstract all WooCommerce operations:
+
+| Interface | Implementation | Wraps |
+|-----------|----------------|-------|
+| `WooCommerceRefundGatewayInterface` | `WooCommerceRefundGateway` | `wc_create_refund()`, `wc_get_order()` |
+| `WooCommerceOrderGatewayInterface` | `WooCommerceOrderGateway` | Order status updates |
+| `WooCommerceStockGatewayInterface` | `WooCommerceStockGateway` | Stock level updates |
+| `WooCommerceUserGatewayInterface` | `WooCommerceUserGateway` | Customer data access |
+
+This abstraction enables:
+- **Unit testing** with fakes/mocks (no WooCommerce runtime required)
+- **Consistent error handling** across all WooCommerce operations
+- **Clear boundaries** between domain logic and infrastructure
+
 ---
 
 AgentWP is a WordPress plugin that provides a React-powered admin UI (Command Deck) and a PHP backend that integrates with WooCommerce and the OpenAI API. The plugin exposes REST endpoints under `/wp-json/agentwp/v1` and uses standard WooCommerce tables plus `wp_options` for settings and encrypted BYOK storage.
@@ -519,45 +652,107 @@ sequenceDiagram
   participant User
   participant CommandDeck
   participant REST as REST API
-  participant DraftStore as Transient Store
-  participant Woo as WooCommerce
+  participant DraftManager as DraftManager
+  participant DraftStorage as TransientDraftStorage
+  participant Service as Application Service
+  participant Gateway as WooCommerce Gateway
 
   User->>CommandDeck: "Refund order 1042"
   CommandDeck->>REST: POST /intent {input}
-  REST->>Woo: Fetch order + payment info
-  REST->>DraftStore: Save draft (10 min TTL)
-  REST->>CommandDeck: Draft preview + draft_id
+  REST->>Service: prepare_refund(order_id, amount, ...)
+  Service->>Gateway: get_order(order_id)
+  Gateway-->>Service: WC_Order
+  Service->>DraftManager: create('refund', payload, preview)
+  DraftManager->>DraftStorage: store(type, id, data, ttl)
+  DraftManager-->>Service: ServiceResult with draft_id
+  Service-->>REST: ServiceResult
+  REST-->>CommandDeck: Draft preview + draft_id
   User->>CommandDeck: Confirm
   CommandDeck->>REST: POST /drafts/{draft_id}/confirm
-  REST->>Woo: wc_create_refund()
-  REST->>DraftStore: Delete draft
-  REST->>CommandDeck: Success response
+  REST->>Service: confirm_refund(draft_id)
+  Service->>DraftManager: claim('refund', draft_id)
+  DraftManager->>DraftStorage: claim (get + delete atomically)
+  DraftManager-->>Service: ServiceResult with payload
+  Service->>Gateway: create_refund(args)
+  Gateway-->>Service: WC_Order_Refund
+  Service-->>REST: ServiceResult
+  REST-->>CommandDeck: Success response
 ```
 
 ```mermaid
 flowchart LR
-  Intent[Intent received] --> Draft[Create draft]
-  Draft --> Store[Store transient (TTL)]
+  Intent[Intent received] --> Prepare[Service.prepare_*]
+  Prepare --> Create[DraftManager.create]
+  Create --> Store[TransientDraftStorage.store]
   Store --> Preview[Return draft_id + preview]
   Preview --> Decision{User decision}
-  Decision -->|Confirm| Execute[Execute action]
-  Decision -->|Cancel| Cancel[Discard draft]
-  Execute --> Result[Return result]
+  Decision -->|Confirm| Confirm[Service.confirm_*]
+  Confirm --> Claim[DraftManager.claim]
+  Claim --> Execute[Gateway.execute]
+  Decision -->|Cancel| Cancel[DraftManager.cancel]
+  Execute --> Result[Return ServiceResult]
   Cancel --> Result
+```
+
+### Unified Draft Lifecycle
+
+All draft-based flows use `DraftManager` (`src/Services/DraftManager.php`) for consistent:
+
+- **ID generation**: Type-prefixed, 12-character random IDs (e.g., `refund_a1b2c3d4e5f6`)
+- **Payload shape**: Standardized `DraftPayload` DTO with `id`, `type`, `payload`, `preview`, `created_at`, `expires_at`
+- **TTL handling**: Configurable via `SettingsManager.getDraftTtl()` (default 10 minutes)
+- **Claim semantics**: Atomic get-and-delete prevents double-execution
+- **Error handling**: Returns `ServiceResult` for uniform outcome handling
+
+**Supported draft types:**
+| Type | Service | Description |
+|------|---------|-------------|
+| `refund` | `OrderRefundService` | Process order refunds |
+| `status` | `OrderStatusService` | Update order status |
+| `stock` | `ProductStockService` | Adjust product stock levels |
+
+### DraftPayload Structure
+
+The `DraftPayload` DTO (`src/DTO/DraftPayload.php`) provides a consistent payload shape:
+
+```php
+final class DraftPayload {
+    public readonly string $id;        // Unique draft identifier
+    public readonly string $type;      // Draft type (refund, status, stock)
+    public readonly array $payload;    // Operation-specific data
+    public readonly array $preview;    // Human-readable preview for UI
+    public readonly int $createdAt;    // Unix timestamp
+    public readonly int $expiresAt;    // Unix timestamp
+
+    public function isExpired( ?int $now = null ): bool;
+    public function getRemainingSeconds( ?int $now = null ): int;
+}
 ```
 
 ### Draft Payload Example
 ```json
 {
-  "id": "draft_123",
+  "id": "refund_a1b2c3d4e5f6",
   "type": "refund",
-  "summary": "Refund $25.00 to order #1042",
   "payload": {
     "order_id": 1042,
-    "refund_amount": 25,
+    "amount": 25.00,
     "reason": "Late shipment",
-    "restock_items": true
-  }
+    "restock_items": true,
+    "currency": "USD",
+    "customer_name": "John Doe"
+  },
+  "preview": {
+    "summary": "Refund 25.00 USD for Order #1042 (restock items)",
+    "order_id": 1042,
+    "amount": 25.00,
+    "currency": "USD",
+    "reason": "Late shipment",
+    "restock_items": true,
+    "customer_name": "John Doe"
+  },
+  "created_at": 1700000000,
+  "expires_at": 1700000600
 }
 ```
 

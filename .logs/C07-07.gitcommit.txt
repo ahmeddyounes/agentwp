@@ -1,0 +1,17 @@
+[main 76f89e6] C07-07: implement
+ 19 files changed, 1011 insertions(+), 291 deletions(-)
+ create mode 100644 .logs/C07-06.gitcommit.txt
+ create mode 100644 .logs/C07-07.claude.impl.last.md
+ create mode 100644 .logs/C07-07.claude.impl.raw.txt
+ create mode 100644 .plans/C07-07.md
+ create mode 100644 .t2/handoff/C07-07.md
+ create mode 100644 src/Contracts/WooCommerceConfigGatewayInterface.php
+ create mode 100644 src/Contracts/WooCommercePriceFormatterInterface.php
+ create mode 100644 src/Contracts/WooCommerceProductCategoryGatewayInterface.php
+ create mode 100644 src/Contracts/WooCommerceUserGatewayInterface.php
+ create mode 100644 src/Infrastructure/WooCommerceConfigGateway.php
+ create mode 100644 src/Infrastructure/WooCommercePriceFormatter.php
+ create mode 100644 src/Infrastructure/WooCommerceProductCategoryGateway.php
+ create mode 100644 src/Infrastructure/WooCommerceUserGateway.php
+
+→ No staged files match any configured task.

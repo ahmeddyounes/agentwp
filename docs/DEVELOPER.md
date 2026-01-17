@@ -46,6 +46,143 @@ Request flow:
 3. A handler returns a `Response` object.
 4. REST response is normalized into the standard envelope.
 
+### Service layer conventions
+
+Application services in `src/Services/` follow strict conventions for testability and consistency:
+
+#### ServiceResult pattern
+
+All services return `ServiceResult` (`src/DTO/ServiceResult.php`) instead of throwing exceptions or returning mixed types:
+
+```php
+use AgentWP\DTO\ServiceResult;
+
+class MyService implements MyServiceInterface {
+    public function doSomething( int $id ): ServiceResult {
+        if ( ! $this->policy->canDoSomething() ) {
+            return ServiceResult::permissionDenied();
+        }
+
+        $entity = $this->gateway->find( $id );
+        if ( ! $entity ) {
+            return ServiceResult::notFound( 'Entity', $id );
+        }
+
+        // Perform operation...
+
+        return ServiceResult::success( 'Operation completed.', array( 'entity_id' => $id ) );
+    }
+}
+```
+
+**Available factory methods:**
+| Method | Use case | HTTP Status |
+|--------|----------|-------------|
+| `success($message, $data)` | Operation succeeded | 200 |
+| `permissionDenied($message)` | User lacks permission | 403 |
+| `notFound($resource, $id)` | Resource doesn't exist | 404 |
+| `invalidInput($message, $errors)` | Validation failed | 400 |
+| `invalidState($message)` | Operation not allowed in current state | 409 |
+| `draftExpired($message)` | Draft no longer valid | 410 |
+| `operationFailed($message, $context)` | Infrastructure/gateway error | 500 |
+
+#### Policy layer
+
+Services must not call `current_user_can()` directly. Instead, inject `PolicyInterface`:
+
+```php
+use AgentWP\Contracts\PolicyInterface;
+
+class MyService {
+    public function __construct(
+        private PolicyInterface $policy,
+        // ... other dependencies
+    ) {}
+
+    public function doSomething(): ServiceResult {
+        if ( ! $this->policy->canManageOrders() ) {
+            return ServiceResult::permissionDenied();
+        }
+        // ...
+    }
+}
+```
+
+#### Gateway abstractions
+
+Services must not call WooCommerce or WordPress functions directly. Use gateway interfaces:
+
+```php
+// DO NOT do this:
+$order = wc_get_order( $order_id );  // Direct WooCommerce call
+
+// DO this:
+$order = $this->orderGateway->get_order( $order_id );  // Via gateway interface
+```
+
+**Available gateways:**
+| Interface | Purpose |
+|-----------|---------|
+| `WooCommerceRefundGatewayInterface` | Refund creation, order retrieval for refunds |
+| `WooCommerceOrderGatewayInterface` | Order status updates |
+| `WooCommerceStockGatewayInterface` | Product stock operations |
+| `WooCommerceUserGatewayInterface` | Customer data access |
+
+#### Draft-based operations
+
+Services performing destructive actions must use `DraftManagerInterface` for the draft-confirm pattern:
+
+```php
+use AgentWP\Contracts\DraftManagerInterface;
+
+class MyService {
+    private const DRAFT_TYPE = 'my_operation';
+
+    public function __construct(
+        private DraftManagerInterface $draftManager,
+        // ...
+    ) {}
+
+    public function prepare( int $id ): ServiceResult {
+        $payload = array( 'entity_id' => $id );
+        $preview = array( 'summary' => "Perform operation on #{$id}" );
+
+        return $this->draftManager->create( self::DRAFT_TYPE, $payload, $preview );
+    }
+
+    public function confirm( string $draft_id ): ServiceResult {
+        $claimResult = $this->draftManager->claim( self::DRAFT_TYPE, $draft_id );
+        if ( $claimResult->isFailure() ) {
+            return ServiceResult::draftExpired();
+        }
+
+        $payload = $claimResult->get( 'payload' );
+        // Execute the actual operation...
+
+        return ServiceResult::success( 'Operation completed.' );
+    }
+}
+```
+
+#### Testing services
+
+Services are unit-testable with fakes/mocks because they depend on interfaces, not WordPress globals:
+
+```php
+class MyServiceTest extends TestCase {
+    public function test_permission_denied_when_user_lacks_capability(): void {
+        $policy = $this->createMock( PolicyInterface::class );
+        $policy->method( 'canManageOrders' )->willReturn( false );
+
+        $service = new MyService( $policy, /* ... */ );
+        $result = $service->doSomething( 123 );
+
+        $this->assertTrue( $result->isFailure() );
+        $this->assertSame( 'permission_denied', $result->code );
+    }
+}
+```
+
 ### Order search pipeline
 Order search uses a modular pipeline architecture (`src/Services/OrderSearch/*`):
 
