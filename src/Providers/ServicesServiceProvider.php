@@ -18,6 +18,7 @@ use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Contracts\OrderRepositoryInterface;
 use AgentWP\Contracts\OrderSearchServiceInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
+use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
 use AgentWP\Contracts\TransientCacheInterface;
 use AgentWP\Services\AnalyticsService;
@@ -151,7 +152,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			ProductStockServiceInterface::class,
 			fn( $c ) => new ProductStockService(
-				$c->get( DraftStorageInterface::class )
+				$c->get( DraftStorageInterface::class ),
+				$c->get( PolicyInterface::class )
 			)
 		);
 	}
@@ -165,7 +167,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			OrderStatusServiceInterface::class,
 			fn( $c ) => new OrderStatusService(
-				$c->get( DraftStorageInterface::class )
+				$c->get( DraftStorageInterface::class ),
+				$c->get( PolicyInterface::class )
 			)
 		);
 	}
@@ -191,7 +194,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			OrderRefundServiceInterface::class,
 			fn( $c ) => new OrderRefundService(
-				$c->get( DraftStorageInterface::class )
+				$c->get( DraftStorageInterface::class ),
+				$c->get( PolicyInterface::class )
 			)
 		);
 	}
@@ -205,6 +209,7 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			EmailDraftServiceInterface::class,
 			fn( $c ) => new EmailDraftService(
+				$c->get( PolicyInterface::class ),
 				$c->has( OrderRepositoryInterface::class ) ? $c->get( OrderRepositoryInterface::class ) : null
 			)
 		);

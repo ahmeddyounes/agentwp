@@ -8,20 +8,24 @@
 namespace AgentWP\Services;
 
 use AgentWP\Contracts\DraftStorageInterface;
+use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
 
 class ProductStockService implements ProductStockServiceInterface {
 	private const DRAFT_TYPE = 'stock';
 
 	private DraftStorageInterface $draftStorage;
+	private PolicyInterface $policy;
 
 	/**
 	 * Constructor.
 	 *
 	 * @param DraftStorageInterface $draftStorage Draft storage implementation.
+	 * @param PolicyInterface       $policy       Policy for capability checks.
 	 */
-	public function __construct( DraftStorageInterface $draftStorage ) {
+	public function __construct( DraftStorageInterface $draftStorage, PolicyInterface $policy ) {
 		$this->draftStorage = $draftStorage;
+		$this->policy       = $policy;
 	}
 
 	/**
@@ -70,7 +74,7 @@ class ProductStockService implements ProductStockServiceInterface {
 	 * Prepare stock update.
 	 */
 	public function prepare_update( int $product_id, int $quantity, string $operation = 'set' ): array {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+		if ( ! $this->policy->canManageStock() ) {
 			return array( 'error' => 'Permission denied.' );
 		}
 
@@ -123,7 +127,7 @@ class ProductStockService implements ProductStockServiceInterface {
 	 * Confirm update.
 	 */
 	public function confirm_update( string $draft_id ): array {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+		if ( ! $this->policy->canManageStock() ) {
 			return array( 'error' => 'Permission denied.' );
 		}
 

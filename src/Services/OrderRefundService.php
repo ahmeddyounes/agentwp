@@ -9,17 +9,21 @@ namespace AgentWP\Services;
 
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
+use AgentWP\Contracts\PolicyInterface;
 
 class OrderRefundService implements OrderRefundServiceInterface {
 	private const DRAFT_TYPE = 'refund';
 
 	private DraftStorageInterface $draftStorage;
+	private PolicyInterface $policy;
 
 	/**
 	 * @param DraftStorageInterface $draftStorage Draft storage implementation.
+	 * @param PolicyInterface       $policy       Policy for capability checks.
 	 */
-	public function __construct( DraftStorageInterface $draftStorage ) {
+	public function __construct( DraftStorageInterface $draftStorage, PolicyInterface $policy ) {
 		$this->draftStorage = $draftStorage;
+		$this->policy       = $policy;
 	}
 
 	/**
@@ -32,7 +36,7 @@ class OrderRefundService implements OrderRefundServiceInterface {
 	 * @return array Result with draft_id or error.
 	 */
 	public function prepare_refund( int $order_id, ?float $amount = null, string $reason = '', bool $restock_items = true ): array {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+		if ( ! $this->policy->canRefundOrders() ) {
 			return array(
 				'success' => false,
 				'message' => 'Permission denied.',
@@ -106,7 +110,7 @@ class OrderRefundService implements OrderRefundServiceInterface {
 	 * @return array Result.
 	 */
 	public function confirm_refund( string $draft_id ): array {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+		if ( ! $this->policy->canRefundOrders() ) {
 			return array(
 				'success' => false,
 				'message' => 'Permission denied.',

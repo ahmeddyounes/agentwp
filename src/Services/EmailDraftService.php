@@ -9,6 +9,7 @@ namespace AgentWP\Services;
 
 use AgentWP\Contracts\EmailDraftServiceInterface;
 use AgentWP\Contracts\OrderRepositoryInterface;
+use AgentWP\Contracts\PolicyInterface;
 
 /**
  * Service for email draft operations.
@@ -21,11 +22,18 @@ class EmailDraftService implements EmailDraftServiceInterface {
 	private ?OrderRepositoryInterface $repository;
 
 	/**
+	 * @var PolicyInterface
+	 */
+	private PolicyInterface $policy;
+
+	/**
 	 * Constructor.
 	 *
+	 * @param PolicyInterface               $policy     Policy for capability checks.
 	 * @param OrderRepositoryInterface|null $repository Order repository.
 	 */
-	public function __construct( ?OrderRepositoryInterface $repository = null ) {
+	public function __construct( PolicyInterface $policy, ?OrderRepositoryInterface $repository = null ) {
+		$this->policy     = $policy;
 		$this->repository = $repository;
 	}
 
@@ -36,6 +44,10 @@ class EmailDraftService implements EmailDraftServiceInterface {
 	 * @return array Order context data or error array.
 	 */
 	public function get_order_context( int $order_id ): array {
+		if ( ! $this->policy->canDraftEmails() ) {
+			return array( 'error' => 'Permission denied.' );
+		}
+
 		if ( ! $this->repository ) {
 			return array( 'error' => 'WooCommerce is not available to fetch order details.' );
 		}

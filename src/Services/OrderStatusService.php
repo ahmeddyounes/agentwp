@@ -9,6 +9,7 @@ namespace AgentWP\Services;
 
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
+use AgentWP\Contracts\PolicyInterface;
 use Exception;
 
 class OrderStatusService implements OrderStatusServiceInterface {
@@ -16,14 +17,17 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	const MAX_BULK   = 50;
 
 	private DraftStorageInterface $draftStorage;
+	private PolicyInterface $policy;
 
 	/**
 	 * Constructor.
 	 *
 	 * @param DraftStorageInterface $draftStorage Draft storage implementation.
+	 * @param PolicyInterface       $policy       Policy for capability checks.
 	 */
-	public function __construct( DraftStorageInterface $draftStorage ) {
+	public function __construct( DraftStorageInterface $draftStorage, PolicyInterface $policy ) {
 		$this->draftStorage = $draftStorage;
+		$this->policy       = $policy;
 	}
 
 	/**
@@ -36,7 +40,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	 * @return array Result.
 	 */
 	public function prepare_update( int $order_id, string $new_status, string $note = '', bool $notify_customer = false ): array {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+		if ( ! $this->policy->canUpdateOrderStatus() ) {
 			return array( 'error' => 'Permission denied.', 'code' => 403 );
 		}
 
@@ -98,7 +102,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	 * @return array Result.
 	 */
 	public function prepare_bulk_update( array $order_ids, string $new_status, bool $notify_customer = false ): array {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+		if ( ! $this->policy->canUpdateOrderStatus() ) {
 			return array( 'error' => 'Permission denied.', 'code' => 403 );
 		}
 
@@ -158,7 +162,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	 * @return array Result.
 	 */
 	public function confirm_update( string $draft_id ): array {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+		if ( ! $this->policy->canUpdateOrderStatus() ) {
 			return array( 'error' => 'Permission denied.', 'code' => 403 );
 		}
 

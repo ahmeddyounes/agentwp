@@ -17,6 +17,7 @@ use AgentWP\Contracts\ClockInterface;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\HttpClientInterface;
 use AgentWP\Contracts\OrderRepositoryInterface;
+use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\RetryPolicyInterface;
 use AgentWP\Contracts\SessionHandlerInterface;
 use AgentWP\Contracts\SleeperInterface;
@@ -26,6 +27,7 @@ use AgentWP\Contracts\OpenAIKeyValidatorInterface;
 use AgentWP\Plugin\SettingsManager;
 use AgentWP\Security\ApiKeyStorage;
 use AgentWP\Security\Encryption;
+use AgentWP\Security\Policy\WooCommercePolicy;
 use AgentWP\Infrastructure\PhpSessionHandler;
 use AgentWP\Infrastructure\RealSleeper;
 use AgentWP\Infrastructure\SystemClock;
@@ -34,6 +36,7 @@ use AgentWP\Infrastructure\WooCommerceOrderRepository;
 use AgentWP\Infrastructure\WordPressHttpClient;
 use AgentWP\Infrastructure\WordPressObjectCache;
 use AgentWP\Infrastructure\WordPressTransientCache;
+use AgentWP\Infrastructure\WPFunctions;
 use AgentWP\Infrastructure\OpenAIKeyValidator;
 use AgentWP\Demo\DemoAwareKeyValidator;
 use AgentWP\Retry\ExponentialBackoffPolicy;
@@ -63,6 +66,7 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->registerDraftStorage();
 		$this->registerApiKeyStorage();
 		$this->registerOpenAIKeyValidator();
+		$this->registerPolicy();
 	}
 
 	/**
@@ -272,6 +276,23 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 			fn( $c ) => new DemoAwareKeyValidator(
 				$c->get( DemoCredentials::class ),
 				$c->get( OpenAIKeyValidator::class )
+			)
+		);
+	}
+
+	/**
+	 * Register policy interface.
+	 *
+	 * The policy layer abstracts capability checks so that domain services
+	 * don't need to call current_user_can() directly.
+	 *
+	 * @return void
+	 */
+	private function registerPolicy(): void {
+		$this->container->singleton(
+			PolicyInterface::class,
+			fn( $c ) => new WooCommercePolicy(
+				$c->get( WPFunctions::class )
 			)
 		);
 	}

@@ -29,6 +29,7 @@ use AgentWP\Contracts\OptionsInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Contracts\OrderSearchServiceInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
+use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
 use AgentWP\Contracts\RateLimiterInterface;
 use AgentWP\Contracts\RetryPolicyInterface;
@@ -149,6 +150,7 @@ class ContainerWiringTest extends TestCase {
 			RetryPolicyInterface::class,
 			AIClientFactoryInterface::class,
 			DraftStorageInterface::class,
+			PolicyInterface::class,
 		);
 
 		foreach ( $expected_bindings as $binding ) {
