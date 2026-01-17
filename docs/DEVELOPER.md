@@ -667,3 +667,30 @@ The validation runs automatically in CI and will fail the build if drift is dete
 2. Add the path and method to `docs/openapi.json` under `paths`
 3. Define request/response schemas in `components/schemas` if needed
 4. Run `composer run openapi:validate` to verify sync
+
+### TypeScript type generation
+
+The React frontend can generate TypeScript types from the OpenAPI spec to ensure type safety for API calls.
+
+**Generating types:**
+
+```bash
+cd react
+npm run generate:types
+```
+
+This generates `react/src/types/api.ts` from `docs/openapi.json` using [openapi-typescript](https://openapi-ts.dev/).
+
+**Workflow:**
+
+1. Update `docs/openapi.json` when adding/modifying endpoints
+2. Run `npm run generate:types` in the `react/` directory
+3. Import generated types in your React code:
+   ```typescript
+   import type { components, paths } from '@/types/api';
+
+   type SettingsResponse = components['schemas']['SettingsResponse'];
+   type IntentRequest = components['schemas']['IntentRequest'];
+   ```
+
+The generated types are deterministic and should be regenerated when the OpenAPI spec changes.
