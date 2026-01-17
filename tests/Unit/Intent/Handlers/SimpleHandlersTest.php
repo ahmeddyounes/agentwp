@@ -18,19 +18,22 @@ use AgentWP\Intent\Handlers\OrderStatusHandler;
 use AgentWP\Intent\Intent;
 use AgentWP\Tests\Fakes\FakeAIClientFactory;
 use AgentWP\Tests\Fakes\FakeOpenAIClient;
+use AgentWP\Tests\Fakes\FakeToolRegistry;
 use AgentWP\Tests\TestCase;
 use Mockery;
 
 class SimpleHandlersTest extends TestCase {
 	public function test_handlers_return_expected_messages(): void {
-		$handlers = array(
+		$toolRegistry = new FakeToolRegistry();
+		$handlers     = array(
 			array(
 				new AnalyticsQueryHandler(
 					Mockery::mock( AnalyticsServiceInterface::class ),
 					new FakeAIClientFactory(
 						new FakeOpenAIClient( array( Response::success( array( 'content' => 'ok', 'tool_calls' => array() ) ) ) ),
 						true
-					)
+					),
+					$toolRegistry
 				),
 				Intent::ANALYTICS_QUERY,
 			),
@@ -40,7 +43,8 @@ class SimpleHandlersTest extends TestCase {
 					new FakeAIClientFactory(
 						new FakeOpenAIClient( array( Response::success( array( 'content' => 'ok', 'tool_calls' => array() ) ) ) ),
 						true
-					)
+					),
+					$toolRegistry
 				),
 				Intent::EMAIL_DRAFT,
 			),
@@ -50,7 +54,8 @@ class SimpleHandlersTest extends TestCase {
 					new FakeAIClientFactory(
 						new FakeOpenAIClient( array( Response::success( array( 'content' => 'ok', 'tool_calls' => array() ) ) ) ),
 						true
-					)
+					),
+					$toolRegistry
 				),
 				Intent::ORDER_REFUND,
 			),
@@ -60,7 +65,8 @@ class SimpleHandlersTest extends TestCase {
 					new FakeAIClientFactory(
 						new FakeOpenAIClient( array( Response::success( array( 'content' => 'ok', 'tool_calls' => array() ) ) ) ),
 						true
-					)
+					),
+					$toolRegistry
 				),
 				Intent::ORDER_STATUS,
 			),

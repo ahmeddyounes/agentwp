@@ -9,7 +9,6 @@ namespace AgentWP\Services;
 
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
-use AgentWP\Infrastructure\TransientDraftStorage;
 
 class OrderRefundService implements OrderRefundServiceInterface {
 	private const DRAFT_TYPE = 'refund';
@@ -17,10 +16,10 @@ class OrderRefundService implements OrderRefundServiceInterface {
 	private DraftStorageInterface $draftStorage;
 
 	/**
-	 * @param DraftStorageInterface|null $draftStorage Draft storage implementation.
+	 * @param DraftStorageInterface $draftStorage Draft storage implementation.
 	 */
-	public function __construct( ?DraftStorageInterface $draftStorage = null ) {
-		$this->draftStorage = $draftStorage ?? new TransientDraftStorage();
+	public function __construct( DraftStorageInterface $draftStorage ) {
+		$this->draftStorage = $draftStorage;
 	}
 
 	/**

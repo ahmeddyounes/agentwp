@@ -11,14 +11,16 @@ use AgentWP\Intent\Handlers\ProductStockHandler;
 use AgentWP\Intent\Intent;
 use AgentWP\Tests\Fakes\FakeAIClientFactory;
 use AgentWP\Tests\Fakes\FakeOpenAIClient;
+use AgentWP\Tests\Fakes\FakeToolRegistry;
 use AgentWP\Tests\TestCase;
 use Mockery;
 
 class ProductStockHandlerTest extends TestCase {
 	public function test_returns_error_when_api_key_missing(): void {
-		$service = Mockery::mock( ProductStockServiceInterface::class );
-		$factory = new FakeAIClientFactory( new FakeOpenAIClient(), false );
-		$handler = new ProductStockHandler( $service, $factory );
+		$service      = Mockery::mock( ProductStockServiceInterface::class );
+		$factory      = new FakeAIClientFactory( new FakeOpenAIClient(), false );
+		$toolRegistry = new FakeToolRegistry();
+		$handler      = new ProductStockHandler( $service, $factory, $toolRegistry );
 
 		$response = $handler->handle( array( 'input' => 'Check stock for hoodie' ) );
 
@@ -67,8 +69,9 @@ class ProductStockHandlerTest extends TestCase {
 			)
 		);
 
-		$factory = new FakeAIClientFactory( $client, true );
-		$handler = new ProductStockHandler( $service, $factory );
+		$factory      = new FakeAIClientFactory( $client, true );
+		$toolRegistry = new FakeToolRegistry();
+		$handler      = new ProductStockHandler( $service, $factory, $toolRegistry );
 
 		$response = $handler->handle( array( 'input' => 'Search Hoodie' ) );
 

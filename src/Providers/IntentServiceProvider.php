@@ -7,6 +7,18 @@
 
 namespace AgentWP\Providers;
 
+use AgentWP\AI\Functions\ConfirmRefund;
+use AgentWP\AI\Functions\ConfirmStatusUpdate;
+use AgentWP\AI\Functions\ConfirmStockUpdate;
+use AgentWP\AI\Functions\DraftEmail;
+use AgentWP\AI\Functions\GetCustomerProfile;
+use AgentWP\AI\Functions\GetSalesReport;
+use AgentWP\AI\Functions\PrepareBulkStatusUpdate;
+use AgentWP\AI\Functions\PrepareRefund;
+use AgentWP\AI\Functions\PrepareStatusUpdate;
+use AgentWP\AI\Functions\PrepareStockUpdate;
+use AgentWP\AI\Functions\SearchOrders;
+use AgentWP\AI\Functions\SearchProduct;
 use AgentWP\Container\ServiceProvider;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\AnalyticsServiceInterface;
@@ -19,15 +31,19 @@ use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Contracts\OrderSearchServiceInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Handlers\AnalyticsQueryHandler;
 use AgentWP\Intent\Handlers\CustomerLookupHandler;
 use AgentWP\Intent\Handlers\EmailDraftHandler;
+use AgentWP\Intent\Handlers\FallbackHandler;
 use AgentWP\Intent\Handlers\OrderRefundHandler;
 use AgentWP\Intent\Handlers\OrderSearchHandler;
 use AgentWP\Intent\Handlers\OrderStatusHandler;
 use AgentWP\Intent\FunctionRegistry;
+use AgentWP\Intent\Handler;
 use AgentWP\Intent\HandlerRegistry;
 use AgentWP\Intent\Handlers\ProductStockHandler;
+use AgentWP\Intent\ToolRegistry;
 
 /**
  * Registers intent-related services.
@@ -44,7 +60,9 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->registerContextBuilder();
 		$this->registerIntentClassifier();
 		$this->registerFunctionRegistry();
+		$this->registerToolRegistry();
 		$this->registerHandlerRegistry();
+		$this->registerFallbackHandler();
 		$this->registerEngine();
 		$this->registerHandlerFactory();
 	}
@@ -129,6 +147,40 @@ final class IntentServiceProvider extends ServiceProvider {
 	}
 
 	/**
+	 * Register tool registry with all function schemas.
+	 *
+	 * @return void
+	 */
+	private function registerToolRegistry(): void {
+		if ( ! class_exists( ToolRegistry::class ) ) {
+			return;
+		}
+
+		$this->container->singleton(
+			ToolRegistryInterface::class,
+			function () {
+				$registry = new ToolRegistry();
+
+				// Register all function schemas.
+				$registry->register( new SearchOrders() );
+				$registry->register( new PrepareRefund() );
+				$registry->register( new ConfirmRefund() );
+				$registry->register( new PrepareStatusUpdate() );
+				$registry->register( new PrepareBulkStatusUpdate() );
+				$registry->register( new ConfirmStatusUpdate() );
+				$registry->register( new SearchProduct() );
+				$registry->register( new PrepareStockUpdate() );
+				$registry->register( new ConfirmStockUpdate() );
+				$registry->register( new DraftEmail() );
+				$registry->register( new GetSalesReport() );
+				$registry->register( new GetCustomerProfile() );
+
+				return $registry;
+			}
+		);
+	}
+
+	/**
 	 * Register handler registry.
 	 *
 	 * @return void
@@ -141,6 +193,22 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			HandlerRegistry::class,
 			fn() => new HandlerRegistry()
+		);
+	}
+
+	/**
+	 * Register fallback handler for unknown intents.
+	 *
+	 * @return void
+	 */
+	private function registerFallbackHandler(): void {
+		if ( ! class_exists( FallbackHandler::class ) ) {
+			return;
+		}
+
+		$this->container->singleton(
+			FallbackHandler::class,
+			fn() => new FallbackHandler()
 		);
 	}
 
@@ -166,7 +234,8 @@ final class IntentServiceProvider extends ServiceProvider {
 					$this->container->get( ContextBuilderInterface::class ),
 					$this->container->get( IntentClassifierInterface::class ),
 					$this->container->get( MemoryStoreInterface::class ),
-					$this->container->get( HandlerRegistry::class )
+					$this->container->get( HandlerRegistry::class ),
+					$this->container->get( FallbackHandler::class )
 				);
 			}
 		);
@@ -201,7 +270,8 @@ final class IntentServiceProvider extends ServiceProvider {
 			OrderSearchHandler::class,
 			fn( $c ) => new OrderSearchHandler(
 				$c->get( OrderSearchServiceInterface::class ),
-				$c->get( AIClientFactoryInterface::class )
+				$c->get( AIClientFactoryInterface::class ),
+				$c->get( ToolRegistryInterface::class )
 			)
 		);
 		$this->container->tag( OrderSearchHandler::class, 'intent.handler' );
@@ -221,7 +291,8 @@ final class IntentServiceProvider extends ServiceProvider {
 			OrderRefundHandler::class,
 			fn( $c ) => new OrderRefundHandler(
 				$c->get( OrderRefundServiceInterface::class ),
-				$c->get( AIClientFactoryInterface::class )
+				$c->get( AIClientFactoryInterface::class ),
+				$c->get( ToolRegistryInterface::class )
 			)
 		);
 		$this->container->tag( OrderRefundHandler::class, 'intent.handler' );
@@ -241,7 +312,8 @@ final class IntentServiceProvider extends ServiceProvider {
 			OrderStatusHandler::class,
 			fn( $c ) => new OrderStatusHandler(
 				$c->get( OrderStatusServiceInterface::class ),
-				$c->get( AIClientFactoryInterface::class )
+				$c->get( AIClientFactoryInterface::class ),
+				$c->get( ToolRegistryInterface::class )
 			)
 		);
 		$this->container->tag( OrderStatusHandler::class, 'intent.handler' );
@@ -261,7 +333,8 @@ final class IntentServiceProvider extends ServiceProvider {
 			ProductStockHandler::class,
 			fn( $c ) => new ProductStockHandler(
 				$c->get( ProductStockServiceInterface::class ),
-				$c->get( AIClientFactoryInterface::class )
+				$c->get( AIClientFactoryInterface::class ),
+				$c->get( ToolRegistryInterface::class )
 			)
 		);
 		$this->container->tag( ProductStockHandler::class, 'intent.handler' );
@@ -281,7 +354,8 @@ final class IntentServiceProvider extends ServiceProvider {
 			EmailDraftHandler::class,
 			fn( $c ) => new EmailDraftHandler(
 				$c->get( EmailDraftServiceInterface::class ),
-				$c->get( AIClientFactoryInterface::class )
+				$c->get( AIClientFactoryInterface::class ),
+				$c->get( ToolRegistryInterface::class )
 			)
 		);
 		$this->container->tag( EmailDraftHandler::class, 'intent.handler' );
@@ -301,7 +375,8 @@ final class IntentServiceProvider extends ServiceProvider {
 			AnalyticsQueryHandler::class,
 			fn( $c ) => new AnalyticsQueryHandler(
 				$c->get( AnalyticsServiceInterface::class ),
-				$c->get( AIClientFactoryInterface::class )
+				$c->get( AIClientFactoryInterface::class ),
+				$c->get( ToolRegistryInterface::class )
 			)
 		);
 		$this->container->tag( AnalyticsQueryHandler::class, 'intent.handler' );
@@ -321,7 +396,8 @@ final class IntentServiceProvider extends ServiceProvider {
 			CustomerLookupHandler::class,
 			fn( $c ) => new CustomerLookupHandler(
 				$c->get( CustomerServiceInterface::class ),
-				$c->get( AIClientFactoryInterface::class )
+				$c->get( AIClientFactoryInterface::class ),
+				$c->get( ToolRegistryInterface::class )
 			)
 		);
 		$this->container->tag( CustomerLookupHandler::class, 'intent.handler' );

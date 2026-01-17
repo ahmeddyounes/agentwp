@@ -151,7 +151,7 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			ProductStockServiceInterface::class,
 			fn( $c ) => new ProductStockService(
-				$c->has( DraftStorageInterface::class ) ? $c->get( DraftStorageInterface::class ) : null
+				$c->get( DraftStorageInterface::class )
 			)
 		);
 	}
@@ -165,7 +165,7 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			OrderStatusServiceInterface::class,
 			fn( $c ) => new OrderStatusService(
-				$c->has( DraftStorageInterface::class ) ? $c->get( DraftStorageInterface::class ) : null
+				$c->get( DraftStorageInterface::class )
 			)
 		);
 	}
@@ -191,7 +191,7 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			OrderRefundServiceInterface::class,
 			fn( $c ) => new OrderRefundService(
-				$c->has( DraftStorageInterface::class ) ? $c->get( DraftStorageInterface::class ) : null
+				$c->get( DraftStorageInterface::class )
 			)
 		);
 	}

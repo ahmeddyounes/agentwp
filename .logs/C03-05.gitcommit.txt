@@ -1,0 +1,13 @@
+[main bc73c8f] C03-05: implement
+ 16 files changed, 743 insertions(+), 60 deletions(-)
+ create mode 100644 .logs/C03-04.gitcommit.txt
+ create mode 100644 .logs/C03-05.claude.after1.last.md
+ create mode 100644 .logs/C03-05.claude.after1.raw.txt
+ create mode 100644 .logs/C03-05.claude.impl.last.md
+ create mode 100644 .logs/C03-05.claude.impl.raw.txt
+ create mode 100644 .plans/C03-05.md
+ create mode 100644 .t2/handoff/C03-05.md
+ create mode 100644 tests/Unit/Container/ContainerTagsTest.php
+ create mode 100644 tests/Unit/Intent/ContextBuilderTest.php
+
+→ No staged files match any configured task.

@@ -7,11 +7,9 @@
 
 namespace AgentWP\Intent\Handlers;
 
-use AgentWP\AI\Functions\PrepareStockUpdate;
-use AgentWP\AI\Functions\ConfirmStockUpdate;
-use AgentWP\AI\Functions\SearchProduct;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Intent;
 
 /**
@@ -29,12 +27,14 @@ class ProductStockHandler extends AbstractAgenticHandler {
 	 *
 	 * @param ProductStockServiceInterface $service       Stock service.
 	 * @param AIClientFactoryInterface     $clientFactory AI client factory.
+	 * @param ToolRegistryInterface        $toolRegistry  Tool registry.
 	 */
 	public function __construct(
 		ProductStockServiceInterface $service,
-		AIClientFactoryInterface $clientFactory
+		AIClientFactoryInterface $clientFactory,
+		ToolRegistryInterface $toolRegistry
 	) {
-		parent::__construct( Intent::PRODUCT_STOCK, $clientFactory );
+		parent::__construct( Intent::PRODUCT_STOCK, $clientFactory, $toolRegistry );
 		$this->service = $service;
 	}
 
@@ -48,12 +48,12 @@ class ProductStockHandler extends AbstractAgenticHandler {
 	}
 
 	/**
-	 * Get the tools available for stock handling.
+	 * Get the tool names for stock handling.
 	 *
-	 * @return array
+	 * @return array<string>
 	 */
-	protected function getTools(): array {
-		return array( new SearchProduct(), new PrepareStockUpdate(), new ConfirmStockUpdate() );
+	protected function getToolNames(): array {
+		return array( 'search_product', 'prepare_stock_update', 'confirm_stock_update' );
 	}
 
 	/**

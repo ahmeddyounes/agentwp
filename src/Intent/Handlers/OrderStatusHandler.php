@@ -7,11 +7,9 @@
 
 namespace AgentWP\Intent\Handlers;
 
-use AgentWP\AI\Functions\PrepareStatusUpdate;
-use AgentWP\AI\Functions\PrepareBulkStatusUpdate;
-use AgentWP\AI\Functions\ConfirmStatusUpdate;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Intent;
 
 /**
@@ -29,12 +27,14 @@ class OrderStatusHandler extends AbstractAgenticHandler {
 	 *
 	 * @param OrderStatusServiceInterface $service       Status service.
 	 * @param AIClientFactoryInterface    $clientFactory AI client factory.
+	 * @param ToolRegistryInterface       $toolRegistry  Tool registry.
 	 */
 	public function __construct(
 		OrderStatusServiceInterface $service,
-		AIClientFactoryInterface $clientFactory
+		AIClientFactoryInterface $clientFactory,
+		ToolRegistryInterface $toolRegistry
 	) {
-		parent::__construct( Intent::ORDER_STATUS, $clientFactory );
+		parent::__construct( Intent::ORDER_STATUS, $clientFactory, $toolRegistry );
 		$this->service = $service;
 	}
 
@@ -48,12 +48,12 @@ class OrderStatusHandler extends AbstractAgenticHandler {
 	}
 
 	/**
-	 * Get the tools available for status handling.
+	 * Get the tool names for status handling.
 	 *
-	 * @return array
+	 * @return array<string>
 	 */
-	protected function getTools(): array {
-		return array( new PrepareStatusUpdate(), new PrepareBulkStatusUpdate(), new ConfirmStatusUpdate() );
+	protected function getToolNames(): array {
+		return array( 'prepare_status_update', 'prepare_bulk_status_update', 'confirm_status_update' );
 	}
 
 	/**

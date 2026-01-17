@@ -7,9 +7,9 @@
 
 namespace AgentWP\Intent\Handlers;
 
-use AgentWP\AI\Functions\DraftEmail;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\EmailDraftServiceInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Intent;
 
 /**
@@ -27,12 +27,14 @@ class EmailDraftHandler extends AbstractAgenticHandler {
 	 *
 	 * @param EmailDraftServiceInterface $service       Email draft service.
 	 * @param AIClientFactoryInterface   $clientFactory AI client factory.
+	 * @param ToolRegistryInterface      $toolRegistry  Tool registry.
 	 */
 	public function __construct(
 		EmailDraftServiceInterface $service,
-		AIClientFactoryInterface $clientFactory
+		AIClientFactoryInterface $clientFactory,
+		ToolRegistryInterface $toolRegistry
 	) {
-		parent::__construct( Intent::EMAIL_DRAFT, $clientFactory );
+		parent::__construct( Intent::EMAIL_DRAFT, $clientFactory, $toolRegistry );
 		$this->service = $service;
 	}
 
@@ -46,12 +48,12 @@ class EmailDraftHandler extends AbstractAgenticHandler {
 	}
 
 	/**
-	 * Get the tools available for email drafting.
+	 * Get the tool names for email drafting.
 	 *
-	 * @return array
+	 * @return array<string>
 	 */
-	protected function getTools(): array {
-		return array( new DraftEmail() );
+	protected function getToolNames(): array {
+		return array( 'draft_email' );
 	}
 
 	/**

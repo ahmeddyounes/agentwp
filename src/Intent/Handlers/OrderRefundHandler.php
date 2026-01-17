@@ -7,10 +7,9 @@
 
 namespace AgentWP\Intent\Handlers;
 
-use AgentWP\AI\Functions\PrepareRefund;
-use AgentWP\AI\Functions\ConfirmRefund;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Intent;
 
 /**
@@ -28,12 +27,14 @@ class OrderRefundHandler extends AbstractAgenticHandler {
 	 *
 	 * @param OrderRefundServiceInterface $service       Refund service.
 	 * @param AIClientFactoryInterface    $clientFactory AI client factory.
+	 * @param ToolRegistryInterface       $toolRegistry  Tool registry.
 	 */
 	public function __construct(
 		OrderRefundServiceInterface $service,
-		AIClientFactoryInterface $clientFactory
+		AIClientFactoryInterface $clientFactory,
+		ToolRegistryInterface $toolRegistry
 	) {
-		parent::__construct( Intent::ORDER_REFUND, $clientFactory );
+		parent::__construct( Intent::ORDER_REFUND, $clientFactory, $toolRegistry );
 		$this->service = $service;
 	}
 
@@ -47,12 +48,12 @@ class OrderRefundHandler extends AbstractAgenticHandler {
 	}
 
 	/**
-	 * Get the tools available for refund handling.
+	 * Get the tool names for refund handling.
 	 *
-	 * @return array
+	 * @return array<string>
 	 */
-	protected function getTools(): array {
-		return array( new PrepareRefund(), new ConfirmRefund() );
+	protected function getToolNames(): array {
+		return array( 'prepare_refund', 'confirm_refund' );
 	}
 
 	/**

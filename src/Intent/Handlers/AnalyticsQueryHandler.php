@@ -7,9 +7,9 @@
 
 namespace AgentWP\Intent\Handlers;
 
-use AgentWP\AI\Functions\GetSalesReport;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\AnalyticsServiceInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Intent;
 
 /**
@@ -27,12 +27,14 @@ class AnalyticsQueryHandler extends AbstractAgenticHandler {
 	 *
 	 * @param AnalyticsServiceInterface $service       Analytics service.
 	 * @param AIClientFactoryInterface  $clientFactory AI client factory.
+	 * @param ToolRegistryInterface     $toolRegistry  Tool registry.
 	 */
 	public function __construct(
 		AnalyticsServiceInterface $service,
-		AIClientFactoryInterface $clientFactory
+		AIClientFactoryInterface $clientFactory,
+		ToolRegistryInterface $toolRegistry
 	) {
-		parent::__construct( Intent::ANALYTICS_QUERY, $clientFactory );
+		parent::__construct( Intent::ANALYTICS_QUERY, $clientFactory, $toolRegistry );
 		$this->service = $service;
 	}
 
@@ -46,12 +48,12 @@ class AnalyticsQueryHandler extends AbstractAgenticHandler {
 	}
 
 	/**
-	 * Get the tools available for analytics.
+	 * Get the tool names for analytics.
 	 *
-	 * @return array
+	 * @return array<string>
 	 */
-	protected function getTools(): array {
-		return array( new GetSalesReport() );
+	protected function getToolNames(): array {
+		return array( 'get_sales_report' );
 	}
 
 	/**

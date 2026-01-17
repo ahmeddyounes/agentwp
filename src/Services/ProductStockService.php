@@ -9,7 +9,6 @@ namespace AgentWP\Services;
 
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
-use AgentWP\Infrastructure\TransientDraftStorage;
 
 class ProductStockService implements ProductStockServiceInterface {
 	private const DRAFT_TYPE = 'stock';
@@ -19,10 +18,10 @@ class ProductStockService implements ProductStockServiceInterface {
 	/**
 	 * Constructor.
 	 *
-	 * @param DraftStorageInterface|null $draftStorage Draft storage implementation.
+	 * @param DraftStorageInterface $draftStorage Draft storage implementation.
 	 */
-	public function __construct( ?DraftStorageInterface $draftStorage = null ) {
-		$this->draftStorage = $draftStorage ?? new TransientDraftStorage();
+	public function __construct( DraftStorageInterface $draftStorage ) {
+		$this->draftStorage = $draftStorage;
 	}
 
 	/**

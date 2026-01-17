@@ -11,14 +11,16 @@ use AgentWP\Intent\Handlers\OrderSearchHandler;
 use AgentWP\Intent\Intent;
 use AgentWP\Tests\Fakes\FakeAIClientFactory;
 use AgentWP\Tests\Fakes\FakeOpenAIClient;
+use AgentWP\Tests\Fakes\FakeToolRegistry;
 use AgentWP\Tests\TestCase;
 use Mockery;
 
 class OrderSearchHandlerTest extends TestCase {
 	public function test_returns_error_when_api_key_missing(): void {
-		$service = Mockery::mock( OrderSearchServiceInterface::class );
-		$factory = new FakeAIClientFactory( new FakeOpenAIClient(), false );
-		$handler = new OrderSearchHandler( $service, $factory );
+		$service      = Mockery::mock( OrderSearchServiceInterface::class );
+		$factory      = new FakeAIClientFactory( new FakeOpenAIClient(), false );
+		$toolRegistry = new FakeToolRegistry();
+		$handler      = new OrderSearchHandler( $service, $factory, $toolRegistry );
 
 		$response = $handler->handle( array( 'input' => 'find refunded orders' ) );
 
@@ -71,8 +73,9 @@ class OrderSearchHandlerTest extends TestCase {
 			)
 		);
 
-		$factory = new FakeAIClientFactory( $client, true );
-		$handler = new OrderSearchHandler( $service, $factory );
+		$factory      = new FakeAIClientFactory( $client, true );
+		$toolRegistry = new FakeToolRegistry();
+		$handler      = new OrderSearchHandler( $service, $factory, $toolRegistry );
 
 		$response = $handler->handle( array( 'input' => 'Find refunded orders', 'store' => array( 'id' => 1 ) ) );
 

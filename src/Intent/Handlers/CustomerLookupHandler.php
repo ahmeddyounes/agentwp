@@ -7,9 +7,9 @@
 
 namespace AgentWP\Intent\Handlers;
 
-use AgentWP\AI\Functions\GetCustomerProfile;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\CustomerServiceInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Intent;
 
 /**
@@ -27,12 +27,14 @@ class CustomerLookupHandler extends AbstractAgenticHandler {
 	 *
 	 * @param CustomerServiceInterface $service       Customer service.
 	 * @param AIClientFactoryInterface $clientFactory AI client factory.
+	 * @param ToolRegistryInterface    $toolRegistry  Tool registry.
 	 */
 	public function __construct(
 		CustomerServiceInterface $service,
-		AIClientFactoryInterface $clientFactory
+		AIClientFactoryInterface $clientFactory,
+		ToolRegistryInterface $toolRegistry
 	) {
-		parent::__construct( Intent::CUSTOMER_LOOKUP, $clientFactory );
+		parent::__construct( Intent::CUSTOMER_LOOKUP, $clientFactory, $toolRegistry );
 		$this->service = $service;
 	}
 
@@ -46,12 +48,12 @@ class CustomerLookupHandler extends AbstractAgenticHandler {
 	}
 
 	/**
-	 * Get the tools available for customer lookup.
+	 * Get the tool names for customer lookup.
 	 *
-	 * @return array
+	 * @return array<string>
 	 */
-	protected function getTools(): array {
-		return array( new GetCustomerProfile() );
+	protected function getToolNames(): array {
+		return array( 'get_customer_profile' );
 	}
 
 	/**

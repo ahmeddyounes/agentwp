@@ -12,14 +12,6 @@ use AgentWP\Contracts\ContextBuilderInterface;
 use AgentWP\Contracts\IntentClassifierInterface;
 use AgentWP\Contracts\MemoryStoreInterface;
 use AgentWP\Intent\Attributes\HandlesIntent;
-use AgentWP\Intent\Handlers\AnalyticsQueryHandler;
-use AgentWP\Intent\Handlers\CustomerLookupHandler;
-use AgentWP\Intent\Handlers\EmailDraftHandler;
-use AgentWP\Intent\Handlers\FallbackHandler;
-use AgentWP\Intent\Handlers\OrderRefundHandler;
-use AgentWP\Intent\Handlers\OrderSearchHandler;
-use AgentWP\Intent\Handlers\OrderStatusHandler;
-use AgentWP\Intent\Handlers\ProductStockHandler;
 
 class Engine {
 	/**
@@ -66,29 +58,31 @@ class Engine {
 	private $needs_fallback_lookup = false;
 
 	/**
-	 * @param array                             $handlers          Optional handlers.
-	 * @param FunctionRegistry|null             $function_registry Optional registry.
-	 * @param ContextBuilderInterface|null      $context_builder   Optional context builder.
-	 * @param IntentClassifierInterface|null    $classifier        Optional classifier.
-	 * @param MemoryStoreInterface|null         $memory            Optional memory store.
-	 * @param HandlerRegistry|null              $handler_registry  Optional handler registry.
+	 * @param array                     $handlers          Handlers to register.
+	 * @param FunctionRegistry          $function_registry Function registry.
+	 * @param ContextBuilderInterface   $context_builder   Context builder.
+	 * @param IntentClassifierInterface $classifier        Intent classifier.
+	 * @param MemoryStoreInterface      $memory            Memory store.
+	 * @param HandlerRegistry           $handler_registry  Handler registry.
+	 * @param Handler                   $fallback_handler  Fallback handler for unknown intents.
 	 */
 	public function __construct(
-		array $handlers = array(),
-		?FunctionRegistry $function_registry = null,
-		?ContextBuilderInterface $context_builder = null,
-		?IntentClassifierInterface $classifier = null,
-		?MemoryStoreInterface $memory = null,
-		?HandlerRegistry $handler_registry = null
+		array $handlers,
+		FunctionRegistry $function_registry,
+		ContextBuilderInterface $context_builder,
+		IntentClassifierInterface $classifier,
+		MemoryStoreInterface $memory,
+		HandlerRegistry $handler_registry,
+		Handler $fallback_handler
 	) {
-		$this->classifier        = $classifier ? $classifier : new IntentClassifier();
-		$this->context_builder   = $context_builder ? $context_builder : new ContextBuilder();
-		$this->memory            = $memory ? $memory : new MemoryStore( 5 );
-		$this->function_registry = $function_registry ? $function_registry : new FunctionRegistry();
-		$this->handler_registry  = $handler_registry ? $handler_registry : new HandlerRegistry();
-		$this->fallback_handler  = new FallbackHandler();
+		$this->classifier        = $classifier;
+		$this->context_builder   = $context_builder;
+		$this->memory            = $memory;
+		$this->function_registry = $function_registry;
+		$this->handler_registry  = $handler_registry;
+		$this->fallback_handler  = $fallback_handler;
 
-		$resolved_handlers = ! empty( $handlers ) ? $handlers : $this->default_handlers();
+		$resolved_handlers = $handlers;
 		if ( function_exists( 'apply_filters' ) ) {
 			$resolved_handlers = apply_filters( 'agentwp_intent_handlers', $resolved_handlers, $this );
 		}
@@ -212,13 +206,6 @@ class Engine {
 	 */
 	public function get_memory() {
 		return $this->memory->get();
-	}
-
-	/**
-	 * @return array
-	 */
-	private function default_handlers() {
-		return array();
 	}
 
 	/**

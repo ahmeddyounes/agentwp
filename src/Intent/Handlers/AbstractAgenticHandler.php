@@ -13,6 +13,7 @@ use AgentWP\AI\Response;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
 use AgentWP\Contracts\ToolExecutorInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
 
 /**
  * Abstract handler that provides the agentic interaction loop.
@@ -35,14 +36,25 @@ abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecuto
 	protected AIClientFactoryInterface $clientFactory;
 
 	/**
+	 * @var ToolRegistryInterface
+	 */
+	protected ToolRegistryInterface $toolRegistry;
+
+	/**
 	 * Initialize the handler.
 	 *
-	 * @param string                   $intent Intent identifier.
+	 * @param string                   $intent        Intent identifier.
 	 * @param AIClientFactoryInterface $clientFactory AI client factory.
+	 * @param ToolRegistryInterface    $toolRegistry  Tool registry.
 	 */
-	public function __construct( string $intent, AIClientFactoryInterface $clientFactory ) {
+	public function __construct(
+		string $intent,
+		AIClientFactoryInterface $clientFactory,
+		ToolRegistryInterface $toolRegistry
+	) {
 		parent::__construct( $intent );
 		$this->clientFactory = $clientFactory;
+		$this->toolRegistry  = $toolRegistry;
 	}
 
 	/**
@@ -53,11 +65,20 @@ abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecuto
 	abstract protected function getSystemPrompt(): string;
 
 	/**
-	 * Get the tools available to this handler.
+	 * Get the tool names this handler requires.
 	 *
-	 * @return array Array of FunctionSchema instances or tool definitions.
+	 * @return array<string> Array of tool names.
 	 */
-	abstract protected function getTools(): array;
+	abstract protected function getToolNames(): array;
+
+	/**
+	 * Get the tools available to this handler from the registry.
+	 *
+	 * @return array Array of FunctionSchema instances.
+	 */
+	protected function getTools(): array {
+		return $this->toolRegistry->getMany( $this->getToolNames() );
+	}
 
 	/**
 	 * Get the default input when none is provided in context.

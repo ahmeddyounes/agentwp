@@ -9,7 +9,6 @@ namespace AgentWP\Services;
 
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
-use AgentWP\Infrastructure\TransientDraftStorage;
 use Exception;
 
 class OrderStatusService implements OrderStatusServiceInterface {
@@ -21,10 +20,10 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	/**
 	 * Constructor.
 	 *
-	 * @param DraftStorageInterface|null $draftStorage Draft storage implementation.
+	 * @param DraftStorageInterface $draftStorage Draft storage implementation.
 	 */
-	public function __construct( ?DraftStorageInterface $draftStorage = null ) {
-		$this->draftStorage = $draftStorage ?? new TransientDraftStorage();
+	public function __construct( DraftStorageInterface $draftStorage ) {
+		$this->draftStorage = $draftStorage;
 	}
 
 	/**

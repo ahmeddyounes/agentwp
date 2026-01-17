@@ -52,18 +52,18 @@ class AIClientFactory implements AIClientFactoryInterface {
 	/**
 	 * Create a new AIClientFactory.
 	 *
-	 * @param SettingsManager      $settings Settings manager.
-	 * @param string               $default_model Default model (optional).
-	 * @param DemoCredentials|null $demo_credentials Demo credentials manager (optional).
+	 * @param SettingsManager $settings Settings manager.
+	 * @param string          $default_model Default model.
+	 * @param DemoCredentials $demo_credentials Demo credentials manager.
 	 */
 	public function __construct(
 		SettingsManager $settings,
-		string $default_model = Model::GPT_4O_MINI,
-		?DemoCredentials $demo_credentials = null
+		string $default_model,
+		DemoCredentials $demo_credentials
 	) {
 		$this->settings         = $settings;
 		$this->default_model    = $default_model;
-		$this->demo_credentials = $demo_credentials ?? new DemoCredentials( $settings );
+		$this->demo_credentials = $demo_credentials;
 	}
 
 	/**

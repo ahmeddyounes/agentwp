@@ -10,6 +10,8 @@ use AgentWP\Intent\ContextBuilder;
 use AgentWP\Intent\Engine;
 use AgentWP\Intent\FunctionRegistry;
 use AgentWP\Intent\Handler;
+use AgentWP\Intent\HandlerRegistry;
+use AgentWP\Intent\Handlers\FallbackHandler;
 use AgentWP\Intent\Intent;
 use AgentWP\Intent\IntentClassifier;
 use AgentWP\Tests\Fakes\FakeMemoryStore;
@@ -52,7 +54,9 @@ class EngineTest extends TestCase {
 			new FunctionRegistry(),
 			$builder,
 			$classifier,
-			$memory
+			$memory,
+			new HandlerRegistry(),
+			new FallbackHandler()
 		);
 
 		$response = $engine->handle( 'status check', array( 'store' => array( 'id' => 1 ) ) );

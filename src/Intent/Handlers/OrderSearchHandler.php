@@ -7,9 +7,9 @@
 
 namespace AgentWP\Intent\Handlers;
 
-use AgentWP\AI\Functions\SearchOrders;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\OrderSearchServiceInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Intent;
 
 /**
@@ -27,12 +27,14 @@ class OrderSearchHandler extends AbstractAgenticHandler {
 	 *
 	 * @param OrderSearchServiceInterface $service       Search service.
 	 * @param AIClientFactoryInterface    $clientFactory AI client factory.
+	 * @param ToolRegistryInterface       $toolRegistry  Tool registry.
 	 */
 	public function __construct(
 		OrderSearchServiceInterface $service,
-		AIClientFactoryInterface $clientFactory
+		AIClientFactoryInterface $clientFactory,
+		ToolRegistryInterface $toolRegistry
 	) {
-		parent::__construct( Intent::ORDER_SEARCH, $clientFactory );
+		parent::__construct( Intent::ORDER_SEARCH, $clientFactory, $toolRegistry );
 		$this->service = $service;
 	}
 
@@ -46,12 +48,12 @@ class OrderSearchHandler extends AbstractAgenticHandler {
 	}
 
 	/**
-	 * Get the tools available for order search.
+	 * Get the tool names for order search.
 	 *
-	 * @return array
+	 * @return array<string>
 	 */
-	protected function getTools(): array {
-		return array( new SearchOrders() );
+	protected function getToolNames(): array {
+		return array( 'search_orders' );
 	}
 
 	/**

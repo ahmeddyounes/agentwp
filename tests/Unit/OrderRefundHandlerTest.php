@@ -7,6 +7,7 @@ use AgentWP\AI\Response;
 use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Tests\Fakes\FakeAIClientFactory;
 use AgentWP\Tests\Fakes\FakeOpenAIClient;
+use AgentWP\Tests\Fakes\FakeToolRegistry;
 use Mockery;
 
 class OrderRefundHandlerTest extends TestCase {
@@ -45,7 +46,8 @@ class OrderRefundHandlerTest extends TestCase {
 
 		$handler = new OrderRefundHandler(
 			$service,
-			new FakeAIClientFactory( $client, true )
+			new FakeAIClientFactory( $client, true ),
+			new FakeToolRegistry()
 		);
 
 		$response = $handler->handle( array( 'input' => 'Refund order 123' ) );
