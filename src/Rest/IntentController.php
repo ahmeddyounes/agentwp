@@ -9,6 +9,7 @@ namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
 use AgentWP\Config\AgentWPConfig;
+use AgentWP\DTO\IntentRequestDTO;
 use AgentWP\Intent\Engine;
 use WP_REST_Request;
 use WP_REST_Server;
@@ -40,37 +41,31 @@ class IntentController extends RestController {
 	 * @return \WP_REST_Response
 	 */
 	public function create_intent( $request ) {
-		$validation = $this->validate_request( $request, $this->get_intent_schema() );
-		if ( is_wp_error( $validation ) ) {
-			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_REQUEST, $validation->get_error_message(), 400 );
+		$dto = new IntentRequestDTO( $request );
+
+		if ( ! $dto->isValid() ) {
+			$error = $dto->getError();
+			return $this->response_error(
+				AgentWPConfig::ERROR_CODE_INVALID_REQUEST,
+				$error ? $error->get_error_message() : __( 'Invalid request.', 'agentwp' ),
+				400
+			);
 		}
 
-		$prompt = '';
-		if ( isset( $validation['prompt'] ) ) {
-			$prompt = (string) $validation['prompt'];
-		}
-
-		if ( '' === $prompt && isset( $validation['input'] ) ) {
-			$prompt = (string) $validation['input'];
-		}
-
-		$prompt = trim( $prompt );
-		if ( '' === $prompt ) {
+		if ( ! $dto->hasPrompt() ) {
 			return $this->response_error( AgentWPConfig::ERROR_CODE_MISSING_PROMPT, __( 'Please provide a prompt.', 'agentwp' ), 400 );
 		}
-
-		$context  = isset( $validation['context'] ) && is_array( $validation['context'] )
-			? $validation['context']
-			: array();
-		$metadata = isset( $validation['metadata'] ) && is_array( $validation['metadata'] )
-			? $validation['metadata']
-			: array();
 
 		$engine = $this->resolveRequired( Engine::class, 'Intent engine' );
 		if ( $engine instanceof \WP_REST_Response ) {
 			return $engine;
 		}
-		$response = $engine->handle( $prompt, $context, $metadata );
+
+		$response = $engine->handle(
+			$dto->getPrompt(),
+			$dto->getContext(),
+			$dto->getMetadata()
+		);
 
 		if ( ! $response->is_success() ) {
 			return $this->response_error(
@@ -81,44 +76,10 @@ class IntentController extends RestController {
 			);
 		}
 
-		$data               = $response->get_data();
-		$data['intent_id']  = wp_generate_uuid4();
-		$data['status']     = 'handled';
+		$data              = $response->get_data();
+		$data['intent_id'] = wp_generate_uuid4();
+		$data['status']    = 'handled';
 
 		return $this->response_success( $data );
-	}
-
-	/**
-	 * Maximum allowed prompt length to prevent DoS via excessive input.
-	 */
-	private const MAX_PROMPT_LENGTH = 10000;
-
-	/**
-	 * Schema for intent payload.
-	 *
-	 * @return array
-	 */
-	private function get_intent_schema() {
-		return array(
-			'type'       => 'object',
-			'properties' => array(
-				'prompt'   => array(
-					'type'      => 'string',
-					'minLength' => 1,
-					'maxLength' => self::MAX_PROMPT_LENGTH,
-				),
-				'input'    => array(
-					'type'      => 'string',
-					'minLength' => 1,
-					'maxLength' => self::MAX_PROMPT_LENGTH,
-				),
-				'context'  => array(
-					'type' => 'object',
-				),
-				'metadata' => array(
-					'type' => 'object',
-				),
-			),
-		);
 	}
 }
