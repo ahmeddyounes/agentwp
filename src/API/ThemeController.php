@@ -7,10 +7,11 @@
 
 namespace AgentWP\API;
 
+use AgentWP\Config\AgentWPConfig;
 use WP_REST_Server;
 
 class ThemeController extends RestController {
-	const THEME_META_KEY = 'agentwp_theme_preference';
+	const THEME_META_KEY = AgentWPConfig::META_KEY_THEME;
 
 	/**
 	 * Register REST routes.
@@ -71,7 +72,7 @@ class ThemeController extends RestController {
 	public function update_theme( $request ) {
 		$validation = $this->validate_request( $request, $this->get_theme_schema() );
 		if ( is_wp_error( $validation ) ) {
-			return $this->response_error( 'agentwp_invalid_request', $validation->get_error_message(), 400 );
+			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_REQUEST, $validation->get_error_message(), 400 );
 		}
 
 		$payload = $request->get_json_params();
@@ -80,7 +81,7 @@ class ThemeController extends RestController {
 
 		if ( ! in_array( $theme, array( 'light', 'dark' ), true ) ) {
 			return $this->response_error(
-				'agentwp_invalid_theme',
+				AgentWPConfig::ERROR_CODE_INVALID_THEME,
 				__( 'Theme preference must be light or dark.', 'agentwp' ),
 				400
 			);

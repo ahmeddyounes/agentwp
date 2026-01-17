@@ -107,6 +107,49 @@ final class AgentWPConfig {
 	public const ORDER_STATUS_MAX_BULK = 50;
 
 	/**
+	 * REST error codes - Authentication/Authorization.
+	 */
+	public const ERROR_CODE_FORBIDDEN        = 'agentwp_forbidden';
+	public const ERROR_CODE_UNAUTHORIZED     = 'agentwp_unauthorized';
+	public const ERROR_CODE_MISSING_NONCE    = 'agentwp_missing_nonce';
+	public const ERROR_CODE_INVALID_NONCE    = 'agentwp_invalid_nonce';
+	public const ERROR_CODE_INVALID_KEY      = 'agentwp_invalid_key';
+
+	/**
+	 * REST error codes - Validation.
+	 */
+	public const ERROR_CODE_INVALID_REQUEST  = 'agentwp_invalid_request';
+	public const ERROR_CODE_VALIDATION_ERROR = 'agentwp_validation_error';
+	public const ERROR_CODE_MISSING_PROMPT   = 'agentwp_missing_prompt';
+	public const ERROR_CODE_INVALID_PERIOD   = 'agentwp_invalid_period';
+	public const ERROR_CODE_INVALID_THEME    = 'agentwp_invalid_theme';
+
+	/**
+	 * REST error codes - API/Network.
+	 */
+	public const ERROR_CODE_RATE_LIMITED       = 'agentwp_rate_limited';
+	public const ERROR_CODE_API_ERROR          = 'agentwp_api_error';
+	public const ERROR_CODE_NETWORK_ERROR      = 'agentwp_network_error';
+	public const ERROR_CODE_INTENT_FAILED      = 'agentwp_intent_failed';
+	public const ERROR_CODE_OPENAI_UNREACHABLE = 'agentwp_openai_unreachable';
+	public const ERROR_CODE_OPENAI_INVALID     = 'agentwp_openai_invalid';
+	public const ERROR_CODE_ENCRYPTION_FAILED  = 'agentwp_encryption_failed';
+
+	/**
+	 * Cache key prefixes.
+	 */
+	public const CACHE_PREFIX_INTENT   = 'agentwp_intent_';
+	public const CACHE_PREFIX_CONTEXT  = 'agentwp_context_';
+	public const CACHE_PREFIX_RESPONSE = 'agentwp_response_';
+
+	/**
+	 * Meta key constants.
+	 */
+	public const META_KEY_THEME        = 'agentwp_theme_preference';
+	public const META_KEY_HISTORY      = 'agentwp_command_history';
+	public const META_KEY_FAVORITES    = 'agentwp_command_favorites';
+
+	/**
 	 * Prevent instantiation.
 	 */
 	private function __construct() {}

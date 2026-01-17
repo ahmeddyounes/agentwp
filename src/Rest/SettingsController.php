@@ -9,6 +9,7 @@ namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
 use AgentWP\Billing\UsageTracker;
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Plugin;
 use AgentWP\Security\Encryption;
 use WP_Error;
@@ -100,7 +101,7 @@ class SettingsController extends RestController {
 	public function update_settings( $request ) {
 		$validation = $this->validate_request( $request, $this->get_settings_update_schema() );
 		if ( is_wp_error( $validation ) ) {
-			return $this->response_error( 'agentwp_invalid_request', $validation->get_error_message(), 400 );
+			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_REQUEST, $validation->get_error_message(), 400 );
 		}
 
 		$payload  = $request->get_json_params();
@@ -129,7 +130,7 @@ class SettingsController extends RestController {
 	public function update_api_key( $request ) {
 		$validation = $this->validate_request( $request, $this->get_api_key_schema() );
 		if ( is_wp_error( $validation ) ) {
-			return $this->response_error( 'agentwp_invalid_request', $validation->get_error_message(), 400 );
+			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_REQUEST, $validation->get_error_message(), 400 );
 		}
 
 		$payload = $request->get_json_params();
@@ -149,7 +150,7 @@ class SettingsController extends RestController {
 		}
 
 		if ( 0 !== strpos( $api_key, 'sk-' ) ) {
-			return $this->response_error( 'agentwp_invalid_key', __( 'API key format looks invalid.', 'agentwp' ), 400 );
+			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_KEY, __( 'API key format looks invalid.', 'agentwp' ), 400 );
 		}
 
 		$validation = $this->validate_openai_api_key( $api_key );
@@ -186,14 +187,14 @@ class SettingsController extends RestController {
 	public function get_usage( $request ) {
 		$validation = $this->validate_request( $request, $this->get_usage_schema(), 'query' );
 		if ( is_wp_error( $validation ) ) {
-			return $this->response_error( 'agentwp_invalid_request', $validation->get_error_message(), 400 );
+			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_REQUEST, $validation->get_error_message(), 400 );
 		}
 
 		$period = $request->get_param( 'period' );
 		$period = is_string( $period ) ? sanitize_text_field( $period ) : 'month';
 
 		if ( ! in_array( $period, array( 'day', 'week', 'month' ), true ) ) {
-			return $this->response_error( 'agentwp_invalid_period', __( 'Invalid usage period.', 'agentwp' ), 400 );
+			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_PERIOD, __( 'Invalid usage period.', 'agentwp' ), 400 );
 		}
 
 		$usage = class_exists( 'AgentWP\\Billing\\UsageTracker' )
@@ -310,12 +311,12 @@ class SettingsController extends RestController {
 		}
 
 		if ( is_wp_error( $response ) ) {
-			return new WP_Error( 'agentwp_openai_unreachable', __( 'OpenAI API is unreachable.', 'agentwp' ) );
+			return new WP_Error( AgentWPConfig::ERROR_CODE_OPENAI_UNREACHABLE, __( 'OpenAI API is unreachable.', 'agentwp' ) );
 		}
 
 		$code = wp_remote_retrieve_response_code( $response );
 		if ( 200 !== $code ) {
-			return new WP_Error( 'agentwp_openai_invalid', __( 'OpenAI rejected the API key.', 'agentwp' ) );
+			return new WP_Error( AgentWPConfig::ERROR_CODE_OPENAI_INVALID, __( 'OpenAI rejected the API key.', 'agentwp' ) );
 		}
 
 		return true;
@@ -332,7 +333,7 @@ class SettingsController extends RestController {
 		$encrypted  = $encryption->encrypt( $api_key );
 
 		if ( '' === $encrypted ) {
-			return new WP_Error( 'agentwp_encryption_failed', __( 'Unable to encrypt the API key.', 'agentwp' ) );
+			return new WP_Error( AgentWPConfig::ERROR_CODE_ENCRYPTION_FAILED, __( 'Unable to encrypt the API key.', 'agentwp' ) );
 		}
 
 		return $encrypted;

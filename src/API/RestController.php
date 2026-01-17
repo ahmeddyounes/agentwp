@@ -7,6 +7,7 @@
 
 namespace AgentWP\API;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Error\Handler as ErrorHandler;
 use AgentWP\Plugin;
 use WP_Error;
@@ -38,7 +39,7 @@ abstract class RestController extends WP_REST_Controller {
 	public function permissions_check( $request ) {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			return new WP_Error(
-				'agentwp_forbidden',
+				AgentWPConfig::ERROR_CODE_FORBIDDEN,
 				__( 'Sorry, you are not allowed to access AgentWP.', 'agentwp' ),
 				array( 'status' => rest_authorization_required_code() )
 			);
@@ -102,7 +103,7 @@ abstract class RestController extends WP_REST_Controller {
 		$nonce = is_string( $nonce ) ? $nonce : '';
 		if ( '' === $nonce ) {
 			return new WP_Error(
-				'agentwp_missing_nonce',
+				AgentWPConfig::ERROR_CODE_MISSING_NONCE,
 				__( 'Missing security nonce.', 'agentwp' ),
 				array( 'status' => 403 )
 			);
@@ -110,7 +111,7 @@ abstract class RestController extends WP_REST_Controller {
 
 		if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
 			return new WP_Error(
-				'agentwp_invalid_nonce',
+				AgentWPConfig::ERROR_CODE_INVALID_NONCE,
 				__( 'Invalid security nonce.', 'agentwp' ),
 				array( 'status' => 403 )
 			);
@@ -219,7 +220,7 @@ abstract class RestController extends WP_REST_Controller {
 			$retry_after = max( 1, self::RATE_WINDOW - ( $now - intval( $bucket['start'] ) ) );
 
 			return new WP_Error(
-				'agentwp_rate_limited',
+				AgentWPConfig::ERROR_CODE_RATE_LIMITED,
 				__( 'Rate limit exceeded. Please retry later.', 'agentwp' ),
 				array(
 					'status'      => 429,

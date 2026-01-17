@@ -8,6 +8,7 @@
 namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Intent\Engine;
 use WP_REST_Request;
 use WP_REST_Server;
@@ -41,7 +42,7 @@ class IntentController extends RestController {
 	public function create_intent( $request ) {
 		$validation = $this->validate_request( $request, $this->get_intent_schema() );
 		if ( is_wp_error( $validation ) ) {
-			return $this->response_error( 'agentwp_invalid_request', $validation->get_error_message(), 400 );
+			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_REQUEST, $validation->get_error_message(), 400 );
 		}
 
 		$prompt = '';
@@ -55,7 +56,7 @@ class IntentController extends RestController {
 
 		$prompt = trim( $prompt );
 		if ( '' === $prompt ) {
-			return $this->response_error( 'agentwp_missing_prompt', __( 'Please provide a prompt.', 'agentwp' ), 400 );
+			return $this->response_error( AgentWPConfig::ERROR_CODE_MISSING_PROMPT, __( 'Please provide a prompt.', 'agentwp' ), 400 );
 		}
 
 		$context  = isset( $validation['context'] ) && is_array( $validation['context'] )
@@ -70,7 +71,7 @@ class IntentController extends RestController {
 
 		if ( ! $response->is_success() ) {
 			return $this->response_error(
-				'agentwp_intent_failed',
+				AgentWPConfig::ERROR_CODE_INTENT_FAILED,
 				$response->get_message(),
 				$response->get_status(),
 				$response->get_meta()

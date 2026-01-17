@@ -23,6 +23,7 @@ import {
 } from './theme.js';
 import { SpeechRecognition, attachSpeechRecognitionNamespace } from './voice/SpeechRecognition.js';
 import { SpeechSynthesis, attachSpeechSynthesisNamespace } from './voice/SpeechSynthesis.js';
+import agentwpClient from './api/AgentWPClient.js';
 
 const OPEN_STATE_KEY = 'agentwp-command-deck-open';
 const DRAFT_HISTORY_KEY = 'agentwp-draft-history';
@@ -41,13 +42,6 @@ const ADMIN_TRIGGER_SELECTORS = [
   '[data-agentwp-command-deck]',
   '#agentwp-command-deck',
 ];
-const REST_PATH = '/agentwp/v1/intent';
-const SEARCH_PATH = '/agentwp/v1/search';
-const USAGE_PATH = '/agentwp/v1/usage';
-const SETTINGS_PATH = '/agentwp/v1/settings';
-const THEME_PATH = '/agentwp/v1/theme';
-const ANALYTICS_PATH = '/agentwp/v1/analytics';
-const HEALTH_PATH = '/agentwp/v1/health';
 const HEALTH_CHECK_INTERVAL_MS = 5000;
 const HEALTH_TIMEOUT_MS = 4000;
 const FOCUSABLE_SELECTORS = [
@@ -216,11 +210,27 @@ const OPENAI_ERROR_TYPE_MESSAGES = {
 };
 
 const AGENTWP_ERROR_MESSAGES = {
+  // Rate limiting
   agentwp_rate_limited: 'Too many requests. Please wait and retry.',
-  agentwp_invalid_key: 'The OpenAI API key is invalid. Update it in settings.',
-  agentwp_invalid_request: 'Please check your request and try again.',
-  agentwp_missing_prompt: 'Please enter a prompt to continue.',
+  // Authentication/Authorization
   agentwp_forbidden: 'You do not have permission to use AgentWP.',
+  agentwp_unauthorized: 'Authentication required. Please log in.',
+  agentwp_invalid_key: 'The OpenAI API key is invalid. Update it in settings.',
+  agentwp_openai_invalid: 'OpenAI rejected the API key. Please check your credentials.',
+  agentwp_missing_nonce: 'Security nonce is missing. Please refresh the page.',
+  agentwp_invalid_nonce: 'Invalid security nonce. Please refresh the page.',
+  // Validation
+  agentwp_invalid_request: 'Please check your request and try again.',
+  agentwp_invalid_period: 'Invalid time period selected.',
+  agentwp_invalid_theme: 'Theme must be light or dark.',
+  agentwp_missing_prompt: 'Please enter a prompt to continue.',
+  // Network/API
+  agentwp_network_error: 'Network error. Please check your connection.',
+  agentwp_openai_unreachable: 'Cannot reach OpenAI servers. Please check your connection.',
+  agentwp_api_error: 'API error occurred. Please try again.',
+  agentwp_encryption_failed: 'Failed to encrypt API key. Please try again.',
+  // Intent processing
+  agentwp_intent_failed: 'Failed to process your request. Please try again.',
 };
 const getInitialDemoMode = () => {
   if (typeof window === 'undefined') {
@@ -443,90 +453,6 @@ const getActiveElement = (shadowRoot) => {
     return null;
   }
   return document.activeElement;
-};
-
-const getRestEndpoint = () => {
-  if (typeof window === 'undefined') {
-    return REST_PATH;
-  }
-  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
-  if (!root) {
-    return REST_PATH;
-  }
-  return `${root.replace(/\/$/, '')}${REST_PATH}`;
-};
-
-const getSearchEndpoint = () => {
-  if (typeof window === 'undefined') {
-    return SEARCH_PATH;
-  }
-  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
-  if (!root) {
-    return SEARCH_PATH;
-  }
-  return `${root.replace(/\/$/, '')}${SEARCH_PATH}`;
-};
-
-const getUsageEndpoint = () => {
-  if (typeof window === 'undefined') {
-    return USAGE_PATH;
-  }
-  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
-  if (!root) {
-    return USAGE_PATH;
-  }
-  return `${root.replace(/\/$/, '')}${USAGE_PATH}`;
-};
-
-const getSettingsEndpoint = () => {
-  if (typeof window === 'undefined') {
-    return SETTINGS_PATH;
-  }
-  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
-  if (!root) {
-    return SETTINGS_PATH;
-  }
-  return `${root.replace(/\/$/, '')}${SETTINGS_PATH}`;
-};
-
-const getThemeEndpoint = () => {
-  if (typeof window === 'undefined') {
-    return THEME_PATH;
-  }
-  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
-  if (!root) {
-    return THEME_PATH;
-  }
-  return `${root.replace(/\/$/, '')}${THEME_PATH}`;
-};
-
-const getAnalyticsEndpoint = () => {
-  if (typeof window === 'undefined') {
-    return ANALYTICS_PATH;
-  }
-  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
-  if (!root) {
-    return ANALYTICS_PATH;
-  }
-  return `${root.replace(/\/$/, '')}${ANALYTICS_PATH}`;
-};
-
-const getHealthEndpoint = () => {
-  if (typeof window === 'undefined') {
-    return HEALTH_PATH;
-  }
-  const root = window.agentwpSettings?.root || window.wpApiSettings?.root;
-  if (!root) {
-    return HEALTH_PATH;
-  }
-  return `${root.replace(/\/$/, '')}${HEALTH_PATH}`;
-};
-
-const getRestNonce = () => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  return window.agentwpSettings?.nonce || window.wpApiSettings?.nonce || null;
 };
 
 const getNow = () => {
@@ -1266,24 +1192,9 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
   }, [isOpen]);
 
   const persistThemePreference = useCallback(async (theme) => {
-    const restNonce = getRestNonce();
-    if (!restNonce) {
-      return false;
-    }
     try {
-      const response = await fetch(getThemeEndpoint(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-WP-Nonce': restNonce,
-        },
-        credentials: 'same-origin',
-        body: JSON.stringify({ theme }),
-      });
-      if (!response.ok) {
-        return false;
-      }
-      const payload = await response.json();
+      // Use centralized API client
+      const payload = await agentwpClient.updateTheme(theme);
       return Boolean(payload?.success);
     } catch (error) {
       return false;
@@ -1305,24 +1216,12 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
   }, [persistThemePreference, themePreference]);
 
   const fetchAnalytics = useCallback(async () => {
-    const endpoint = getAnalyticsEndpoint();
-    if (!endpoint) {
-      return;
-    }
     setIsAnalyticsLoading(true);
-    const restNonce = getRestNonce();
     try {
-      const headers = {};
-      if (restNonce) {
-        headers['X-WP-Nonce'] = restNonce;
-      }
-      const response = await fetch(`${endpoint}?period=${selectedPeriod}`, {
-        method: 'GET',
-        headers,
-        credentials: 'same-origin',
-      });
-      const payload = await response.json();
-      if (response.ok && payload.success) {
+      // Use centralized API client
+      const payload = await agentwpClient.getAnalytics({ period: selectedPeriod });
+
+      if (payload && payload.success) {
         setAnalyticsData(payload.data);
       }
     } catch (e) {
@@ -1337,26 +1236,15 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
   }, [fetchAnalytics]);
 
   const refreshUsage = useCallback(async () => {
-    const endpoint = getUsageEndpoint();
-    if (!endpoint) {
-      return;
-    }
-    const restNonce = getRestNonce();
     setUsageLoading(true);
     try {
-      const headers = {};
-      if (restNonce) {
-        headers['X-WP-Nonce'] = restNonce;
-      }
-      const response = await fetch(`${endpoint}?period=month`, {
-        method: 'GET',
-        headers,
-        credentials: 'same-origin',
-      });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || payload?.success === false) {
+      // Use centralized API client
+      const payload = await agentwpClient.getUsage('month');
+
+      if (!payload || payload.success === false) {
         return;
       }
+
       const nextUsage = normalizeUsageSummary(payload?.data ?? {});
       setUsageSummary(nextUsage);
       setUsageBaseline((previous) => {
@@ -1377,25 +1265,14 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
   }, []);
 
   const fetchBudgetLimit = useCallback(async () => {
-    const endpoint = getSettingsEndpoint();
-    if (!endpoint) {
-      return;
-    }
-    const restNonce = getRestNonce();
     try {
-      const headers = {};
-      if (restNonce) {
-        headers['X-WP-Nonce'] = restNonce;
-      }
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        headers,
-        credentials: 'same-origin',
-      });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || payload?.success === false) {
+      // Use centralized API client
+      const payload = await agentwpClient.getSettings();
+
+      if (!payload || payload.success === false) {
         return;
       }
+
       const nextLimit = Number.parseFloat(payload?.data?.settings?.budget_limit ?? 0);
       setBudgetLimit(Number.isFinite(nextLimit) && nextLimit >= 0 ? nextLimit : 0);
       const nextDemoMode = Boolean(payload?.data?.settings?.demo_mode);
@@ -1512,10 +1389,6 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
     if (typeof window === 'undefined') {
       return;
     }
-    const endpoint = getHealthEndpoint();
-    if (!endpoint) {
-      return;
-    }
     if (navigator.onLine === false) {
       setIsOffline(true);
       return;
@@ -1530,26 +1403,21 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
     }, HEALTH_TIMEOUT_MS);
 
     try {
-      const headers = {};
-      const restNonce = getRestNonce();
-      if (restNonce) {
-        headers['X-WP-Nonce'] = restNonce;
-      }
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        headers,
-        credentials: 'same-origin',
+      // Use centralized API client with abort signal
+      const payload = await agentwpClient.getHealth({
         signal: controller.signal,
       });
-      if (response.status === 401 || response.status === 403) {
+
+      if (payload && payload.error?.code === 'agentwp_forbidden') {
         setIsOffline(false);
         return;
       }
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || payload?.success === false) {
+
+      if (!payload || payload.success === false) {
         setIsOffline(true);
         return;
       }
+
       setIsOffline(false);
     } catch (error) {
       if (error?.name === 'AbortError') {
@@ -1939,27 +1807,15 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
       searchControllerRef.current = controller;
 
       try {
-        const headers = {};
-        const restNonce = getRestNonce();
-        if (restNonce) {
-          headers['X-WP-Nonce'] = restNonce;
-        }
+        // Use centralized API client with abort signal
+        const data = await agentwpClient.search(
+          trimmedPrompt,
+          SEARCH_TYPES,
+          { signal: controller.signal }
+        );
 
-        const endpoint = getSearchEndpoint();
-        const url = new URL(endpoint, window.location.origin);
-        url.searchParams.set('q', trimmedPrompt);
-        url.searchParams.set('types', SEARCH_TYPES.join(','));
-
-        const response = await fetch(url.toString(), {
-          method: 'GET',
-          headers,
-          credentials: 'same-origin',
-          signal: controller.signal,
-        });
-
-        const data = await response.json().catch(() => null);
-        if (!response.ok || data?.success === false) {
-          throw new Error(data?.error?.message || data?.message || 'Search unavailable.');
+        if (!data || data.success === false) {
+          throw new Error(data?.error?.message || 'Search unavailable.');
         }
 
         const payload = data?.data?.results || {};
@@ -2287,42 +2143,24 @@ export default function App({ shadowRoot = null, portalRoot = null, themeTarget 
       lastPromptRef.current = trimmedPrompt;
 
       try {
-        const headers = {
-          'Content-Type': 'application/json',
-        };
-        const restEndpoint = getRestEndpoint();
-        const restNonce = getRestNonce();
-        if (restNonce) {
-          headers['X-WP-Nonce'] = restNonce;
-        }
+        // Use centralized API client with abort signal support
+        const data = await agentwpClient.processIntent(
+          trimmedPrompt,
+          {},
+          { signal: controller.signal }
+        );
 
-        const response = await fetch(restEndpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ prompt: trimmedPrompt }),
-          credentials: 'same-origin',
-          signal: controller.signal,
-        });
-
-        const data = await response.json().catch(() => null);
         const latencyMs = Math.round(getNow() - startTime);
 
-        if (!response.ok || data?.success === false) {
-          const errorPayload = data?.error || {};
-          const retryAfterHeader = Number.parseInt(
-            response.headers.get('Retry-After') || 0,
-            10
-          );
+        // Check for error response from AgentWPClient
+        if (!data || data.success === false) {
           const errorInfo = {
-            message: errorPayload?.message || data?.message || DEFAULT_ERROR_MESSAGE,
-            code: errorPayload?.code || '',
-            type: errorPayload?.type || '',
-            status: response.status || 0,
-            meta: errorPayload?.meta || {},
-            retryAfter:
-              Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
-                ? retryAfterHeader
-                : errorPayload?.meta?.retry_after || 0,
+            message: data?.error?.message || DEFAULT_ERROR_MESSAGE,
+            code: data?.error?.code || '',
+            type: data?.error?.type || '',
+            status: data?.error?.status || 0,
+            meta: data?.error?.meta || {},
+            retryAfter: data?.error?.retryAfter || 0,
           };
           throw errorInfo;
         }

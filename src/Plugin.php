@@ -455,114 +455,14 @@ class Plugin {
 			return $result;
 		}
 
-		// Use container-based formatter if available.
-		if ( $this->container->has( ResponseFormatter::class ) ) {
-			/** @var ResponseFormatter $formatter */
-			$formatter = $this->container->get( ResponseFormatter::class );
-			return $formatter->formatResponse( $result, $server, $request );
+		// Use ResponseFormatter from container if available.
+		if ( ! $this->container->has( ResponseFormatter::class ) ) {
+			return $result;
 		}
 
-		// Fallback to inline formatting for backward compatibility.
-		$status     = 200;
-		$error_code = '';
-
-		if ( is_wp_error( $result ) ) {
-			$error_code = (string) $result->get_error_code();
-			$message    = $result->get_error_message();
-			$data       = $result->get_error_data();
-			$status     = ( is_array( $data ) && isset( $data['status'] ) ) ? intval( $data['status'] ) : 500;
-			$type       = class_exists( 'AgentWP\\Error\\Handler' )
-				? Error\Handler::categorize( $error_code, $status, $message, is_array( $data ) ? $data : array() )
-				: 'unknown';
-			$error_meta = array();
-			if ( is_array( $data ) && isset( $data['retry_after'] ) ) {
-				$error_meta['retry_after'] = intval( $data['retry_after'] );
-			}
-
-			$response = rest_ensure_response(
-				array(
-					'success' => false,
-					'data'    => array(),
-					'error'   => array(
-						'code'    => $error_code,
-						'message' => $message,
-						'type'    => $type,
-						'meta'    => $error_meta,
-					),
-				)
-			);
-
-			if ( $response instanceof \WP_REST_Response ) {
-				$response->set_status( $status );
-				if ( is_array( $data ) && isset( $data['retry_after'] ) ) {
-					$response->header( 'Retry-After', (string) intval( $data['retry_after'] ) );
-				}
-			}
-
-			$result = $response;
-		} elseif ( $result instanceof \WP_REST_Response ) {
-			$status = $result->get_status();
-			$body   = $result->get_data();
-
-			if ( is_array( $body ) && isset( $body['code'], $body['message'] ) ) {
-				$error_code = (string) $body['code'];
-				$message    = (string) $body['message'];
-				$data       = isset( $body['data'] ) && is_array( $body['data'] ) ? $body['data'] : array();
-				$status     = isset( $data['status'] ) ? intval( $data['status'] ) : $status;
-				$type       = class_exists( 'AgentWP\\Error\\Handler' )
-					? Error\Handler::categorize( $error_code, $status, $message, $data )
-					: 'unknown';
-				$error_meta = array();
-				if ( isset( $data['retry_after'] ) ) {
-					$error_meta['retry_after'] = intval( $data['retry_after'] );
-				}
-
-				$response = rest_ensure_response(
-					array(
-						'success' => false,
-						'data'    => array(),
-						'error'   => array(
-							'code'    => $error_code,
-							'message' => $message,
-							'type'    => $type,
-							'meta'    => $error_meta,
-						),
-					)
-				);
-
-				if ( $response instanceof \WP_REST_Response ) {
-					$response->set_status( $status );
-					if ( isset( $data['retry_after'] ) ) {
-						$response->header( 'Retry-After', (string) intval( $data['retry_after'] ) );
-					}
-				}
-
-				$result = $response;
-			} elseif ( is_array( $body ) && isset( $body['error']['code'] ) ) {
-				$error_code = (string) $body['error']['code'];
-			}
-		} else {
-			$result = rest_ensure_response(
-				array(
-					'success' => true,
-					'data'    => $result,
-				)
-			);
-
-			if ( $result instanceof \WP_REST_Response ) {
-				$status = $result->get_status();
-			}
-		}
-
-		if ( class_exists( 'AgentWP\\API\\RestController' ) ) {
-			API\RestController::log_request( $request, $status, $error_code );
-		}
-
-		if ( $result instanceof \WP_REST_Response ) {
-			$this->add_no_cache_headers( $result );
-		}
-
-		return $result;
+		/** @var ResponseFormatter $formatter */
+		$formatter = $this->container->get( ResponseFormatter::class );
+		return $formatter->formatResponse( $result, $server, $request );
 	}
 
 	/**
@@ -576,18 +476,6 @@ class Plugin {
 		$route = is_string( $route ) ? $route : '';
 
 		return ( 0 === strpos( $route, '/' . API\RestController::REST_NAMESPACE ) );
-	}
-
-	/**
-	 * Add no-cache headers for AgentWP REST responses.
-	 *
-	 * @param \WP_REST_Response $response Response instance.
-	 * @return void
-	 */
-	private function add_no_cache_headers( $response ) {
-		$response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
-		$response->header( 'Pragma', 'no-cache' );
-		$response->header( 'Expires', 'Wed, 11 Jan 1984 05:00:00 GMT' );
 	}
 
 	/**

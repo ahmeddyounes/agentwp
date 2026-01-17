@@ -7,11 +7,12 @@
 
 namespace AgentWP\API;
 
+use AgentWP\Config\AgentWPConfig;
 use WP_REST_Server;
 
 class HistoryController extends RestController {
-	const HISTORY_META_KEY   = 'agentwp_command_history';
-	const FAVORITES_META_KEY = 'agentwp_command_favorites';
+	const HISTORY_META_KEY   = AgentWPConfig::META_KEY_HISTORY;
+	const FAVORITES_META_KEY = AgentWPConfig::META_KEY_FAVORITES;
 	const HISTORY_LIMIT      = 50;
 	const FAVORITES_LIMIT    = 50;
 
@@ -75,7 +76,7 @@ class HistoryController extends RestController {
 	public function update_history( $request ) {
 		$validation = $this->validate_request( $request, $this->get_history_schema() );
 		if ( is_wp_error( $validation ) ) {
-			return $this->response_error( 'agentwp_invalid_request', $validation->get_error_message(), 400 );
+			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_REQUEST, $validation->get_error_message(), 400 );
 		}
 
 		$payload   = $request->get_json_params();

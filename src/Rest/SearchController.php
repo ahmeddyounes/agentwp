@@ -8,6 +8,7 @@
 namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Search\Index;
 use WP_REST_Server;
 
@@ -40,7 +41,7 @@ class SearchController extends RestController {
 	public function search( $request ) {
 		$validation = $this->validate_request( $request, $this->get_search_schema(), 'query' );
 		if ( is_wp_error( $validation ) ) {
-			return $this->response_error( 'agentwp_invalid_request', $validation->get_error_message(), 400 );
+			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_REQUEST, $validation->get_error_message(), 400 );
 		}
 
 		$params = $request->get_query_params();
