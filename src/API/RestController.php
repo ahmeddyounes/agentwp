@@ -9,6 +9,7 @@ namespace AgentWP\API;
 
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Container\ContainerInterface;
+use AgentWP\Contracts\RateLimiterInterface;
 use AgentWP\Error\Handler as ErrorHandler;
 use AgentWP\Plugin;
 use WP_Error;
@@ -18,8 +19,6 @@ use WP_REST_Response;
 
 abstract class RestController extends WP_REST_Controller {
 	const REST_NAMESPACE = 'agentwp/v1';
-	const RATE_LIMIT     = 60;
-	const RATE_WINDOW    = 60;
 	const LOG_LIMIT      = 50;
 
 	/**
@@ -133,11 +132,44 @@ abstract class RestController extends WP_REST_Controller {
 			return $nonce_error;
 		}
 
-		$rate_error = self::check_rate_limit( $request );
+		$rate_error = $this->check_rate_limit_via_service();
 		if ( is_wp_error( $rate_error ) ) {
 			return $rate_error;
 		}
 
+		return true;
+	}
+
+	/**
+	 * Check rate limit using the injected RateLimiterInterface service.
+	 *
+	 * @return true|WP_Error True if within limits, WP_Error if exceeded.
+	 */
+	protected function check_rate_limit_via_service() {
+		$user_id = get_current_user_id();
+		if ( $user_id <= 0 ) {
+			return true;
+		}
+
+		$rateLimiter = $this->resolve( RateLimiterInterface::class );
+		if ( ! $rateLimiter instanceof RateLimiterInterface ) {
+			// Fail open if rate limiter is unavailable.
+			return true;
+		}
+
+		if ( ! $rateLimiter->check( $user_id ) ) {
+			$retryAfter = $rateLimiter->getRetryAfter( $user_id );
+			return new WP_Error(
+				AgentWPConfig::ERROR_CODE_RATE_LIMITED,
+				__( 'Rate limit exceeded. Please retry later.', 'agentwp' ),
+				array(
+					'status'      => 429,
+					'retry_after' => $retryAfter,
+				)
+			);
+		}
+
+		$rateLimiter->increment( $user_id );
 		return true;
 	}
 
@@ -261,61 +293,6 @@ abstract class RestController extends WP_REST_Controller {
 		}
 
 		return $response;
-	}
-
-	/**
-	 * Rate limiter using per-user transients.
-	 *
-	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
-	 * @return true|WP_Error
-	 */
-	public static function check_rate_limit( $request ) {
-		unset( $request );
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			return true;
-		}
-
-		$user_id = get_current_user_id();
-		if ( $user_id <= 0 ) {
-			return true;
-		}
-
-		$key    = Plugin::TRANSIENT_PREFIX . 'rate_' . $user_id;
-		$bucket = get_transient( $key );
-		$now    = time();
-
-		// Validate bucket structure - ensure required keys exist.
-		if ( ! is_array( $bucket ) || ! isset( $bucket['start'], $bucket['count'] ) ) {
-			$bucket = array(
-				'start' => $now,
-				'count' => 0,
-			);
-		}
-
-		if ( $now - intval( $bucket['start'] ) >= self::RATE_WINDOW ) {
-			$bucket = array(
-				'start' => $now,
-				'count' => 0,
-			);
-		}
-
-		if ( intval( $bucket['count'] ) >= self::RATE_LIMIT ) {
-			$retry_after = max( 1, self::RATE_WINDOW - ( $now - intval( $bucket['start'] ) ) );
-
-			return new WP_Error(
-				AgentWPConfig::ERROR_CODE_RATE_LIMITED,
-				__( 'Rate limit exceeded. Please retry later.', 'agentwp' ),
-				array(
-					'status'      => 429,
-					'retry_after' => $retry_after,
-				)
-			);
-		}
-
-		$bucket['count'] = intval( $bucket['count'] ) + 1;
-		set_transient( $key, $bucket, self::RATE_WINDOW );
-
-		return true;
 	}
 
 	/**
