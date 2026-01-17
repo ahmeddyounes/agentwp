@@ -35,6 +35,7 @@ use AgentWP\Infrastructure\WordPressHttpClient;
 use AgentWP\Infrastructure\WordPressObjectCache;
 use AgentWP\Infrastructure\WordPressTransientCache;
 use AgentWP\Infrastructure\OpenAIKeyValidator;
+use AgentWP\Demo\DemoAwareKeyValidator;
 use AgentWP\Retry\ExponentialBackoffPolicy;
 use AgentWP\Retry\RetryExecutor;
 
@@ -249,13 +250,28 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 	/**
 	 * Register OpenAI key validator.
 	 *
+	 * The validator is wrapped with demo-mode awareness so that:
+	 * - In demo stubbed mode: Validation always passes (no API calls)
+	 * - In demo key mode: Only the demo key is validated
+	 * - In normal mode: Standard key validation via OpenAI API
+	 *
 	 * @return void
 	 */
 	private function registerOpenAIKeyValidator(): void {
+		// Register the underlying real validator.
 		$this->container->singleton(
-			OpenAIKeyValidatorInterface::class,
+			OpenAIKeyValidator::class,
 			fn( $c ) => new OpenAIKeyValidator(
 				$c->get( HttpClientInterface::class )
+			)
+		);
+
+		// Register the demo-aware validator as the interface implementation.
+		$this->container->singleton(
+			OpenAIKeyValidatorInterface::class,
+			fn( $c ) => new DemoAwareKeyValidator(
+				$c->get( DemoCredentials::class ),
+				$c->get( OpenAIKeyValidator::class )
 			)
 		);
 	}

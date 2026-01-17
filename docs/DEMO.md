@@ -38,6 +38,40 @@ When no demo API key is available, the `DemoClient` returns:
 - Simulated token usage metrics
 - Clear indication that demo mode is active
 
+## API Key Validation in Demo Mode
+
+The `DemoAwareKeyValidator` wraps the real OpenAI key validator with demo-mode awareness.
+This ensures that API key validation behavior is deterministic and cannot leak real-key behavior.
+
+### Validation Behavior Matrix
+
+| Mode | Demo Key Available | Validation Behavior |
+|------|-------------------|---------------------|
+| Demo OFF | N/A | Validates provided key via OpenAI API |
+| Demo ON | Yes | Validates demo key only (ignores provided key) |
+| Demo ON | No | Always returns valid (no API call made) |
+
+### Security Guarantees
+
+1. **Demo stubbed mode**: API key validation always succeeds without making any API calls
+2. **Demo key mode**: Only the demo API key is validated, never the user-provided key
+3. **Normal mode**: Standard validation via OpenAI's `/models` endpoint
+
+This design ensures:
+- Real API keys are never sent to OpenAI when demo mode is enabled
+- Demo environments behave consistently regardless of which keys are configured
+- No accidental cost incursion from validating real keys in demo mode
+
+### Implementation Details
+
+The demo-aware validation is implemented in these classes:
+- `AgentWP\Demo\DemoAwareKeyValidator` - Wraps the real validator with demo logic
+- `AgentWP\Demo\DemoCredentials` - Manages credential type detection
+- `AgentWP\Infrastructure\OpenAIKeyValidator` - Real validator for OpenAI API
+
+All consumers of `OpenAIKeyValidatorInterface` automatically get demo-aware behavior
+through the service container wiring in `InfrastructureServiceProvider`.
+
 ## Docker demo setup
 1. From the repo root, run:
 ```
