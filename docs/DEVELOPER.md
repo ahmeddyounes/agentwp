@@ -476,4 +476,57 @@ add_filter( 'agentwp_config_intent_weight_order_search', fn() => 1.5 );
 For custom intents, override `getWeight()` in your scorer or add your intent to `AbstractScorer::INTENT_WEIGHT_KEYS`.
 
 ## OpenAPI spec
-The OpenAPI spec lives in `docs/openapi.json`. It is generated from endpoint annotations in the REST controllers; update annotations first, then regenerate the spec.
+
+The OpenAPI spec lives in `docs/openapi.json`. It documents the REST API and is kept in sync with controller annotations.
+
+### Annotation format
+
+Each REST endpoint method should have an `@openapi` annotation in its PHPDoc:
+
+```php
+/**
+ * Handle intent requests.
+ *
+ * @openapi POST /agentwp/v1/intent
+ *
+ * @param WP_REST_Request<array<string, mixed>> $request Request instance.
+ * @return \WP_REST_Response
+ */
+public function create_intent( $request ) { ... }
+```
+
+The annotation format is: `@openapi METHOD /path`
+
+### Maintenance workflow
+
+When adding or modifying REST endpoints:
+
+1. **Add/update the `@openapi` annotation** in the controller method
+2. **Update `docs/openapi.json`** with the endpoint definition, request/response schemas
+3. **Run validation** to ensure sync:
+   ```bash
+   composer run openapi:validate
+   ```
+
+### Validation
+
+The validation script compares `@openapi` annotations against `docs/openapi.json`:
+
+```bash
+composer run openapi:validate
+```
+
+This will:
+- Check that `openapi.json` is valid JSON with required OpenAPI 3.x structure
+- List endpoints annotated in code but missing from the spec
+- List spec entries without corresponding code annotations
+- Report synchronized endpoints
+
+The validation runs automatically in CI and will fail the build if drift is detected.
+
+### Adding a new endpoint
+
+1. Create the controller method with `@openapi` annotation
+2. Add the path and method to `docs/openapi.json` under `paths`
+3. Define request/response schemas in `components/schemas` if needed
+4. Run `composer run openapi:validate` to verify sync

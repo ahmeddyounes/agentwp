@@ -57,6 +57,15 @@ jobs:
             echo "No PHPUnit config/tests found; skipping."
           fi
 
+      - name: Validate OpenAPI spec
+        if: hashFiles('composer.json') != ''
+        run: |
+          if [ -f scripts/openapi-validate.php ]; then
+            php scripts/openapi-validate.php
+          else
+            echo "OpenAPI validation script not found; skipping."
+          fi
+
   node:
     name: node
     runs-on: ubuntu-latest
