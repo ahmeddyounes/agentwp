@@ -476,11 +476,13 @@
         "properties": {
           "prompt": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 10000
           },
           "input": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 10000
           },
           "context": {
             "type": "object",
@@ -565,13 +567,18 @@
             ]
           },
           "budget_limit": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
           },
           "draft_ttl_minutes": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10080
           },
           "hotkey": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 50
           },
           "theme": {
             "type": "string",
@@ -579,6 +586,9 @@
               "light",
               "dark"
             ]
+          },
+          "demo_mode": {
+            "type": "boolean"
           }
         }
       },
@@ -619,6 +629,7 @@
       },
       "SettingsUpdateRequest": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "model": {
             "type": "string",
@@ -629,14 +640,17 @@
           },
           "budget_limit": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 100000
           },
           "draft_ttl_minutes": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 10080
           },
           "hotkey": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 50
           },
           "theme": {
             "type": "string",
@@ -647,14 +661,21 @@
           },
           "dark_mode": {
             "type": "boolean"
+          },
+          "demo_mode": {
+            "type": "boolean"
           }
         }
       },
       "ApiKeyRequest": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "api_key": {
-            "type": "string"
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 256,
+            "pattern": "^sk-"
           }
         }
       },
