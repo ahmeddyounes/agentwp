@@ -11,7 +11,6 @@ use AgentWP\AI\Response;
 use AgentWP\Contracts\ContextBuilderInterface;
 use AgentWP\Contracts\IntentClassifierInterface;
 use AgentWP\Contracts\MemoryStoreInterface;
-use AgentWP\Intent\Attributes\HandlesIntent;
 
 class Engine {
 	/**
@@ -40,22 +39,11 @@ class Engine {
 	private $handler_registry;
 
 	/**
-	 * @var Handler[]
-	 */
-	private $handlers = array();
-
-	/**
+	 * Fallback handler for unknown intents.
+	 *
 	 * @var Handler
 	 */
 	private $fallback_handler;
-
-	/**
-	 * Flag to track if we need fallback lookup.
-	 * Set to true when any handler lacks explicit intent registration.
-	 *
-	 * @var bool
-	 */
-	private $needs_fallback_lookup = false;
 
 	/**
 	 * @param array                     $handlers          Handlers to register.
@@ -98,103 +86,56 @@ class Engine {
 	/**
 	 * Register handlers with the registry.
 	 *
-	 * For backward compatibility, this also maintains a list of handlers
-	 * for fallback O(n) lookup when HandlerRegistry doesn't have the intent.
+	 * Handlers must declare their supported intents via the #[HandlesIntent] attribute.
+	 * Handlers without the attribute will be skipped with a warning in WP_DEBUG mode.
 	 *
 	 * @param Handler[] $handlers Array of handlers to register.
 	 * @return void
 	 */
 	private function register_handlers( array $handlers ): void {
 		foreach ( $handlers as $handler ) {
-			if ( $handler instanceof Handler ) {
-				// Store handler for potential fallback lookup.
-				$this->handlers[] = $handler;
+			if ( ! ( $handler instanceof Handler ) ) {
+				continue;
+			}
 
-				// Get supported intents from the handler.
-				$intents = $this->get_handler_intents( $handler );
+			$intents = $this->get_handler_intents( $handler );
 
-				if ( ! empty( $intents ) ) {
-					// Register with explicit intents from attribute or method.
-					$this->handler_registry->register( $intents, $handler );
-				} else {
-					// Handler has no explicit intent registration - need fallback.
-					$this->needs_fallback_lookup = true;
+			if ( ! empty( $intents ) ) {
+				$this->handler_registry->register( $intents, $handler );
+			} elseif ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				// Warn about handlers missing #[HandlesIntent] attribute.
+				$message = sprintf(
+					'AgentWP: Handler %s is missing #[HandlesIntent] attribute and will not be registered. ' .
+					'See docs/adr/0002-intent-handler-registration.md for migration instructions.',
+					get_class( $handler )
+				);
+				if ( function_exists( '_doing_it_wrong' ) ) {
+					_doing_it_wrong( get_class( $handler ), esc_html( $message ), '2.0.0' );
+				} elseif ( function_exists( 'trigger_error' ) ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_trigger_error
+					trigger_error( esc_html( $message ), E_USER_WARNING );
 				}
 			}
 		}
 	}
 
 	/**
-	 * Trigger a deprecation warning for legacy handler discovery methods.
-	 *
-	 * @param Handler $handler Handler instance.
-	 * @param string  $method  The deprecated method name.
-	 * @return void
-	 */
-	private function triggerLegacyMethodWarning( Handler $handler, string $method ): void {
-		// Only trigger warnings in development mode.
-		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
-			return;
-		}
-
-		// Avoid duplicate warnings by tracking which deprecations have been triggered.
-		static $triggered = array();
-		$handler_class = get_class( $handler );
-		$key           = $handler_class . '::' . $method;
-		if ( isset( $triggered[ $key ] ) ) {
-			return;
-		}
-		$triggered[ $key ] = true;
-
-		$message = sprintf(
-			'AgentWP Deprecation: Handler %s uses deprecated method %s() for intent discovery. ' .
-			'Please migrate to the #[HandlesIntent] attribute. This method will be removed in a future release. ' .
-			'See docs/adr/0002-intent-handler-registration.md for migration instructions.',
-			$handler_class,
-			$method
-		);
-
-		if ( function_exists( '_doing_it_wrong' ) ) {
-			_doing_it_wrong( $handler_class . '::' . $method, esc_html( $message ), '2.0.0' );
-		} elseif ( function_exists( 'trigger_error' ) ) {
-			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_trigger_error
-			trigger_error( esc_html( $message ), E_USER_DEPRECATED );
-		}
-	}
-
-	/**
-	 * Get intents supported by a handler.
+	 * Get intents supported by a handler from its #[HandlesIntent] attribute.
 	 *
 	 * @param Handler $handler Handler instance.
 	 * @return string[] Array of intent identifiers.
 	 */
 	private function get_handler_intents( Handler $handler ): array {
 		try {
-			// Try to get intents from HandlesIntent attribute.
 			$reflection = new \ReflectionClass( $handler );
+			$attributes = $reflection->getAttributes( Attributes\HandlesIntent::class );
 
-			$attributes = $reflection->getAttributes( HandlesIntent::class );
 			if ( ! empty( $attributes ) ) {
 				$attribute = $attributes[0]->newInstance();
 				return $attribute->getIntents();
 			}
 		} catch ( \ReflectionException ) {
-			// Reflection failed - fall through to other detection methods.
-		}
-
-		// Fallback 1: Try to get intents from getSupportedIntents() method.
-		// @deprecated 2.0.0 getSupportedIntents() is deprecated. Use #[HandlesIntent] attribute instead.
-		if ( method_exists( $handler, 'getSupportedIntents' ) ) {
-			$this->triggerLegacyMethodWarning( $handler, 'getSupportedIntents' );
-			return $handler->getSupportedIntents();
-		}
-
-		// Fallback 2: Try to get intent from BaseHandler using public getter.
-		// @deprecated 2.0.0 getIntent() is deprecated. Use #[HandlesIntent] attribute instead.
-		// This maintains backward compatibility with existing handlers.
-		if ( method_exists( $handler, 'getIntent' ) ) {
-			$this->triggerLegacyMethodWarning( $handler, 'getIntent' );
-			return array( $handler->getIntent() );
+			// Reflection failed - handler will not be registered.
 		}
 
 		return array();
@@ -251,28 +192,13 @@ class Engine {
 	}
 
 	/**
+	 * Resolve handler for an intent using O(1) registry lookup.
+	 *
 	 * @param string $intent Intent identifier.
 	 * @return Handler
 	 */
-	private function resolve_handler( $intent ) {
-		// Try O(1) lookup using HandlerRegistry first.
-		$handler = $this->handler_registry->get( $intent );
-
-		if ( null !== $handler ) {
-			return $handler;
-		}
-
-		// Fallback: O(n) linear search for backward compatibility.
-		// Only runs if we have handlers that weren't registered with explicit intents.
-		if ( $this->needs_fallback_lookup ) {
-			foreach ( $this->handlers as $handler ) {
-				if ( $handler instanceof Handler && $handler->canHandle( $intent ) ) {
-					return $handler;
-				}
-			}
-		}
-
-		return $this->fallback_handler;
+	private function resolve_handler( string $intent ): Handler {
+		return $this->handler_registry->getOrFallback( $intent, $this->fallback_handler );
 	}
 
 	/**
@@ -304,9 +230,11 @@ class Engine {
 	}
 
 	/**
+	 * Register default functions with their associated handlers.
+	 *
 	 * @return void
 	 */
-	private function register_default_functions() {
+	private function register_default_functions(): void {
 		$mapping = array(
 			Intent::ORDER_SEARCH    => array( 'search_orders', 'select_orders' ),
 			Intent::ORDER_REFUND    => array( 'prepare_refund', 'confirm_refund' ),
@@ -321,11 +249,12 @@ class Engine {
 		}
 
 		foreach ( $mapping as $intent => $functions ) {
-			$handler = $this->resolve_handler( $intent );
-			if ( ! $handler || ! $handler->canHandle( $intent ) ) {
+			// Only register functions if a handler is explicitly registered for the intent.
+			if ( ! $this->handler_registry->has( $intent ) ) {
 				continue;
 			}
 
+			$handler = $this->handler_registry->get( $intent );
 			foreach ( $functions as $function_name ) {
 				$this->function_registry->register( $function_name, $handler );
 			}
