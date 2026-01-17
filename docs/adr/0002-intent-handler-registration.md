@@ -96,10 +96,13 @@ This enables gradual migration without breaking existing custom handlers.
 
 ### Deprecation Path
 
-#### Phase 1: Soft Deprecation (Current - v2.0)
-- Document `#[HandlesIntent]` as the recommended approach
-- Add `@deprecated` annotations to `getIntent()` in `BaseHandler`
-- Log deprecation warnings when fallback discovery is used (debug mode only)
+#### Phase 1: Soft Deprecation (Current - v2.0) ✅ IMPLEMENTED
+- ✅ Document `#[HandlesIntent]` as the recommended approach
+- ✅ Add `@deprecated` annotations to `getIntent()` in `BaseHandler`
+- ✅ Log deprecation warnings when fallback discovery is used (debug mode only)
+  - Warnings trigger via `_doing_it_wrong()` or `E_USER_DEPRECATED` in WP_DEBUG mode
+  - Tracked per-handler to avoid duplicate warnings
+  - Points developers to this ADR for migration instructions
 - Update all core handlers to use attributes (infrastructure in place, handler migration pending)
 
 #### Phase 2: Hard Deprecation (v2.0)
@@ -142,7 +145,7 @@ This enables gradual migration without breaking existing custom handlers.
 - [x] Implement `HandlerRegistry` for O(1) lookup
 - [x] Implement `HandlesIntent` attribute class (`src/Intent/Attributes/HandlesIntent.php`)
 - [x] Implement attribute detection in `Engine::get_handler_intents()`
-- [ ] Add deprecation logging for legacy discovery paths
+- [x] Add deprecation logging for legacy discovery paths
 - [ ] Update DEVELOPER.md with new handler registration guide
 - [ ] Create migration script for custom handlers (optional tooling)
 

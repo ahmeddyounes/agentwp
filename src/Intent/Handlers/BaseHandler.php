@@ -32,10 +32,55 @@ abstract class BaseHandler implements Handler {
 	/**
 	 * Get the intent this handler can process.
 	 *
+	 * @deprecated 2.0.0 Use the #[HandlesIntent] attribute instead for intent declaration.
+	 *             This method will be removed when all handlers use attributes.
+	 *             Migration: Add #[HandlesIntent(Intent::YOUR_INTENT)] to your handler class.
+	 * @see \AgentWP\Intent\Attributes\HandlesIntent
+	 *
 	 * @return string The intent identifier.
 	 */
 	public function getIntent(): string {
+		$this->triggerDeprecationWarning(
+			'getIntent()',
+			'Use the #[HandlesIntent] attribute instead for intent declaration.'
+		);
 		return $this->intent;
+	}
+
+	/**
+	 * Trigger a deprecation warning in development mode.
+	 *
+	 * @param string $method     The deprecated method name.
+	 * @param string $suggestion Migration suggestion.
+	 * @return void
+	 */
+	private function triggerDeprecationWarning( string $method, string $suggestion ): void {
+		// Only trigger warnings in development mode.
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		// Avoid duplicate warnings by tracking which deprecations have been triggered.
+		static $triggered = array();
+		$key = static::class . '::' . $method;
+		if ( isset( $triggered[ $key ] ) ) {
+			return;
+		}
+		$triggered[ $key ] = true;
+
+		$message = sprintf(
+			'AgentWP Deprecation: %s::%s is deprecated since version 2.0.0 and will be removed in a future release. %s',
+			static::class,
+			$method,
+			$suggestion
+		);
+
+		if ( function_exists( '_doing_it_wrong' ) ) {
+			_doing_it_wrong( static::class . '::' . $method, esc_html( $message ), '2.0.0' );
+		} elseif ( function_exists( 'trigger_error' ) ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_trigger_error
+			trigger_error( esc_html( $message ), E_USER_DEPRECATED );
+		}
 	}
 
 	/**

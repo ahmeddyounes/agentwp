@@ -125,6 +125,44 @@ class Engine {
 	}
 
 	/**
+	 * Trigger a deprecation warning for legacy handler discovery methods.
+	 *
+	 * @param Handler $handler Handler instance.
+	 * @param string  $method  The deprecated method name.
+	 * @return void
+	 */
+	private function triggerLegacyMethodWarning( Handler $handler, string $method ): void {
+		// Only trigger warnings in development mode.
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		// Avoid duplicate warnings by tracking which deprecations have been triggered.
+		static $triggered = array();
+		$handler_class = get_class( $handler );
+		$key           = $handler_class . '::' . $method;
+		if ( isset( $triggered[ $key ] ) ) {
+			return;
+		}
+		$triggered[ $key ] = true;
+
+		$message = sprintf(
+			'AgentWP Deprecation: Handler %s uses deprecated method %s() for intent discovery. ' .
+			'Please migrate to the #[HandlesIntent] attribute. This method will be removed in a future release. ' .
+			'See docs/adr/0002-intent-handler-registration.md for migration instructions.',
+			$handler_class,
+			$method
+		);
+
+		if ( function_exists( '_doing_it_wrong' ) ) {
+			_doing_it_wrong( $handler_class . '::' . $method, esc_html( $message ), '2.0.0' );
+		} elseif ( function_exists( 'trigger_error' ) ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_trigger_error
+			trigger_error( esc_html( $message ), E_USER_DEPRECATED );
+		}
+	}
+
+	/**
 	 * Get intents supported by a handler.
 	 *
 	 * @param Handler $handler Handler instance.
@@ -145,13 +183,17 @@ class Engine {
 		}
 
 		// Fallback 1: Try to get intents from getSupportedIntents() method.
+		// @deprecated 2.0.0 getSupportedIntents() is deprecated. Use #[HandlesIntent] attribute instead.
 		if ( method_exists( $handler, 'getSupportedIntents' ) ) {
+			$this->triggerLegacyMethodWarning( $handler, 'getSupportedIntents' );
 			return $handler->getSupportedIntents();
 		}
 
 		// Fallback 2: Try to get intent from BaseHandler using public getter.
+		// @deprecated 2.0.0 getIntent() is deprecated. Use #[HandlesIntent] attribute instead.
 		// This maintains backward compatibility with existing handlers.
 		if ( method_exists( $handler, 'getIntent' ) ) {
+			$this->triggerLegacyMethodWarning( $handler, 'getIntent' );
 			return array( $handler->getIntent() );
 		}
 
