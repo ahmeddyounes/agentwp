@@ -1,45 +1,39 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import agentwpClient from '../api/AgentWPClient';
+import agentwpClient, { type ApiResponse } from '../api/AgentWPClient';
+import type { components } from '../types/api';
 import type { SearchResults } from '../types';
 
 const DEBOUNCE_MS = 300;
 const MIN_QUERY_LENGTH = 2;
 
-interface SearchResponse {
-  success: boolean;
-  data?: {
-    products?: Array<{ id: string | number; title: string; subtitle?: string }>;
-    orders?: Array<{ id: string | number; title: string; subtitle?: string }>;
-    customers?: Array<{ id: string | number; title: string; subtitle?: string }>;
-  };
-  error?: {
-    code: string;
-    message: string;
-  };
-}
+type SearchResponseData = components['schemas']['SearchResponseData'];
+type SearchResult = components['schemas']['SearchResult'];
 
-const normalizeSearchResults = (data: SearchResponse['data']): SearchResults => ({
-  products: (data?.products || []).map((item) => ({
-    ...item,
-    type: 'products' as const,
-  })),
-  orders: (data?.orders || []).map((item) => ({
-    ...item,
-    type: 'orders' as const,
-  })),
-  customers: (data?.customers || []).map((item) => ({
-    ...item,
-    type: 'customers' as const,
-  })),
+const mapSearchResult = (
+  item: SearchResult,
+  type: 'products' | 'orders' | 'customers',
+): SearchResults['products'][number] => ({
+  id: item.id ?? 0,
+  title: item.primary ?? '',
+  subtitle: item.secondary,
+  type,
 });
 
+const normalizeSearchResults = (data: SearchResponseData | undefined): SearchResults => {
+  const results = data?.results || {};
+  return {
+    products: (results.products || []).map((item) => mapSearchResult(item, 'products')),
+    orders: (results.orders || []).map((item) => mapSearchResult(item, 'orders')),
+    customers: (results.customers || []).map((item) => mapSearchResult(item, 'customers')),
+  };
+};
+
 export function useSearchQuery(query: string, types: string[] = [], enabled = true) {
-  return useQuery<SearchResponse, Error>({
+  return useQuery<ApiResponse<SearchResponseData>, Error>({
     queryKey: ['search', query, types],
     queryFn: async () => {
-      const response = await agentwpClient.search(query, types);
-      return response as SearchResponse;
+      return await agentwpClient.search(query, types);
     },
     enabled: enabled && query.length >= MIN_QUERY_LENGTH,
     staleTime: 30 * 1000, // 30 seconds
@@ -99,7 +93,7 @@ export function useDebouncedSearch(initialQuery = '') {
     results,
     isLoading,
     isError: isError || data?.success === false,
-    error: error?.message || data?.error?.message || null,
+    error: error?.message || (data && !data.success ? data.error?.message : null) || null,
     hasResults:
       results.products.length > 0 || results.orders.length > 0 || results.customers.length > 0,
     clear,

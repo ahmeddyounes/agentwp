@@ -1,22 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
-import agentwpClient from '../api/AgentWPClient';
+import agentwpClient, { type ApiResponse } from '../api/AgentWPClient';
 import type { AnalyticsData, Period } from '../types';
 
-interface AnalyticsResponse {
-  success: boolean;
-  data?: AnalyticsData;
-  error?: {
-    code: string;
-    message: string;
-  };
-}
+// Analytics endpoint response data (not yet in OpenAPI spec)
+type AnalyticsResponseData = AnalyticsData;
 
 export function useAnalytics(period: Period, enabled = true) {
-  return useQuery<AnalyticsResponse, Error>({
+  return useQuery<ApiResponse<AnalyticsResponseData>, Error>({
     queryKey: ['analytics', period],
     queryFn: async () => {
       const response = await agentwpClient.getAnalytics({ period });
-      return response as AnalyticsResponse;
+      // Cast to the expected type since analytics endpoint is not in OpenAPI spec
+      return response as ApiResponse<AnalyticsResponseData>;
     },
     enabled,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -33,7 +28,7 @@ export function useAnalyticsData(period: Period) {
     analytics: data?.success ? data.data : null,
     isLoading,
     isError: isError || data?.success === false,
-    error: error?.message || data?.error?.message || null,
+    error: error?.message || (data && !data.success ? data.error?.message : null) || null,
     refetch,
   };
 }

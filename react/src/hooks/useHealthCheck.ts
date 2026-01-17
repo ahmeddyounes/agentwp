@@ -1,27 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import agentwpClient from '../api/AgentWPClient';
+import agentwpClient, { type ApiResponse } from '../api/AgentWPClient';
+import type { components } from '../types/api';
 import { HEALTH_CHECK_INTERVAL_MS } from '../utils/constants';
 
-interface HealthResponse {
-  success: boolean;
-  data?: {
-    status: string;
-    time: string;
-    timestamp: number;
-    version: string;
-  };
-  error?: {
-    code: string;
-    message: string;
-  };
-}
+type HealthResponseData = components['schemas']['HealthResponseData'];
 
 export function useHealthCheck(enabled = true) {
-  return useQuery<HealthResponse, Error>({
+  return useQuery<ApiResponse<HealthResponseData>, Error>({
     queryKey: ['health'],
     queryFn: async () => {
-      const response = await agentwpClient.getHealth();
-      return response as HealthResponse;
+      return await agentwpClient.getHealth();
     },
     refetchInterval: HEALTH_CHECK_INTERVAL_MS,
     refetchIntervalInBackground: false,

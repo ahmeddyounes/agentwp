@@ -85,22 +85,17 @@ export default function App({
       return;
     }
     // Fire and forget - don't block on server response
-    agentwpClient.updateTheme(themePreference).catch(() => {
+    // themePreference is narrowed to 'light' | 'dark' after the system check above
+    const serverTheme: 'light' | 'dark' = themePreference;
+    agentwpClient.updateTheme(serverTheme).catch(() => {
       // Ignore theme persistence errors
     });
   }, [themePreference]);
 
   // Fetch settings (demo mode, budget limit) on mount
   const fetchSettings = useCallback(async () => {
-    type SettingsResponseData = {
-      settings?: {
-        budget_limit?: unknown;
-        demo_mode?: unknown;
-      };
-    };
-
     try {
-      const payload = await agentwpClient.getSettings<SettingsResponseData>();
+      const payload = await agentwpClient.getSettings();
       if (payload.success === false) {
         return;
       }

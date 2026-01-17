@@ -19,11 +19,6 @@ interface CommandDeckProps {
   onClose?: () => void;
 }
 
-type IntentResponseData = {
-  response?: string;
-  message?: string;
-};
-
 export function CommandDeck({ onClose }: CommandDeckProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -103,10 +98,11 @@ export function CommandDeck({ onClose }: CommandDeckProps) {
     setResponse('');
 
     try {
-      const result = await agentwpClient.processIntent<IntentResponseData>(prompt);
+      const result = await agentwpClient.processIntent(prompt);
 
       if (result.success) {
-        const responseText = result.data.response || result.data.message || '';
+        // IntentResponseData has 'message' field from the generated types
+        const responseText = result.data.message || '';
         setResponse(responseText);
         return;
       }

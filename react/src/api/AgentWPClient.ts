@@ -10,6 +10,27 @@
  * @package AgentWP
  */
 
+import type { components } from '../types/api';
+
+// Extract schema types for request/response payloads
+type IntentRequest = components['schemas']['IntentRequest'];
+type IntentResponseData = components['schemas']['IntentResponseData'];
+type SettingsResponseData = components['schemas']['SettingsResponseData'];
+type SettingsUpdateRequest = components['schemas']['SettingsUpdateRequest'];
+type ApiKeyResponseData = components['schemas']['ApiKeyResponseData'];
+type UsageResponseData = components['schemas']['UsageResponseData'];
+type HealthResponseData = components['schemas']['HealthResponseData'];
+type SearchResponseData = components['schemas']['SearchResponseData'];
+type HistoryResponseData = components['schemas']['HistoryResponseData'];
+type HistoryEntry = components['schemas']['HistoryEntry'];
+type ThemeResponseData = components['schemas']['ThemeResponseData'];
+
+// Period type from usage query parameter
+type UsagePeriod = 'day' | 'week' | 'month';
+
+// Theme type from theme update request
+type ThemeValue = 'light' | 'dark';
+
 const API_NAMESPACE = 'agentwp/v1' as const;
 
 /**
@@ -278,14 +299,15 @@ export class AgentWPClient {
   /**
    * Process an intent request.
    */
-  async processIntent<T = unknown>(
+  async processIntent(
     prompt: string,
     context: Record<string, unknown> = {},
     options: RequestOptions = {},
-  ): Promise<ApiResponse<T>> {
-    return await this.request<T>('/intent', {
+  ): Promise<ApiResponse<IntentResponseData>> {
+    const payload: IntentRequest = { prompt, context };
+    return await this.request<IntentResponseData>('/intent', {
       method: 'POST',
-      body: JSON.stringify({ prompt, context }),
+      body: JSON.stringify(payload),
       ...options,
     });
   }
@@ -293,16 +315,16 @@ export class AgentWPClient {
   /**
    * Search orders, products, or customers.
    */
-  async search<T = unknown>(
+  async search(
     query: string,
     types: string[] = [],
     options: RequestOptions = {},
-  ): Promise<ApiResponse<T>> {
+  ): Promise<ApiResponse<SearchResponseData>> {
     const params = new URLSearchParams({ q: query });
     if (types.length > 0) {
       params.append('types', types.join(','));
     }
-    return await this.request<T>(`/search?${params.toString()}`, {
+    return await this.request<SearchResponseData>(`/search?${params.toString()}`, {
       method: 'GET',
       ...options,
     });
@@ -311,11 +333,11 @@ export class AgentWPClient {
   /**
    * Get usage statistics.
    */
-  async getUsage<T = unknown>(
-    period = 'month',
+  async getUsage(
+    period: UsagePeriod = 'month',
     options: RequestOptions = {},
-  ): Promise<ApiResponse<T>> {
-    return await this.request<T>(`/usage?period=${encodeURIComponent(period)}`, {
+  ): Promise<ApiResponse<UsageResponseData>> {
+    return await this.request<UsageResponseData>(`/usage?period=${encodeURIComponent(period)}`, {
       method: 'GET',
       ...options,
     });
@@ -324,8 +346,8 @@ export class AgentWPClient {
   /**
    * Get settings.
    */
-  async getSettings<T = unknown>(options: RequestOptions = {}): Promise<ApiResponse<T>> {
-    return await this.request<T>('/settings', {
+  async getSettings(options: RequestOptions = {}): Promise<ApiResponse<SettingsResponseData>> {
+    return await this.request<SettingsResponseData>('/settings', {
       method: 'GET',
       ...options,
     });
@@ -334,11 +356,11 @@ export class AgentWPClient {
   /**
    * Update settings.
    */
-  async updateSettings<T = unknown>(
-    settings: Record<string, unknown>,
+  async updateSettings(
+    settings: SettingsUpdateRequest,
     options: RequestOptions = {},
-  ): Promise<ApiResponse<T>> {
-    return await this.request<T>('/settings', {
+  ): Promise<ApiResponse<SettingsResponseData>> {
+    return await this.request<SettingsResponseData>('/settings', {
       method: 'POST',
       body: JSON.stringify(settings),
       ...options,
@@ -348,11 +370,11 @@ export class AgentWPClient {
   /**
    * Update API key.
    */
-  async updateApiKey<T = unknown>(
+  async updateApiKey(
     apiKey: string,
     options: RequestOptions = {},
-  ): Promise<ApiResponse<T>> {
-    return await this.request<T>('/settings/api-key', {
+  ): Promise<ApiResponse<ApiKeyResponseData>> {
+    return await this.request<ApiKeyResponseData>('/settings/api-key', {
       method: 'POST',
       body: JSON.stringify({ api_key: apiKey }),
       ...options,
@@ -362,8 +384,8 @@ export class AgentWPClient {
   /**
    * Get theme preference.
    */
-  async getTheme<T = unknown>(options: RequestOptions = {}): Promise<ApiResponse<T>> {
-    return await this.request<T>('/theme', {
+  async getTheme(options: RequestOptions = {}): Promise<ApiResponse<ThemeResponseData>> {
+    return await this.request<ThemeResponseData>('/theme', {
       method: 'GET',
       ...options,
     });
@@ -372,11 +394,11 @@ export class AgentWPClient {
   /**
    * Update theme preference.
    */
-  async updateTheme<T = unknown>(
-    theme: string,
+  async updateTheme(
+    theme: ThemeValue,
     options: RequestOptions = {},
-  ): Promise<ApiResponse<T>> {
-    return await this.request<T>('/theme', {
+  ): Promise<ApiResponse<ThemeResponseData>> {
+    return await this.request<ThemeResponseData>('/theme', {
       method: 'POST',
       body: JSON.stringify({ theme }),
       ...options,
@@ -386,8 +408,8 @@ export class AgentWPClient {
   /**
    * Get command history.
    */
-  async getHistory<T = unknown>(options: RequestOptions = {}): Promise<ApiResponse<T>> {
-    return await this.request<T>('/history', {
+  async getHistory(options: RequestOptions = {}): Promise<ApiResponse<HistoryResponseData>> {
+    return await this.request<HistoryResponseData>('/history', {
       method: 'GET',
       ...options,
     });
@@ -396,12 +418,12 @@ export class AgentWPClient {
   /**
    * Update command history.
    */
-  async updateHistory<T = unknown>(
-    history: unknown[],
-    favorites: unknown[],
+  async updateHistory(
+    history: HistoryEntry[],
+    favorites: HistoryEntry[],
     options: RequestOptions = {},
-  ): Promise<ApiResponse<T>> {
-    return await this.request<T>('/history', {
+  ): Promise<ApiResponse<HistoryResponseData>> {
+    return await this.request<HistoryResponseData>('/history', {
       method: 'POST',
       body: JSON.stringify({ history, favorites }),
       ...options,
@@ -411,8 +433,8 @@ export class AgentWPClient {
   /**
    * Get health status.
    */
-  async getHealth<T = unknown>(options: RequestOptions = {}): Promise<ApiResponse<T>> {
-    return await this.request<T>('/health', {
+  async getHealth(options: RequestOptions = {}): Promise<ApiResponse<HealthResponseData>> {
+    return await this.request<HealthResponseData>('/health', {
       method: 'GET',
       ...options,
     });
@@ -420,16 +442,21 @@ export class AgentWPClient {
 
   /**
    * Get analytics data.
+   * Note: Analytics endpoint is not yet defined in the OpenAPI spec.
+   * Returns a generic record type until the spec is updated.
    */
-  async getAnalytics<T = unknown>(
+  async getAnalytics(
     params: Record<string, string> = {},
     options: RequestOptions = {},
-  ): Promise<ApiResponse<T>> {
+  ): Promise<ApiResponse<Record<string, unknown>>> {
     const queryString = new URLSearchParams(params).toString();
-    return await this.request<T>(`/analytics${queryString ? `?${queryString}` : ''}`, {
-      method: 'GET',
-      ...options,
-    });
+    return await this.request<Record<string, unknown>>(
+      `/analytics${queryString ? `?${queryString}` : ''}`,
+      {
+        method: 'GET',
+        ...options,
+      },
+    );
   }
 }
 
