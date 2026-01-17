@@ -91,49 +91,10 @@ class Plugin {
 	 */
 	public static function deactivate() {
 		self::delete_transients();
-		self::unschedule_action_scheduler_jobs();
-		self::cleanup_export_files();
 
 		if ( class_exists( 'AgentWP\\Demo\\Manager' ) ) {
 			Demo\Manager::deactivate();
 		}
-	}
-
-	/**
-	 * Unschedule all pending Action Scheduler jobs for the plugin.
-	 *
-	 * @return void
-	 */
-	private static function unschedule_action_scheduler_jobs() {
-		// Clean up BulkHandler async jobs.
-		if ( ! function_exists( 'as_unschedule_all_actions' ) ) {
-			return;
-		}
-
-		if ( ! class_exists( 'AgentWP\\Handlers\\BulkHandler' ) ) {
-			return;
-		}
-
-		if ( ! defined( 'AgentWP\\Handlers\\BulkHandler::ACTION_HOOK' ) ) {
-			return;
-		}
-
-		$hook = constant( 'AgentWP\\Handlers\\BulkHandler::ACTION_HOOK' );
-		if ( ! is_string( $hook ) || '' === $hook ) {
-			return;
-		}
-
-		as_unschedule_all_actions( $hook );
-	}
-
-	/**
-	 * Clean up export data created by BulkHandler.
-	 *
-	 * @return void
-	 */
-	private static function cleanup_export_files() {
-		// Bulk exports are returned inline and not written to disk.
-		return;
 	}
 
 	/**
@@ -152,10 +113,6 @@ class Plugin {
 
 		if ( class_exists( 'AgentWP\\Search\\Index' ) ) {
 			Search\Index::init();
-		}
-
-		if ( class_exists( 'AgentWP\\Handlers\\BulkHandler' ) ) {
-			Handlers\BulkHandler::register_hooks();
 		}
 
 		if ( class_exists( 'AgentWP\\Demo\\Manager' ) ) {
