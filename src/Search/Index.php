@@ -19,21 +19,41 @@ class Index {
 	const BACKFILL_WINDOW = 0.35;
 
 	/**
+	 * Track if hooks have been registered.
+	 *
+	 * @var bool
+	 */
+	private static $hooks_registered = false;
+
+	/**
 	 * Register hooks.
+	 *
+	 * Hooks are registered once per request and only when needed.
+	 * Table creation runs only if the stored version differs from current.
+	 * Backfill runs only in admin context to avoid overhead on frontend requests.
 	 *
 	 * @return void
 	 */
 	public static function init() {
+		if ( self::$hooks_registered ) {
+			return;
+		}
+
+		self::$hooks_registered = true;
+
+		// Table creation and backfill run via init hooks.
+		// ensure_table() uses an option check to skip work when already current.
+		// maybe_backfill() is admin-only to avoid frontend overhead.
 		add_action( 'init', array( __CLASS__, 'ensure_table' ) );
 		add_action( 'init', array( __CLASS__, 'maybe_backfill' ), 15 );
 
-		// Use priority 20 to run after WooCommerce's own save handlers (typically priority 10).
-		// This ensures product/order data is fully saved before we index it.
+		// Index maintenance hooks only make sense if WooCommerce is available.
+		// Register product/order hooks early; they'll simply return if wc_get_product/wc_get_order
+		// don't exist at runtime (defensive check inside index_product/index_order).
 		add_action( 'save_post_product', array( __CLASS__, 'handle_product_save' ), 20, 3 );
 
 		// HPOS-compatible order hooks: woocommerce_new_order and woocommerce_update_order
 		// work with both legacy post storage and HPOS custom tables.
-		// save_post_shop_order only fires for legacy post-based storage.
 		add_action( 'woocommerce_new_order', array( __CLASS__, 'handle_order_created' ), 20, 2 );
 		add_action( 'woocommerce_update_order', array( __CLASS__, 'handle_order_updated' ), 20, 2 );
 
@@ -55,17 +75,33 @@ class Index {
 	}
 
 	/**
+	 * Track if table has been verified this request.
+	 *
+	 * @var bool
+	 */
+	private static $table_verified = false;
+
+	/**
 	 * Ensure search index table exists.
+	 *
+	 * Uses a static flag to avoid repeated option lookups within the same request.
+	 * Only creates/upgrades the table when the stored version differs from current.
 	 *
 	 * @return void
 	 */
 	public static function ensure_table() {
+		// Skip repeated checks within the same request.
+		if ( self::$table_verified ) {
+			return;
+		}
+
 		global $wpdb;
 
 		$installed_version = get_option( self::VERSION_OPTION, '' );
 		$table             = self::get_table_name();
 
 		if ( $installed_version === self::VERSION && self::table_exists( $table ) ) {
+			self::$table_verified = true;
 			return;
 		}
 
@@ -91,10 +127,15 @@ class Index {
 
 		update_option( self::VERSION_OPTION, self::VERSION, false );
 		self::maybe_reset_state();
+		self::$table_verified = true;
 	}
 
 	/**
 	 * Search indexed data.
+	 *
+	 * Table creation and backfill are handled by the init hooks registered in init().
+	 * This method assumes the table exists and searches the index. If backfill is
+	 * incomplete for a type, search_type() falls back to querying the source directly.
 	 *
 	 * @param string $query Search query.
 	 * @param array  $types Types to search.
@@ -115,8 +156,9 @@ class Index {
 			return $result;
 		}
 
-		self::ensure_table();
-		self::maybe_backfill();
+		// Table creation and backfill are handled via init hooks.
+		// Do not call ensure_table() or maybe_backfill() here to avoid
+		// redundant overhead on every search request.
 
 		foreach ( $types as $type ) {
 			$result[ $type ] = self::search_type( $type, $query, $limit );
@@ -770,16 +812,48 @@ class Index {
 	}
 
 	/**
+	 * Track if backfill has run this request.
+	 *
+	 * @var bool
+	 */
+	private static $backfill_ran = false;
+
+	/**
 	 * Backfill index incrementally.
+	 *
+	 * Only runs in admin context to avoid frontend overhead.
+	 * Uses a static flag to ensure backfill runs at most once per request.
 	 *
 	 * @return void
 	 */
 	public static function maybe_backfill() {
+		// Only run backfill in admin context to avoid frontend overhead.
 		if ( ! is_admin() ) {
 			return;
 		}
 
+		// Prevent multiple backfill runs in the same request.
+		if ( self::$backfill_ran ) {
+			return;
+		}
+
+		self::$backfill_ran = true;
+
 		$state = self::get_state();
+
+		// Early exit if all types are complete.
+		$all_complete = true;
+		foreach ( array( 'products', 'orders', 'customers' ) as $type ) {
+			if ( ! self::is_backfill_complete( $type, $state ) ) {
+				$all_complete = false;
+				break;
+			}
+		}
+
+		if ( $all_complete ) {
+			return;
+		}
+
 		$start = microtime( true );
 
 		foreach ( array( 'products', 'orders', 'customers' ) as $type ) {
