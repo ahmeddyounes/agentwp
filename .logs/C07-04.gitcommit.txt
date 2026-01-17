@@ -1,0 +1,12 @@
+[main 9de9e11] C07-04: implement
+ 14 files changed, 676 insertions(+), 82 deletions(-)
+ create mode 100644 .logs/C07-03.gitcommit.txt
+ create mode 100644 .logs/C07-04.claude.impl.last.md
+ create mode 100644 .logs/C07-04.claude.impl.raw.txt
+ create mode 100644 .plans/C07-04.md
+ create mode 100644 .t2/handoff/C07-04.md
+ create mode 100644 src/Contracts/DraftManagerInterface.php
+ create mode 100644 src/DTO/DraftPayload.php
+ create mode 100644 src/Services/DraftManager.php
+
+→ No staged files match any configured task.

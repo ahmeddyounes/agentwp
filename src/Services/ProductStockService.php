@@ -114,9 +114,20 @@ class ProductStockService implements ProductStockServiceInterface {
 			'original'   => $current,
 		);
 
+		$summary = sprintf(
+			'%s: stock %d → %d',
+			$product->get_name(),
+			$current,
+			$new
+		);
+
 		$preview = array(
-			'product' => $product->get_name(),
-			'change'  => "{$current} -> {$new}",
+			'summary'        => $summary,
+			'product_id'     => $product_id,
+			'product_name'   => $product->get_name(),
+			'product_sku'    => $product->get_sku(),
+			'original_stock' => $current,
+			'new_stock'      => $new,
 		);
 
 		$result = $this->draftManager->create( self::DRAFT_TYPE, $payload, $preview );
@@ -128,8 +139,11 @@ class ProductStockService implements ProductStockServiceInterface {
 		return ServiceResult::success(
 			"Stock update prepared for {$product->get_name()}: {$current} -> {$new}.",
 			array(
-				'draft_id' => $result->get( 'draft_id' ),
-				'draft'    => array_merge( $payload, array( 'preview' => $preview ) ),
+				'draft_id'   => $result->get( 'draft_id' ),
+				'type'       => $result->get( 'type' ),
+				'preview'    => $result->get( 'preview' ),
+				'expires_at' => $result->get( 'expires_at' ),
+				'ttl'        => $result->get( 'ttl' ),
 			)
 		);
 	}

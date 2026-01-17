@@ -80,13 +80,22 @@ class OrderRefundService implements OrderRefundServiceInterface {
 			'customer_name' => $order->get_formatted_billing_full_name(),
 		);
 
+		$summary = sprintf(
+			'Refund %s %s for Order #%d%s',
+			number_format( $refund_amount, 2 ),
+			$order->get_currency(),
+			$order_id,
+			$restock_items ? ' (restock items)' : ''
+		);
+
 		$preview = array(
+			'summary'       => $summary,
 			'order_id'      => $order_id,
 			'amount'        => $refund_amount,
 			'currency'      => $order->get_currency(),
 			'reason'        => $reason,
 			'restock_items' => $restock_items,
-			'status'        => 'ready_to_confirm',
+			'customer_name' => $order->get_formatted_billing_full_name(),
 		);
 
 		$result = $this->draftManager->create( self::DRAFT_TYPE, $payload, $preview );
@@ -98,8 +107,11 @@ class OrderRefundService implements OrderRefundServiceInterface {
 		return ServiceResult::success(
 			"Refund prepared for Order #{$order_id}. Amount: {$refund_amount} {$order->get_currency()}. Reply with confirmation to proceed.",
 			array(
-				'draft_id' => $result->get( 'draft_id' ),
-				'preview'  => $preview,
+				'draft_id'   => $result->get( 'draft_id' ),
+				'type'       => $result->get( 'type' ),
+				'preview'    => $result->get( 'preview' ),
+				'expires_at' => $result->get( 'expires_at' ),
+				'ttl'        => $result->get( 'ttl' ),
 			)
 		);
 	}

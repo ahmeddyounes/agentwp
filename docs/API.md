@@ -499,3 +499,127 @@ await fetch('/wp-json/agentwp/v1/theme', {
   body: JSON.stringify({ theme: 'dark' }),
 });
 ```
+
+## Draft Payload Structures
+
+Draft operations (refund, status update, stock update) use a standardized payload structure to ensure consistent handling across all intent types. All drafts include a `summary` field for easy frontend display without per-intent special casing.
+
+### Common Draft Response Fields
+
+All `prepare_*` tool results include these fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Whether the operation succeeded |
+| `message` | string | Human-readable message for display |
+| `draft_id` | string | Unique identifier (type-prefixed, e.g., `ref_abc123`) |
+| `type` | string | Draft type: `refund`, `status`, `stock`, `email` |
+| `preview` | object | Human-readable preview data (always includes `summary`) |
+| `expires_at` | number | Unix timestamp when the draft expires |
+| `ttl` | number | Time-to-live in seconds |
+
+### Preview Structure
+
+All preview objects include a `summary` field providing a human-readable one-liner:
+
+```json
+{
+  "summary": "Refund 100.00 USD for Order #123 (restock items)",
+  ...type-specific fields...
+}
+```
+
+### Refund Preview
+
+```json
+{
+  "summary": "Refund 100.00 USD for Order #123 (restock items)",
+  "order_id": 123,
+  "amount": 100.0,
+  "currency": "USD",
+  "reason": "Customer request",
+  "restock_items": true,
+  "customer_name": "John Doe"
+}
+```
+
+### Status Update Preview (Single)
+
+```json
+{
+  "summary": "Order #123: pending → completed",
+  "order_id": 123,
+  "current_status": "pending",
+  "new_status": "completed",
+  "notify_customer": false,
+  "warning": ""
+}
+```
+
+For irreversible status changes (cancelled, refunded):
+```json
+{
+  "summary": "Order #123: pending → cancelled (Irreversible.)",
+  "warning": "Irreversible."
+}
+```
+
+### Status Update Preview (Bulk)
+
+```json
+{
+  "summary": "Update 5 orders to completed",
+  "count": 5,
+  "new_status": "completed",
+  "notify_customer": false,
+  "warning": "",
+  "orders": [
+    { "id": 101, "current": "pending", "new": "completed" },
+    { "id": 102, "current": "processing", "new": "completed" }
+  ]
+}
+```
+
+### Stock Update Preview
+
+```json
+{
+  "summary": "Blue Hoodie: stock 10 → 25",
+  "product_id": 42,
+  "product_name": "Blue Hoodie",
+  "product_sku": "BH-001",
+  "original_stock": 10,
+  "new_stock": 25
+}
+```
+
+### Email Context (for draft_email tool)
+
+The email context provides order data for AI-assisted email composition:
+
+```json
+{
+  "summary": "Email draft for Order #123 (John Doe)",
+  "order_id": 123,
+  "customer": "John Doe",
+  "total": 99.99,
+  "currency": "USD",
+  "status": "completed",
+  "items": ["Blue Hoodie x1", "Red Cap x2"],
+  "date": "2026-01-15"
+}
+```
+
+### Frontend Usage
+
+The `summary` field enables consistent UI rendering without intent-specific logic:
+
+```typescript
+// Display any draft preview consistently
+const showDraftPreview = (draft: DraftResponse) => {
+  console.log(draft.preview.summary);  // Always available
+  console.log(`Expires in ${draft.ttl} seconds`);
+};
+```
+
+TypeScript types for all draft structures are available in `react/src/types/index.ts`.

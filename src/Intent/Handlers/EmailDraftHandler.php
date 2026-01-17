@@ -72,12 +72,12 @@ class EmailDraftHandler extends AbstractAgenticHandler {
 	 *
 	 * @param string $name      Tool name.
 	 * @param array  $arguments Tool arguments.
-	 * @return mixed Tool execution result.
+	 * @return array Tool execution result.
 	 */
 	public function execute_tool( string $name, array $arguments ) {
 		if ( 'draft_email' === $name ) {
 			$order_id = isset( $arguments['order_id'] ) ? (int) $arguments['order_id'] : 0;
-			return $this->service->get_order_context( $order_id );
+			return $this->service->get_order_context( $order_id )->toLegacyArray();
 		}
 
 		return array( 'error' => "Unknown tool: {$name}" );

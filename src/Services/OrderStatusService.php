@@ -83,9 +83,21 @@ class OrderStatusService implements OrderStatusServiceInterface {
 			'warning'         => $warning,
 		);
 
+		$summary = sprintf(
+			'Order #%d: %s → %s%s',
+			$order_id,
+			$current_status,
+			$new_status,
+			$warning ? " ({$warning})" : ''
+		);
+
 		$preview = array(
-			'transition' => $current_status . ' -> ' . $new_status,
-			'warning'    => $warning,
+			'summary'         => $summary,
+			'order_id'        => $order_id,
+			'current_status'  => $current_status,
+			'new_status'      => $new_status,
+			'notify_customer' => $notify_customer,
+			'warning'         => $warning,
 		);
 
 		$result = $this->draftManager->create( self::DRAFT_TYPE, $payload, $preview );
@@ -97,8 +109,11 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		return ServiceResult::success(
 			"Status update prepared for Order #{$order_id}: {$current_status} -> {$new_status}.",
 			array(
-				'draft_id' => $result->get( 'draft_id' ),
-				'draft'    => array_merge( $payload, array( 'preview' => $preview ) ),
+				'draft_id'   => $result->get( 'draft_id' ),
+				'type'       => $result->get( 'type' ),
+				'preview'    => $result->get( 'preview' ),
+				'expires_at' => $result->get( 'expires_at' ),
+				'ttl'        => $result->get( 'ttl' ),
 			)
 		);
 	}
@@ -155,9 +170,20 @@ class OrderStatusService implements OrderStatusServiceInterface {
 			'warning'         => $warning,
 		);
 
+		$summary = sprintf(
+			'Update %d orders to %s%s',
+			count( $previews ),
+			$new_status,
+			$warning ? " ({$warning})" : ''
+		);
+
 		$preview = array(
-			'count'   => count( $previews ),
-			'details' => $previews,
+			'summary'         => $summary,
+			'count'           => count( $previews ),
+			'new_status'      => $new_status,
+			'notify_customer' => $notify_customer,
+			'warning'         => $warning,
+			'orders'          => $previews,
 		);
 
 		$result = $this->draftManager->create( self::DRAFT_TYPE, $payload, $preview );
@@ -169,8 +195,11 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		return ServiceResult::success(
 			"Bulk status update prepared for " . count( $order_ids ) . " orders to {$new_status}.",
 			array(
-				'draft_id' => $result->get( 'draft_id' ),
-				'draft'    => array_merge( $payload, array( 'preview' => $preview ) ),
+				'draft_id'   => $result->get( 'draft_id' ),
+				'type'       => $result->get( 'type' ),
+				'preview'    => $result->get( 'preview' ),
+				'expires_at' => $result->get( 'expires_at' ),
+				'ttl'        => $result->get( 'ttl' ),
 			)
 		);
 	}

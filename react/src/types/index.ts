@@ -55,6 +55,113 @@ export interface DraftEntry {
   timestamp: number;
 }
 
+/**
+ * Draft types for different intents.
+ */
+export type DraftType = 'refund' | 'status' | 'stock' | 'email';
+
+/**
+ * Base preview structure with common fields across all draft types.
+ * The `summary` field provides a human-readable one-liner for display.
+ */
+export interface BaseDraftPreview {
+  /** Human-readable one-liner summarizing the draft operation */
+  summary: string;
+}
+
+/**
+ * Preview data for refund drafts.
+ */
+export interface RefundPreview extends BaseDraftPreview {
+  order_id: number;
+  amount: number;
+  currency: string;
+  reason: string;
+  restock_items: boolean;
+  customer_name: string;
+}
+
+/**
+ * Preview data for single order status update drafts.
+ */
+export interface StatusPreview extends BaseDraftPreview {
+  order_id: number;
+  current_status: string;
+  new_status: string;
+  notify_customer: boolean;
+  warning: string;
+}
+
+/**
+ * Preview data for bulk order status update drafts.
+ */
+export interface BulkStatusPreview extends BaseDraftPreview {
+  count: number;
+  new_status: string;
+  notify_customer: boolean;
+  warning: string;
+  orders: Array<{
+    id: number;
+    current: string;
+    new: string;
+  }>;
+}
+
+/**
+ * Preview data for stock update drafts.
+ */
+export interface StockPreview extends BaseDraftPreview {
+  product_id: number;
+  product_name: string;
+  product_sku: string;
+  original_stock: number;
+  new_stock: number;
+}
+
+/**
+ * Context data for email drafts.
+ */
+export interface EmailContext extends BaseDraftPreview {
+  order_id: number;
+  customer: string;
+  total: number;
+  currency: string;
+  status: string;
+  items: string[];
+  date: string;
+}
+
+/**
+ * Union type for all draft preview types.
+ */
+export type DraftPreview =
+  | RefundPreview
+  | StatusPreview
+  | BulkStatusPreview
+  | StockPreview
+  | EmailContext;
+
+/**
+ * Unified draft response structure returned by prepare_* tools.
+ * All draft types follow this consistent shape.
+ */
+export interface DraftResponse {
+  /** Unique draft identifier (type-prefixed, e.g., 'ref_abc123') */
+  draft_id: string;
+  /** Draft type identifier */
+  type: DraftType;
+  /** Human-readable preview data (always includes `summary` field) */
+  preview: DraftPreview;
+  /** Unix timestamp when the draft expires */
+  expires_at: number;
+  /** Time-to-live in seconds */
+  ttl: number;
+  /** Success indicator */
+  success: boolean;
+  /** Human-readable message for display */
+  message: string;
+}
+
 export interface AnalyticsData {
   label: string;
   labels: string[];

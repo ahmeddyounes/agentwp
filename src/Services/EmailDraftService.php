@@ -10,6 +10,7 @@ namespace AgentWP\Services;
 use AgentWP\Contracts\EmailDraftServiceInterface;
 use AgentWP\Contracts\OrderRepositoryInterface;
 use AgentWP\Contracts\PolicyInterface;
+use AgentWP\DTO\ServiceResult;
 
 /**
  * Service for email draft operations.
@@ -41,24 +42,24 @@ class EmailDraftService implements EmailDraftServiceInterface {
 	 * Get order context for drafting an email.
 	 *
 	 * @param int $order_id Order ID.
-	 * @return array Order context data or error array.
+	 * @return ServiceResult Result with order context data or error.
 	 */
-	public function get_order_context( int $order_id ): array {
+	public function get_order_context( int $order_id ): ServiceResult {
 		if ( ! $this->policy->canDraftEmails() ) {
-			return array( 'error' => 'Permission denied.' );
+			return ServiceResult::permissionDenied();
 		}
 
 		if ( ! $this->repository ) {
-			return array( 'error' => 'WooCommerce is not available to fetch order details.' );
+			return ServiceResult::operationFailed( 'WooCommerce is not available to fetch order details.' );
 		}
 
 		if ( $order_id <= 0 ) {
-			return array( 'error' => 'Invalid order ID.' );
+			return ServiceResult::invalidInput( 'Invalid order ID.' );
 		}
 
 		$order = $this->repository->find( $order_id );
 		if ( ! $order ) {
-			return array( 'error' => "Order #{$order_id} not found." );
+			return ServiceResult::notFound( 'Order', $order_id );
 		}
 
 		// Build simplified order context.
@@ -71,13 +72,29 @@ class EmailDraftService implements EmailDraftServiceInterface {
 			}
 		}
 
-		return array(
-			'order_id' => $order->id,
-			'customer' => $order->customerName,
-			'total'    => $order->total,
-			'status'   => $order->status,
-			'items'    => $items,
-			'date'     => $order->dateCreated ? $order->dateCreated->format( 'Y-m-d' ) : '',
+		$summary = sprintf(
+			'Email draft for Order #%d (%s)',
+			$order->id,
+			$order->customerName
+		);
+
+		$context = array(
+			'summary'   => $summary,
+			'order_id'  => $order->id,
+			'customer'  => $order->customerName,
+			'total'     => $order->total,
+			'currency'  => $order->currency ?? 'USD',
+			'status'    => $order->status,
+			'items'     => $items,
+			'date'      => $order->dateCreated ? $order->dateCreated->format( 'Y-m-d' ) : '',
+		);
+
+		return ServiceResult::success(
+			"Order context loaded for email draft.",
+			array(
+				'type'    => 'email',
+				'context' => $context,
+			)
 		);
 	}
 }
