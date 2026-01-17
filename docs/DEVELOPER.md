@@ -177,43 +177,198 @@ do_action(
 );
 ```
 
+### `agentwp_intent_scorers`
+Register custom intent scorers for classification. See [Extension guide: custom intent scorer](#extension-guide-custom-intent-scorer) for full details.
+
+Signature:
+```
+array $scorers = apply_filters(
+  'agentwp_intent_scorers',
+  array $scorers
+);
+```
+
+Example:
+```php
+add_filter( 'agentwp_intent_scorers', function( array $scorers ): array {
+	$scorers[] = new MyCustomScorer();
+	return $scorers;
+} );
+```
+
+### `agentwp_intent_classified`
+Fired after intent classification completes. Useful for analytics, logging, or debugging.
+
+Signature:
+```
+do_action(
+  'agentwp_intent_classified',
+  string $intent,           // The classified intent constant
+  array $scores,            // All intent scores from scoreAll()
+  string $input,            // Original user input
+  array $context            // Classification context
+);
+```
+
 ## Extension guide: custom intent handler
-You can add new intents by implementing the `Handler` interface and wiring it into the engine via `agentwp_intent_handlers`.
+
+AgentWP uses an attribute-based handler registration pattern with dependency injection via service providers. Handlers declare which intents they handle using the `#[HandlesIntent]` PHP attribute, and the service provider wires them into the container with the `intent.handler` tag.
+
+### Architecture overview
+
+The handler registration flow:
+1. Handler class uses `#[HandlesIntent(Intent::MY_INTENT)]` attribute
+2. Service provider registers handler as singleton and tags it with `intent.handler`
+3. Engine receives all tagged handlers via `$container->tagged('intent.handler')`
+4. At runtime, handlers are matched based on their declared intents
 
 ### 1) Create a handler class
+
+Extend `AbstractAgenticHandler` for AI-powered handlers that use the agentic loop pattern:
+
 ```php
 namespace MyPlugin\AgentWP;
 
-use AgentWP\AI\Response;
-use AgentWP\Intent\Handlers\BaseHandler;
-use AgentWP\Intent\Intent;
+use AgentWP\Contracts\AIClientFactoryInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Intent\Attributes\HandlesIntent;
+use AgentWP\Intent\Handlers\AbstractAgenticHandler;
 
-class ShipmentDelayHandler extends BaseHandler {
-	public function __construct() {
-		parent::__construct( 'shipment_delay' );
+#[HandlesIntent( 'shipment_delay' )]
+class ShipmentDelayHandler extends AbstractAgenticHandler {
+
+	private ShipmentServiceInterface $service;
+
+	public function __construct(
+		ShipmentServiceInterface $service,
+		AIClientFactoryInterface $clientFactory,
+		ToolRegistryInterface $toolRegistry
+	) {
+		parent::__construct( 'shipment_delay', $clientFactory, $toolRegistry );
+		$this->service = $service;
 	}
 
-	public function handle( array $context ): Response {
-		$message = 'Here is a draft email about the delay.';
-		return $this->build_response( $context, $message, array(
-			'cards' => array(),
-		) );
+	protected function getSystemPrompt(): string {
+		return 'You are a shipment delay assistant. Help draft delay notification emails.';
+	}
+
+	protected function getToolNames(): array {
+		return array( 'draft_delay_email' );
+	}
+
+	protected function getDefaultInput(): string {
+		return 'Draft a shipment delay notification';
+	}
+
+	public function execute_tool( string $name, array $arguments ) {
+		if ( 'draft_delay_email' === $name ) {
+			return $this->service->draftDelayEmail( $arguments );
+		}
+		return array( 'error' => "Unknown tool: {$name}" );
 	}
 }
 ```
 
-### 2) Register the handler
+For simpler handlers without AI interaction, extend `BaseHandler` directly:
+
 ```php
-add_filter( 'agentwp_intent_handlers', function ( $handlers ) {
-	$handlers[] = new \MyPlugin\AgentWP\ShipmentDelayHandler();
-	return $handlers;
+namespace MyPlugin\AgentWP;
+
+use AgentWP\AI\Response;
+use AgentWP\Intent\Attributes\HandlesIntent;
+use AgentWP\Intent\Handlers\BaseHandler;
+
+#[HandlesIntent( 'simple_lookup' )]
+class SimpleLookupHandler extends BaseHandler {
+
+	public function __construct() {
+		parent::__construct( 'simple_lookup' );
+	}
+
+	public function handle( array $context ): Response {
+		$result = $this->performLookup( $context['input'] ?? '' );
+		return $this->build_response( $context, $result );
+	}
+
+	private function performLookup( string $query ): string {
+		// Lookup logic here
+		return "Result for: {$query}";
+	}
+}
+```
+
+### 2) Register via service provider
+
+Create a service provider to wire your handler with its dependencies:
+
+```php
+namespace MyPlugin\AgentWP;
+
+use AgentWP\Container\ServiceProvider;
+use AgentWP\Contracts\AIClientFactoryInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
+
+class ShipmentServiceProvider extends ServiceProvider {
+
+	public function register(): void {
+		// Register handler as singleton with dependencies
+		$this->container->singleton(
+			ShipmentDelayHandler::class,
+			fn( $c ) => new ShipmentDelayHandler(
+				$c->get( ShipmentServiceInterface::class ),
+				$c->get( AIClientFactoryInterface::class ),
+				$c->get( ToolRegistryInterface::class )
+			)
+		);
+
+		// Tag handler so Engine discovers it
+		$this->container->tag( ShipmentDelayHandler::class, 'intent.handler' );
+	}
+}
+```
+
+Register your provider using the `agentwp_register_providers` action:
+
+```php
+add_action( 'agentwp_register_providers', function( $container ) {
+	$provider = new \MyPlugin\AgentWP\ShipmentServiceProvider( $container );
+	$provider->register();
 } );
 ```
 
-### 3) Register functions for the intent (optional)
+This action fires during AgentWP's initialization, before providers are booted.
+
+### 3) Add a custom scorer (optional)
+
+To enable intent classification for your custom intent, add a scorer via the `agentwp_intent_scorers` filter:
+
 ```php
-add_action( 'agentwp_register_intent_functions', function ( $registry ) {
-	$registry->register( 'draft_shipment_delay_email', new \MyPlugin\AgentWP\ShipmentDelayHandler() );
+namespace MyPlugin\AgentWP;
+
+use AgentWP\Intent\Classifier\AbstractScorer;
+
+class ShipmentDelayScorer extends AbstractScorer {
+
+	private const PHRASES = array(
+		'shipment delay',
+		'shipping delayed',
+		'late delivery',
+		'package delayed',
+	);
+
+	public function getIntent(): string {
+		return 'shipment_delay';
+	}
+
+	public function score( string $text, array $context = array() ): int {
+		return $this->matchScore( $text, self::PHRASES );
+	}
+}
+
+// Register the scorer
+add_filter( 'agentwp_intent_scorers', function( array $scorers ): array {
+	$scorers[] = new \MyPlugin\AgentWP\ShipmentDelayScorer();
+	return $scorers;
 } );
 ```
 
@@ -222,6 +377,103 @@ Call the `/intent` endpoint or use the Command Deck to test:
 ```
 Draft a shipment delay email for order 1234
 ```
+
+## Extension guide: custom intent scorer
+
+You can extend AgentWP's intent classification by adding custom scorers via the `agentwp_intent_scorers` filter. Scorers evaluate user input and return a confidence score for matching intents.
+
+### Scorer interface
+
+All scorers implement `IntentScorerInterface`:
+
+```php
+interface IntentScorerInterface {
+	public function getIntent(): string;           // Intent constant
+	public function score( string $text, array $context = array() ): int;  // 0 = no match
+	public function getWeight(): float;            // Weight multiplier (default 1.0)
+}
+```
+
+### Creating a custom scorer
+
+Extend `AbstractScorer` to inherit utility methods and config-aware weighting:
+
+```php
+namespace MyPlugin\AgentWP;
+
+use AgentWP\Intent\Classifier\AbstractScorer;
+
+class InventoryScorer extends AbstractScorer {
+
+	/**
+	 * Phrases indicating inventory-related intent.
+	 */
+	private const PHRASES = array(
+		'inventory',
+		'stock level',
+		'warehouse',
+		'reorder',
+		'low stock',
+	);
+
+	/**
+	 * Strong indicators that boost the score.
+	 */
+	private const STRONG_PHRASES = array(
+		'check inventory',
+		'inventory report',
+		'stock count',
+	);
+
+	public function getIntent(): string {
+		return 'inventory_check';
+	}
+
+	public function score( string $text, array $context = array() ): int {
+		$score = $this->matchScore( $text, self::PHRASES );
+
+		// Boost score for strong indicators
+		if ( $this->containsAny( $text, self::STRONG_PHRASES ) ) {
+			$score += 2;
+		}
+
+		return $score;
+	}
+}
+```
+
+### Registering the scorer
+
+Use the `agentwp_intent_scorers` filter to add your scorer:
+
+```php
+add_filter( 'agentwp_intent_scorers', function( array $scorers ): array {
+	$scorers[] = new \MyPlugin\AgentWP\InventoryScorer();
+	return $scorers;
+} );
+```
+
+### Available utility methods
+
+`AbstractScorer` provides these helper methods:
+
+| Method | Description |
+|--------|-------------|
+| `matchScore($text, $phrases)` | Count matching phrases |
+| `containsPhrase($text, $phrase)` | Check single phrase with word boundaries |
+| `containsAny($text, $phrases)` | Check if any phrase matches |
+| `containsAll($text, $phrases)` | Check if all phrases match |
+| `matchesPattern($text, $pattern)` | Match against regex pattern |
+
+### Scorer weights
+
+Scorer weights are applied by the `ScorerRegistry` when calculating final scores. You can customize weights via config filters:
+
+```php
+add_filter( 'agentwp_config_intent_weight_order_search', fn() => 1.5 );
+```
+
+For custom intents, override `getWeight()` in your scorer or add your intent to `AbstractScorer::INTENT_WEIGHT_KEYS`.
 
 ## OpenAPI spec
 The OpenAPI spec lives in `docs/openapi.json`. It is generated from endpoint annotations in the REST controllers; update annotations first, then regenerate the spec.
