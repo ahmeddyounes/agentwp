@@ -9,7 +9,6 @@ namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
 use AgentWP\Contracts\AnalyticsServiceInterface;
-use AgentWP\Services\AnalyticsService;
 use WP_REST_Server;
 
 class AnalyticsController extends RestController {
@@ -50,9 +49,9 @@ class AnalyticsController extends RestController {
 	public function get_analytics( $request ) {
 		$period = $request->get_param( 'period' );
 
-		$service = $this->resolve( AnalyticsServiceInterface::class );
-		if ( ! $service instanceof AnalyticsServiceInterface ) {
-			$service = new AnalyticsService();
+		$service = $this->resolveRequired( AnalyticsServiceInterface::class, 'Analytics service' );
+		if ( $service instanceof \WP_REST_Response ) {
+			return $service;
 		}
 
 		$data = $service->get_stats( $period );

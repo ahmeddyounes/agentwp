@@ -66,9 +66,9 @@ class IntentController extends RestController {
 			? $validation['metadata']
 			: array();
 
-		$engine = $this->resolve( Engine::class );
-		if ( ! $engine instanceof Engine ) {
-			$engine = new Engine();
+		$engine = $this->resolveRequired( Engine::class, 'Intent engine' );
+		if ( $engine instanceof \WP_REST_Response ) {
+			return $engine;
 		}
 		$response = $engine->handle( $prompt, $context, $metadata );
 

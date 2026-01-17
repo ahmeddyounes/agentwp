@@ -62,6 +62,58 @@ abstract class RestController extends WP_REST_Controller {
 	}
 
 	/**
+	 * Resolve a required dependency from the container.
+	 *
+	 * Returns an error response if the dependency cannot be resolved.
+	 * Controllers should use this for critical domain services that must
+	 * be properly configured via the container.
+	 *
+	 * @param string $id           Service identifier.
+	 * @param string $service_name Human-readable name for error messages.
+	 * @return mixed|WP_REST_Response Service instance or error response.
+	 */
+	protected function resolveRequired( string $id, string $service_name = 'Service' ) {
+		$container = $this->container();
+		if ( ! $container ) {
+			return $this->response_error(
+				AgentWPConfig::ERROR_CODE_SERVICE_UNAVAILABLE,
+				/* translators: %s: service name */
+				sprintf( __( '%s unavailable: container not initialized.', 'agentwp' ), $service_name ),
+				500
+			);
+		}
+
+		if ( ! $container->has( $id ) ) {
+			return $this->response_error(
+				AgentWPConfig::ERROR_CODE_SERVICE_UNAVAILABLE,
+				/* translators: %s: service name */
+				sprintf( __( '%s unavailable: not registered in container.', 'agentwp' ), $service_name ),
+				500
+			);
+		}
+
+		try {
+			$service = $container->get( $id );
+			if ( null === $service ) {
+				return $this->response_error(
+					AgentWPConfig::ERROR_CODE_SERVICE_UNAVAILABLE,
+					/* translators: %s: service name */
+					sprintf( __( '%s unavailable: resolved to null.', 'agentwp' ), $service_name ),
+					500
+				);
+			}
+			return $service;
+		} catch ( \Throwable $e ) {
+			return $this->response_error(
+				AgentWPConfig::ERROR_CODE_SERVICE_UNAVAILABLE,
+				/* translators: %s: service name */
+				sprintf( __( '%s unavailable: %s', 'agentwp' ), $service_name, $e->getMessage() ),
+				500
+			);
+		}
+	}
+
+	/**
 	 * Permissions check for REST endpoints.
 	 *
 	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.

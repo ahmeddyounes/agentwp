@@ -127,13 +127,14 @@ final class AgentWPConfig {
 	/**
 	 * REST error codes - API/Network.
 	 */
-	public const ERROR_CODE_RATE_LIMITED       = 'agentwp_rate_limited';
-	public const ERROR_CODE_API_ERROR          = 'agentwp_api_error';
-	public const ERROR_CODE_NETWORK_ERROR      = 'agentwp_network_error';
-	public const ERROR_CODE_INTENT_FAILED      = 'agentwp_intent_failed';
-	public const ERROR_CODE_OPENAI_UNREACHABLE = 'agentwp_openai_unreachable';
-	public const ERROR_CODE_OPENAI_INVALID     = 'agentwp_openai_invalid';
-	public const ERROR_CODE_ENCRYPTION_FAILED  = 'agentwp_encryption_failed';
+	public const ERROR_CODE_RATE_LIMITED        = 'agentwp_rate_limited';
+	public const ERROR_CODE_API_ERROR           = 'agentwp_api_error';
+	public const ERROR_CODE_NETWORK_ERROR       = 'agentwp_network_error';
+	public const ERROR_CODE_INTENT_FAILED       = 'agentwp_intent_failed';
+	public const ERROR_CODE_OPENAI_UNREACHABLE  = 'agentwp_openai_unreachable';
+	public const ERROR_CODE_OPENAI_INVALID      = 'agentwp_openai_invalid';
+	public const ERROR_CODE_ENCRYPTION_FAILED   = 'agentwp_encryption_failed';
+	public const ERROR_CODE_SERVICE_UNAVAILABLE = 'agentwp_service_unavailable';
 
 	/**
 	 * Cache key prefixes.
