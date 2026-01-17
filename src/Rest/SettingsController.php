@@ -10,6 +10,7 @@ namespace AgentWP\Rest;
 use AgentWP\API\RestController;
 use AgentWP\Billing\UsageTracker;
 use AgentWP\Config\AgentWPConfig;
+use AgentWP\Contracts\OpenAIKeyValidatorInterface;
 use AgentWP\Plugin\SettingsManager;
 use AgentWP\Security\ApiKeyStorage;
 use WP_Error;
@@ -112,7 +113,12 @@ class SettingsController extends RestController {
 		$settings = $this->read_settings();
 		$updated  = $this->apply_settings_updates( $settings, $payload );
 
-		update_option( SettingsManager::OPTION_SETTINGS, $updated, false );
+		$settings_manager = $this->getSettingsManager();
+		if ( $settings_manager ) {
+			$settings_manager->update( $updated );
+		} else {
+			update_option( SettingsManager::OPTION_SETTINGS, $updated, false );
+		}
 
 		return $this->response_success(
 			array(
@@ -160,9 +166,12 @@ class SettingsController extends RestController {
 			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_KEY, __( 'API key format looks invalid.', 'agentwp' ), 400 );
 		}
 
-		$openai_validation = $this->validate_openai_api_key( $api_key );
-		if ( is_wp_error( $openai_validation ) ) {
-			return $this->response_error( (string) $openai_validation->get_error_code(), $openai_validation->get_error_message(), 400 );
+		$validator = $this->getOpenAIKeyValidator();
+		if ( $validator ) {
+			$openai_validation = $validator->validate( $api_key );
+			if ( is_wp_error( $openai_validation ) ) {
+				return $this->response_error( (string) $openai_validation->get_error_code(), $openai_validation->get_error_message(), 400 );
+			}
 		}
 
 		$result = $storage->storePrimary( $api_key );
@@ -217,15 +226,18 @@ class SettingsController extends RestController {
 	}
 
 	/**
-	 * Read stored settings with defaults.
+	 * Read stored settings with defaults via SettingsManager.
 	 *
 	 * @return array
 	 */
-	private function read_settings() {
-		$settings = get_option( SettingsManager::OPTION_SETTINGS, array() );
-		$settings = is_array( $settings ) ? $settings : array();
+	private function read_settings(): array {
+		$settings_manager = $this->getSettingsManager();
+		if ( $settings_manager ) {
+			return $settings_manager->getAll();
+		}
 
-		return wp_parse_args( $settings, SettingsManager::getDefaults() );
+		// Fallback to static defaults if container not available.
+		return SettingsManager::getDefaults();
 	}
 
 	/**
@@ -290,38 +302,13 @@ class SettingsController extends RestController {
 	}
 
 	/**
-	 * Validate API key against OpenAI.
+	 * Get the SettingsManager service from the container.
 	 *
-	 * @param string $api_key API key.
-	 * @return true|WP_Error
+	 * @return SettingsManager|null
 	 */
-	private function validate_openai_api_key( $api_key ) {
-		$args = array(
-			'timeout'     => 3,
-			'redirection' => 0,
-			'sslverify'   => true,
-			'headers'     => array(
-				'Authorization' => 'Bearer ' . $api_key,
-			),
-		);
-
-		if ( function_exists( 'vip_safe_wp_remote_get' ) ) {
-			$response = vip_safe_wp_remote_get( 'https://api.openai.com/v1/models', $args );
-		} else {
-			// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.wp_remote_get_wp_remote_get -- Fallback outside VIP.
-			$response = wp_remote_get( 'https://api.openai.com/v1/models', $args );
-		}
-
-		if ( is_wp_error( $response ) ) {
-			return new WP_Error( AgentWPConfig::ERROR_CODE_OPENAI_UNREACHABLE, __( 'OpenAI API is unreachable.', 'agentwp' ) );
-		}
-
-		$code = wp_remote_retrieve_response_code( $response );
-		if ( 200 !== $code ) {
-			return new WP_Error( AgentWPConfig::ERROR_CODE_OPENAI_INVALID, __( 'OpenAI rejected the API key.', 'agentwp' ) );
-		}
-
-		return true;
+	private function getSettingsManager(): ?SettingsManager {
+		$manager = $this->resolve( SettingsManager::class );
+		return $manager instanceof SettingsManager ? $manager : null;
 	}
 
 	/**
@@ -332,6 +319,16 @@ class SettingsController extends RestController {
 	private function getApiKeyStorage(): ?ApiKeyStorage {
 		$storage = $this->resolve( ApiKeyStorage::class );
 		return $storage instanceof ApiKeyStorage ? $storage : null;
+	}
+
+	/**
+	 * Get the OpenAI key validator service from the container.
+	 *
+	 * @return OpenAIKeyValidatorInterface|null
+	 */
+	private function getOpenAIKeyValidator(): ?OpenAIKeyValidatorInterface {
+		$validator = $this->resolve( OpenAIKeyValidatorInterface::class );
+		return $validator instanceof OpenAIKeyValidatorInterface ? $validator : null;
 	}
 
 	/**

@@ -21,6 +21,7 @@ use AgentWP\Contracts\SessionHandlerInterface;
 use AgentWP\Contracts\SleeperInterface;
 use AgentWP\Contracts\TransientCacheInterface;
 use AgentWP\Contracts\OptionsInterface;
+use AgentWP\Contracts\OpenAIKeyValidatorInterface;
 use AgentWP\Plugin\SettingsManager;
 use AgentWP\Security\ApiKeyStorage;
 use AgentWP\Security\Encryption;
@@ -32,6 +33,7 @@ use AgentWP\Infrastructure\WooCommerceOrderRepository;
 use AgentWP\Infrastructure\WordPressHttpClient;
 use AgentWP\Infrastructure\WordPressObjectCache;
 use AgentWP\Infrastructure\WordPressTransientCache;
+use AgentWP\Infrastructure\OpenAIKeyValidator;
 use AgentWP\Retry\ExponentialBackoffPolicy;
 use AgentWP\Retry\RetryExecutor;
 
@@ -58,6 +60,7 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->registerAIClientFactory();
 		$this->registerDraftStorage();
 		$this->registerApiKeyStorage();
+		$this->registerOpenAIKeyValidator();
 	}
 
 	/**
@@ -230,6 +233,20 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 			fn( $c ) => new ApiKeyStorage(
 				$c->get( Encryption::class ),
 				$c->get( OptionsInterface::class )
+			)
+		);
+	}
+
+	/**
+	 * Register OpenAI key validator.
+	 *
+	 * @return void
+	 */
+	private function registerOpenAIKeyValidator(): void {
+		$this->container->singleton(
+			OpenAIKeyValidatorInterface::class,
+			fn( $c ) => new OpenAIKeyValidator(
+				$c->get( HttpClientInterface::class )
 			)
 		);
 	}
