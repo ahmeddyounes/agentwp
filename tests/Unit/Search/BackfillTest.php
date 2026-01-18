@@ -11,6 +11,7 @@ use AgentWP\Search\Index;
 use AgentWP\Tests\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
+use WP_Mock;
 
 /**
  * Unit tests for Index backfill and throttling behavior.
@@ -327,5 +328,143 @@ class BackfillTest extends TestCase {
 		$method = $this->get_method( 'is_backfill_complete' );
 
 		$this->assertFalse( $method->invoke( null, 'products', $state ) );
+	}
+
+	// ===========================================
+	// Scheduled Backfill Constants Tests
+	// ===========================================
+
+	public function test_backfill_hook_constant_exists(): void {
+		$this->assertSame( 'agentwp_search_backfill', Index::BACKFILL_HOOK );
+	}
+
+	public function test_backfill_lock_constant_exists(): void {
+		$this->assertSame( 'agentwp_search_backfill_lock', Index::BACKFILL_LOCK );
+	}
+
+	// ===========================================
+	// Cron Interval Tests
+	// ===========================================
+
+	public function test_add_cron_interval_adds_one_minute_schedule(): void {
+		$schedules = Index::add_cron_interval( array() );
+
+		$this->assertArrayHasKey( 'agentwp_one_minute', $schedules );
+		$this->assertSame( 60, $schedules['agentwp_one_minute']['interval'] );
+	}
+
+	public function test_add_cron_interval_preserves_existing_schedules(): void {
+		$existing = array(
+			'hourly' => array(
+				'interval' => 3600,
+				'display'  => 'Hourly',
+			),
+		);
+
+		$schedules = Index::add_cron_interval( $existing );
+
+		$this->assertArrayHasKey( 'hourly', $schedules );
+		$this->assertArrayHasKey( 'agentwp_one_minute', $schedules );
+	}
+
+	public function test_add_cron_interval_does_not_overwrite_existing(): void {
+		$existing = array(
+			'agentwp_one_minute' => array(
+				'interval' => 999,
+				'display'  => 'Custom',
+			),
+		);
+
+		$schedules = Index::add_cron_interval( $existing );
+
+		// Should not overwrite the existing custom schedule.
+		$this->assertSame( 999, $schedules['agentwp_one_minute']['interval'] );
+	}
+
+	// ===========================================
+	// Lock Behavior Tests
+	// ===========================================
+
+	public function test_acquire_lock_returns_true_when_not_locked(): void {
+		// Mock get_transient to return false (no lock).
+		WP_Mock::userFunction(
+			'get_transient',
+			array(
+				'args'   => array( Index::BACKFILL_LOCK ),
+				'return' => false,
+			)
+		);
+
+		// Mock set_transient to return true (lock acquired).
+		WP_Mock::userFunction(
+			'set_transient',
+			array(
+				'args'   => array( Index::BACKFILL_LOCK, WP_Mock\Functions::type( 'int' ), 60 ),
+				'return' => true,
+			)
+		);
+
+		$method = $this->get_method( 'acquire_backfill_lock' );
+		$result = $method->invoke( null );
+
+		$this->assertTrue( $result );
+	}
+
+	public function test_acquire_lock_returns_false_when_already_locked(): void {
+		// Mock get_transient to return a timestamp (lock exists).
+		WP_Mock::userFunction(
+			'get_transient',
+			array(
+				'args'   => array( Index::BACKFILL_LOCK ),
+				'return' => time(),
+			)
+		);
+
+		$method = $this->get_method( 'acquire_backfill_lock' );
+		$result = $method->invoke( null );
+
+		$this->assertFalse( $result );
+	}
+
+	public function test_release_lock_calls_delete_transient(): void {
+		// Mock delete_transient to verify it's called.
+		WP_Mock::userFunction(
+			'delete_transient',
+			array(
+				'args'   => array( Index::BACKFILL_LOCK ),
+				'times'  => 1,
+				'return' => true,
+			)
+		);
+
+		$release_method = $this->get_method( 'release_backfill_lock' );
+		$release_method->invoke( null );
+
+		// WP_Mock will verify delete_transient was called once.
+		$this->assertTrue( true );
+	}
+
+	// ===========================================
+	// Scheduled Backfill Execution Tests
+	// ===========================================
+
+	public function test_run_scheduled_backfill_skips_when_locked(): void {
+		// Mock get_transient to return a timestamp (lock exists).
+		WP_Mock::userFunction(
+			'get_transient',
+			array(
+				'args'   => array( Index::BACKFILL_LOCK ),
+				'return' => time(),
+			)
+		);
+
+		// Reset the backfill_ran flag.
+		$this->set_static_property( 'backfill_ran', false );
+
+		// Run scheduled backfill - should skip due to lock.
+		Index::run_scheduled_backfill();
+
+		// backfill_ran should still be false since we skipped.
+		$this->assertFalse( $this->get_static_property( 'backfill_ran' ) );
 	}
 }

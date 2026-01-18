@@ -94,6 +94,10 @@ class Plugin {
 		if ( class_exists( 'AgentWP\\Demo\\Manager' ) ) {
 			Demo\Manager::deactivate();
 		}
+
+		if ( class_exists( 'AgentWP\\Search\\Index' ) ) {
+			Search\Index::deactivate();
+		}
 	}
 
 	/**

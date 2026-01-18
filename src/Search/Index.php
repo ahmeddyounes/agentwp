@@ -17,6 +17,8 @@ class Index {
 	const DEFAULT_LIMIT   = 5;
 	const BACKFILL_LIMIT  = 200;
 	const BACKFILL_WINDOW = 0.35;
+	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+	const BACKFILL_LOCK   = 'agentwp_search_backfill_lock';
 
 	/**
 	 * Track if hooks have been registered.
@@ -30,7 +32,7 @@ class Index {
 	 *
 	 * Hooks are registered once per request and only when needed.
 	 * Table creation runs only if the stored version differs from current.
-	 * Backfill runs only in admin context to avoid overhead on frontend requests.
+	 * Backfill runs via scheduled cron events to avoid blocking normal requests.
 	 *
 	 * @return void
 	 */
@@ -41,11 +43,14 @@ class Index {
 
 		self::$hooks_registered = true;
 
-		// Table creation and backfill run via init hooks.
+		// Table creation runs via init hook.
 		// ensure_table() uses an option check to skip work when already current.
-		// maybe_backfill() is admin-only to avoid frontend overhead.
 		add_action( 'init', array( __CLASS__, 'ensure_table' ) );
-		add_action( 'init', array( __CLASS__, 'maybe_backfill' ), 15 );
+
+		// Backfill runs via scheduled cron event to avoid blocking admin requests.
+		// Schedule the event if not already scheduled.
+		add_action( 'init', array( __CLASS__, 'schedule_backfill' ) );
+		add_action( self::BACKFILL_HOOK, array( __CLASS__, 'run_scheduled_backfill' ) );
 
 		// Index maintenance hooks only make sense if WooCommerce is available.
 		// Register product/order hooks early; they'll simply return if wc_get_product/wc_get_order
@@ -72,6 +77,18 @@ class Index {
 		self::ensure_table();
 		update_option( self::VERSION_OPTION, self::VERSION, false );
 		self::maybe_reset_state();
+	}
+
+	/**
+	 * Plugin deactivation handler for the search index.
+	 *
+	 * Unschedules the backfill cron event and releases any locks.
+	 *
+	 * @return void
+	 */
+	public static function deactivate() {
+		self::unschedule_backfill();
+		self::release_backfill_lock();
 	}
 
 	/**
@@ -801,19 +818,153 @@ class Index {
 	private static $backfill_ran = false;
 
 	/**
+	 * Schedule the backfill cron event if not already scheduled.
+	 *
+	 * Uses a one-minute interval to process backfill incrementally without
+	 * blocking normal admin requests.
+	 *
+	 * @return void
+	 */
+	public static function schedule_backfill() {
+		if ( ! function_exists( 'wp_next_scheduled' ) ) {
+			return;
+		}
+
+		// Check if backfill is already complete.
+		$state        = self::get_state();
+		$all_complete = true;
+		foreach ( array( 'products', 'orders', 'customers' ) as $type ) {
+			if ( ! self::is_backfill_complete( $type, $state ) ) {
+				$all_complete = false;
+				break;
+			}
+		}
+
+		// If backfill is complete, unschedule and return.
+		if ( $all_complete ) {
+			self::unschedule_backfill();
+			return;
+		}
+
+		// Already scheduled, nothing to do.
+		if ( wp_next_scheduled( self::BACKFILL_HOOK ) ) {
+			return;
+		}
+
+		// Register a custom one-minute interval if not present.
+		add_filter( 'cron_schedules', array( __CLASS__, 'add_cron_interval' ) );
+
+		wp_schedule_event( time() + 30, 'agentwp_one_minute', self::BACKFILL_HOOK );
+	}
+
+	/**
+	 * Add custom cron interval for backfill.
+	 *
+	 * @param array $schedules Existing schedules.
+	 * @return array
+	 */
+	public static function add_cron_interval( $schedules ) {
+		if ( ! isset( $schedules['agentwp_one_minute'] ) ) {
+			$schedules['agentwp_one_minute'] = array(
+				'interval' => 60,
+				'display'  => 'Every Minute (AgentWP Backfill)',
+			);
+		}
+		return $schedules;
+	}
+
+	/**
+	 * Unschedule the backfill cron event.
+	 *
+	 * @return void
+	 */
+	public static function unschedule_backfill() {
+		if ( ! function_exists( 'wp_next_scheduled' ) ) {
+			return;
+		}
+
+		$timestamp = wp_next_scheduled( self::BACKFILL_HOOK );
+		while ( $timestamp ) {
+			wp_unschedule_event( $timestamp, self::BACKFILL_HOOK );
+			$timestamp = wp_next_scheduled( self::BACKFILL_HOOK );
+		}
+	}
+
+	/**
+	 * Acquire a lock for backfill to prevent concurrent execution.
+	 *
+	 * Uses a transient with a short TTL to ensure the lock auto-releases
+	 * if the process crashes.
+	 *
+	 * @return bool True if lock acquired, false if already locked.
+	 */
+	private static function acquire_backfill_lock() {
+		$lock_value = get_transient( self::BACKFILL_LOCK );
+
+		if ( false !== $lock_value ) {
+			return false;
+		}
+
+		// Set lock with 60 second TTL (covers the time window + buffer).
+		$result = set_transient( self::BACKFILL_LOCK, time(), 60 );
+
+		return $result;
+	}
+
+	/**
+	 * Release the backfill lock.
+	 *
+	 * @return void
+	 */
+	private static function release_backfill_lock() {
+		delete_transient( self::BACKFILL_LOCK );
+	}
+
+	/**
+	 * Run backfill from scheduled cron event.
+	 *
+	 * Acquires a lock to prevent concurrent execution, runs backfill with
+	 * time slicing, and unschedules the event when complete.
+	 *
+	 * @return void
+	 */
+	public static function run_scheduled_backfill() {
+		// Acquire lock to prevent concurrent runs.
+		if ( ! self::acquire_backfill_lock() ) {
+			return;
+		}
+
+		try {
+			self::maybe_backfill();
+		} finally {
+			self::release_backfill_lock();
+		}
+
+		// Check if backfill is now complete and unschedule if so.
+		$state        = self::get_state();
+		$all_complete = true;
+		foreach ( array( 'products', 'orders', 'customers' ) as $type ) {
+			if ( ! self::is_backfill_complete( $type, $state ) ) {
+				$all_complete = false;
+				break;
+			}
+		}
+
+		if ( $all_complete ) {
+			self::unschedule_backfill();
+		}
+	}
+
+	/**
 	 * Backfill index incrementally.
 	 *
-	 * Only runs in admin context to avoid frontend overhead.
-	 * Uses a static flag to ensure backfill runs at most once per request.
+	 * Processes items in batches within a time window to avoid blocking
+	 * other operations. Uses a static flag to ensure backfill runs at most
+	 * once per request.
 	 *
 	 * @return void
 	 */
 	public static function maybe_backfill() {
-		// Only run backfill in admin context to avoid frontend overhead.
-		if ( ! is_admin() ) {
-			return;
-		}
-
 		// Prevent multiple backfill runs in the same request.
 		if ( self::$backfill_ran ) {
 			return;
