@@ -1,0 +1,1209 @@
+Implemented configurable REST capability via `AgentWPConfig` and wired it into the REST permission check, with unit coverage for default and filtered behavior.
+
+**Status**
+- DONE
+
+**Summary of changes**
+- Added `REST_CAPABILITY` and `rest.capability` mapping with filter support in `src/Config/AgentWPConfig.php`.
+- Updated `src/Rest/RestController.php` to read the configured capability in `permissions_check()`.
+- Added unit tests for default vs. filtered capability in `tests/Unit/Rest/RestControllerPermissionsTest.php`.
+
+**How to verify**
+- No verification commands provided.
+
+**Risks / follow-ups**
+- Tests not run (no commands provided).
+
+OpenAI Codex v0.87.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019bd21d-b51c-7ec2-9feb-e33b12c23677
+--------
+user
+You are implementing task C05-01 in this git repository.
+
+1) Read the spec: .plans/C05-01.md
+2) Read handoff/context: .t2/handoff/C05-01.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 41ms:
+agentwp.php
+assets
+composer.json
+composer.lock
+docker
+docker-compose.demo.yml
+docker-compose.yml
+docs
+includes
+languages
+node_modules
+package-lock.json
+package.json
+phpcs.xml
+phpstan
+phpstan.neon
+phpunit.xml.dist
+plan_tasks.csv
+playwright.config.cjs
+react
+
+thinking
+**Noting missing spec files**
+exec
+/bin/zsh -lc 'cat .plans/C05-01.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 41ms:
+# C05-01 — Make REST capability configurable
+
+Add `rest.capability` to `src/Config/AgentWPConfig.php` (default `manage_woocommerce`, filter `agentwp_config_rest_capability`) and update `src/Rest/RestController.php::permissions_check()` to use it. Add tests for default + filtered capability.
+exec
+/bin/zsh -lc 'cat .t2/handoff/C05-01.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+# Handoff: C05-01
+
+Created: 2026-01-18T17:18:40.899103Z
+
+Spec: .plans/C05-01.md
+
+thinking
+**Checking files for implementation**
+exec
+/bin/zsh -lc "rg -n \"AgentWPConfig|RestController|permissions_check|rest\\.capability|agentwp_config_rest_capability\" src includes tests" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 67ms:
+src/Providers/InfrastructureServiceProvider.php:11:use AgentWP\Config\AgentWPConfig;
+src/Providers/InfrastructureServiceProvider.php:259:					?: AgentWPConfig::get( 'openai.default_model', AgentWPConfig::OPENAI_DEFAULT_MODEL );
+src/Billing/UsageTracker.php:11:use AgentWP\Config\AgentWPConfig;
+src/Billing/UsageTracker.php:31:		return (int) AgentWPConfig::get( 'usage.retention_days', AgentWPConfig::USAGE_RETENTION_DAYS );
+src/Billing/UsageTracker.php:42:		return (int) AgentWPConfig::get( 'usage.query_max_rows', AgentWPConfig::USAGE_QUERY_MAX_ROWS );
+src/Providers/RestServiceProvider.php:11:use AgentWP\Rest\RestController;
+src/Providers/RestServiceProvider.php:12:use AgentWP\Config\AgentWPConfig;
+src/Providers/RestServiceProvider.php:57:	 * Configuration is read from AgentWPConfig with filter support.
+src/Providers/RestServiceProvider.php:70:				(int) AgentWPConfig::get( 'rate_limit.requests', AgentWPConfig::RATE_LIMIT_REQUESTS ),
+src/Providers/RestServiceProvider.php:71:				(int) AgentWPConfig::get( 'rate_limit.window', AgentWPConfig::RATE_LIMIT_WINDOW )
+src/Providers/RestServiceProvider.php:106:				// Set request logger if RestController exists.
+src/Providers/RestServiceProvider.php:107:				if ( class_exists( RestController::class ) ) {
+src/Providers/RestServiceProvider.php:109:						fn( $request, $status, $errorCode ) => RestController::log_request( $request, $status, $errorCode )
+src/Rest/HealthController.php:10:use AgentWP\Rest\RestController;
+src/Rest/HealthController.php:14:class HealthController extends RestController {
+src/Rest/HealthController.php:27:				'permission_callback' => array( $this, 'permissions_check' ),
+src/Rest/SettingsController.php:10:use AgentWP\Rest\RestController;
+src/Rest/SettingsController.php:11:use AgentWP\Config\AgentWPConfig;
+src/Rest/SettingsController.php:26:class SettingsController extends RestController {
+src/Rest/SettingsController.php:41:					'permission_callback' => array( $this, 'permissions_check' ),
+
+thinking
+**Inspecting AgentWPConfig and RestController**
+exec
+/bin/zsh -lc "sed -n '1,220p' src/Config/AgentWPConfig.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 49ms:
+<?php
+/**
+ * Centralized configuration for AgentWP.
+ *
+ * @package AgentWP\Config
+ */
+
+namespace AgentWP\Config;
+
+/**
+ * Central configuration class for all AgentWP settings.
+ *
+ * This class consolidates magic numbers and configuration values
+ * that were previously scattered across multiple classes.
+ */
+final class AgentWPConfig {
+
+	/**
+	 * Agentic loop settings.
+	 */
+exec
+/bin/zsh -lc "sed -n '220,520p' src/Config/AgentWPConfig.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 48ms:
+	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
+	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+
+	/**
+	 * Meta key constants.
+	 */
+	public const META_KEY_THEME        = 'agentwp_theme_preference';
+	public const META_KEY_HISTORY      = 'agentwp_command_history';
+	public const META_KEY_FAVORITES    = 'agentwp_command_favorites';
+
+	/**
+	 * Prevent instantiation.
+	 */
+	private function __construct() {}
+
+	/**
+	 * Get a configuration value with optional filter support.
+	 *
+	 * @param string $key     Configuration key.
+	 * @param mixed  $default Default value if key not found.
+
+thinking
+**Scoping REST capability constant**
+
+I'll add a new REST_CAPABILITY constant for the default manage_woocommerce capability, aligning with existing config patterns after checking 'rest.' usage.
+exec
+/bin/zsh -lc "rg -n \"rest\\.\" src/Config/AgentWPConfig.php src/Rest/RestController.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 55ms:
+src/Rest/RestController.php:353:		$logLimit = (int) AgentWPConfig::get( 'rest.log_limit', AgentWPConfig::REST_LOG_LIMIT );
+src/Config/AgentWPConfig.php:319:			'rest.log_limit'                 => self::REST_LOG_LIMIT,
+
+thinking
+**Noticing missing REST permission checks**
+
+The REST controller currently lacks a permission check, so I'll add one, possibly using the manage_woocommerce capability after verifying details in the relevant file.
+exec
+/bin/zsh -lc "sed -n '1,260p' src/Rest/RestController.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 52ms:
+<?php
+/**
+ * Base REST controller.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP\Rest;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Container\ContainerInterface;
+use AgentWP\Contracts\AtomicRateLimiterInterface;
+use AgentWP\Contracts\RateLimiterInterface;
+use AgentWP\Error\Handler as ErrorHandler;
+use AgentWP\Plugin;
+use WP_Error;
+use WP_REST_Controller;
+use WP_REST_Request;
+use WP_REST_Response;
+
+
+thinking
+**Adding rest.capability config and constant**
+
+Planning to add a REST capability default 'manage_woocommerce' to the config map with a new REST_CAPABILITY constant for consistency, then update the REST controller to use this config key with its filter. I'll also look into existing tests related to config filters to add coverage for this capability setting.
+exec
+/bin/zsh -lc "rg -n \"agentwp_config_|rest\\.log_limit|config\" tests" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 57ms:
+tests/Fakes/FakePolicy.php:16: * Individual capabilities can be configured to return false.
+tests/Integration/Architecture/BoundariesTest.php:281:			// Allow SettingsManager as configuration (should eventually have interface).
+tests/Unit/CustomerServiceTest.php:17:		$configGateway = Mockery::mock( WooCommerceConfigGatewayInterface::class );
+tests/Unit/CustomerServiceTest.php:18:		$configGateway->shouldReceive( 'is_woocommerce_available' )->andReturn( true );
+tests/Unit/CustomerServiceTest.php:19:		$configGateway->shouldReceive( 'get_paid_statuses' )->andReturn( array( 'completed' ) );
+tests/Unit/CustomerServiceTest.php:20:		$configGateway->shouldReceive( 'apply_filters' )->andReturnUsing( function( $hook, $value ) {
+tests/Unit/CustomerServiceTest.php:55:			$configGateway,
+tests/Unit/CustomerServiceTest.php:74:		$configGateway = Mockery::mock( WooCommerceConfigGatewayInterface::class );
+tests/Unit/CustomerServiceTest.php:75:		$configGateway->shouldReceive( 'is_woocommerce_available' )->andReturn( false );
+tests/Unit/CustomerServiceTest.php:84:			$configGateway,
+tests/Unit/CustomerServiceTest.php:101:		$configGateway = Mockery::mock( WooCommerceConfigGatewayInterface::class );
+tests/Unit/CustomerServiceTest.php:102:		$configGateway->shouldReceive( 'is_woocommerce_available' )->andReturn( true );
+tests/Unit/CustomerServiceTest.php:111:			$configGateway,
+tests/Unit/Billing/UsageTrackerTest.php:72:	 * Create OpenAI client with test configuration.
+tests/Unit/Billing/UsageTrackerTest.php:274:				'model'   => 'gpt-4o-2024-08-06', // Different from configured model.
+tests/Unit/Billing/UsageTrackerTest.php:326:	public function test_configured_model_used_when_response_omits_it(): void {
+tests/Unit/Billing/UsageTrackerTest.php:356:		// Should fall back to configured model.
+tests/Unit/Intent/MemoryStoreConfigTest.php:3: * Memory store configuration unit tests.
+tests/Unit/Intent/Classifier/ScorerRegistryTest.php:354:	 * Create a fixed scorer that always returns the same score with a configurable weight.
+tests/Unit/Intent/Handlers/SimpleHandlersTest.php:104:		foreach ( $handlers as $config ) {
+
+thinking
+**Considering tests for AgentWPConfig**
+
+I'm exploring whether AgentWPConfig has existing tests or usage in tests by searching for it next.
+exec
+/bin/zsh -lc 'rg -n "AgentWPConfig::get" tests' in /Users/ahmedyounis/Documents/Projects/agentwp exited 1 in 57ms:
+
+
+thinking
+**Locating tests for config access**
+
+I'm checking the project structure to find the best place to add unit tests for config retrieval, likely under tests/Unit/Config.
+exec
+/bin/zsh -lc 'ls tests/Unit' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+AI
+API
+Billing
+Container
+CustomerServiceTest.php
+Demo
+Infrastructure
+Intent
+OrderRefundHandlerTest.php
+Plugin
+Retry
+Search
+Security
+Services
+Validation
+
+thinking
+**Reviewing test structure**
+
+I'm checking the existing tests around the REST endpoint to decide where to add new tests, considering adding config-related or REST controller tests based on the current organization.
+exec
+/bin/zsh -lc "sed -n '1,220p' tests/Unit/API/RestEndpointSmokeTest.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+<?php
+/**
+ * REST endpoint smoke tests.
+ *
+ * Verifies the standard response envelope shape and key error codes for core endpoints:
+ * - /intent
+ * - /settings
+ * - /settings/api-key
+ * - /analytics
+ * - /history
+ * - /theme
+ *
+ * @package AgentWP\Tests\Unit\API
+ */
+
+namespace AgentWP\Tests\Unit\API;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Tests\TestCase;
+use WP_REST_Response;
+
+thinking
+**Checking test utilities**
+
+I'm looking into the TestCase utilities to understand if they provide configuration helpers or setup needed for adding a new test file.
+exec
+/bin/zsh -lc "sed -n '1,200p' tests/TestCase.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 54ms:
+<?php
+/**
+ * Base test case for AgentWP.
+ */
+
+namespace AgentWP\Tests;
+
+use WP_Mock\Tools\TestCase as WP_Mock_TestCase;
+
+class TestCase extends WP_Mock_TestCase {
+}
+
+thinking
+**Searching tests for filter usage**
+exec
+/bin/zsh -lc "rg -n \"apply_filters\\(|add_filter\\(|remove_filter\\(\" tests" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 59ms:
+tests/wp-env/mu-plugins/agentwp-openai-vcr.php:107:add_filter(
+tests/wp-env/mu-plugins/agentwp-openai-vcr.php:133:add_filter(
+tests/Support/EncryptionFunctionOverrides.php:88:	public static function apply_filters( $hook, $value, ...$args ) {
+tests/Support/EncryptionFunctionOverrides.php:93:		return \apply_filters( $hook, $value, ...$args );
+tests/Support/encryption-functions.php:30:function apply_filters( $hook, $value, ...$args ) {
+tests/Support/encryption-functions.php:31:	return EncryptionFunctionOverrides::apply_filters( $hook, $value, ...$args );
+tests/bootstrap.php:122:	function apply_filters( $hook, $value, ...$args ) {
+
+thinking
+**Inspecting test bootstrap for filters**
+exec
+/bin/zsh -lc "sed -n '80,160p' tests/bootstrap.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+		return trim( preg_replace( '/\s+/', ' ', $text ) );
+	}
+}
+
+if ( ! function_exists( 'sanitize_email' ) ) {
+	function sanitize_email( $email ) {
+		$email = is_string( $email ) ? $email : '';
+		return filter_var( $email, FILTER_SANITIZE_EMAIL ) ?: '';
+	}
+}
+
+if ( ! function_exists( 'absint' ) ) {
+	function absint( $value ) {
+		return abs( (int) $value );
+	}
+}
+
+if ( ! function_exists( 'wp_json_encode' ) ) {
+	function wp_json_encode( $data ) {
+		return json_encode( $data );
+
+thinking
+**Reviewing test approach for apply_filters**
+
+I'm considering overriding apply_filters in tests via WP_Mock to control its return values and verify filter usage, planning to check existing test patterns for this approach.
+exec
+/bin/zsh -lc "sed -n '1,200p' tests/Unit/Infrastructure/RateLimiting/RateLimiterTest.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+<?php
+/**
+ * RateLimiter unit tests.
+ *
+ * @package AgentWP\Tests\Unit\Infrastructure\RateLimiting
+ */
+
+namespace AgentWP\Tests\Unit\Infrastructure\RateLimiting;
+
+use AgentWP\Infrastructure\RateLimiting\RateLimiter;
+use AgentWP\Tests\Fakes\FakeClock;
+use AgentWP\Tests\Fakes\FakeTransientCache;
+use AgentWP\Tests\TestCase;
+use DateTimeImmutable;
+
+class RateLimiterTest extends TestCase {
+
+	private FakeTransientCache $cache;
+	private FakeClock $clock;
+
+
+thinking
+**Noting need for mocking WordPress functions**
+
+Tests will require mocking WordPress functions like current_user_can, likely with WP_Mock's userFunction; next step is checking existing tests for current_user_can usage.
+exec
+/bin/zsh -lc 'rg -n "current_user_can" tests' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 58ms:
+tests/wp-env/mu-plugins/agentwp-test-tools.php:26:	if ( current_user_can( 'manage_woocommerce' ) ) {
+tests/Integration/Architecture/BoundariesTest.php:76:		'current_user_can',
+
+thinking
+**Searching tests for WP_Mock usage**
+exec
+/bin/zsh -lc 'rg -n "WP_Mock::userFunction" tests' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 54ms:
+tests/Unit/Infrastructure/TransientDraftStorageTest.php:32:		WP_Mock::userFunction( 'get_transient' )
+tests/Unit/Infrastructure/TransientDraftStorageTest.php:45:		WP_Mock::userFunction( 'get_current_user_id' )
+tests/Unit/Infrastructure/TransientDraftStorageTest.php:49:		WP_Mock::userFunction( 'get_transient' )
+tests/Unit/Infrastructure/TransientDraftStorageTest.php:68:		WP_Mock::userFunction( 'set_transient' )
+tests/Unit/Infrastructure/TransientDraftStorageTest.php:88:		WP_Mock::userFunction( 'get_transient' )
+tests/Unit/Infrastructure/TransientDraftStorageTest.php:93:		WP_Mock::userFunction( 'delete_transient' )
+tests/Unit/Infrastructure/TransientDraftStorageTest.php:111:		WP_Mock::userFunction( 'delete_transient' )
+tests/Unit/Infrastructure/TransientDraftStorageTest.php:123:		WP_Mock::userFunction( 'wp_generate_password' )
+tests/Unit/Demo/DemoClientTest.php:16:		WP_Mock::userFunction( 'sanitize_text_field', array(
+tests/Unit/Demo/DemoClientTest.php:22:		WP_Mock::userFunction( 'wp_json_encode', array(
+tests/Unit/Search/BackfillTest.php:390:		WP_Mock::userFunction(
+tests/Unit/Search/BackfillTest.php:399:		WP_Mock::userFunction(
+tests/Unit/Search/BackfillTest.php:415:		WP_Mock::userFunction(
+tests/Unit/Search/BackfillTest.php:431:		WP_Mock::userFunction(
+tests/Unit/Search/BackfillTest.php:453:		WP_Mock::userFunction(
+
+thinking
+**Planning REST controller test setup**
+
+WP_Mock will be used, and a new test file for REST is planned under tests/Unit/Rest, creating a stub subclass to test the abstract controller's permissions_check method. Next, I'll check if RestController tests already exist.
+exec
+/bin/zsh -lc 'rg -n "RestController" tests/Unit' in /Users/ahmedyounis/Documents/Projects/agentwp exited 1 in 55ms:
+
+
+thinking
+**Planning REST controller capability tests**
+
+Tests for the REST controller are missing, so I'll create unit tests focusing on default and filtered capabilities using WP_Mock to override and assert apply_filters behavior, inspired by the approach in TransientDraftStorageTest.
+exec
+/bin/zsh -lc "sed -n '1,160p' tests/Unit/Infrastructure/TransientDraftStorageTest.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+<?php
+/**
+ * Unit tests for TransientDraftStorage class.
+ */
+
+namespace AgentWP\Tests\Unit\Infrastructure;
+
+use AgentWP\Contracts\CurrentUserContextInterface;
+use AgentWP\Infrastructure\TransientDraftStorage;
+use AgentWP\Tests\TestCase;
+use WP_Mock;
+
+class TransientDraftStorageTest extends TestCase {
+
+	public function setUp(): void {
+		parent::setUp();
+		WP_Mock::setUp();
+	}
+
+	public function tearDown(): void {
+
+
+thinking
+**Planning permission check tests**
+
+I'm mapping out stubbing user permissions and nonce verification in tests by subclassing to override protected methods and using WP_Mock to mock `current_user_can` and filters, focusing on bypassing nonce and rate limit checks while verifying default capability uses 'manage_woocommerce'.
+thinking
+**Detailing filtered capability testing and config updates**
+
+I'm planning tests to verify that the REST capability comes from the config with filters applied by mocking `apply_filters` and `current_user_can`, using a test subclass to bypass nonce and rate-limit checks. I'll add a REST_CAPABILITY constant to the config, update `permissions_check` to use it, and implement tests for both default and filtered capabilities accordingly.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Config/AgentWPConfig.php
+@@ -164,2 +164,3 @@
+ 	public const REST_NAMESPACE = 'agentwp/v1';
++	public const REST_CAPABILITY = 'manage_woocommerce';
+ 
+@@ -319,2 +320,3 @@
+ 			'rest.log_limit'                 => self::REST_LOG_LIMIT,
++			'rest.capability'                => self::REST_CAPABILITY,
+ 		);
+apply_patch(auto_approved=true) exited 0 in 23ms:
+Success. Updated the following files:
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Config/AgentWPConfig.php
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d..760bbfd3963501bfa0845ea8a7f0f1402fb2d474
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -162,6 +162,7 @@
+ 	 * REST API configuration.
+ 	 */
+ 	public const REST_NAMESPACE = 'agentwp/v1';
++	public const REST_CAPABILITY = 'manage_woocommerce';
+ 
+ 	/**
+ 	 * History and favorites limits.
+@@ -317,6 +318,7 @@
+ 			'history.limit'                  => self::HISTORY_LIMIT,
+ 			'favorites.limit'                => self::FAVORITES_LIMIT,
+ 			'rest.log_limit'                 => self::REST_LOG_LIMIT,
++			'rest.capability'                => self::REST_CAPABILITY,
+ 		);
+ 
+ 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;
+
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d..760bbfd3963501bfa0845ea8a7f0f1402fb2d474
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -162,6 +162,7 @@
+ 	 * REST API configuration.
+ 	 */
+ 	public const REST_NAMESPACE = 'agentwp/v1';
++	public const REST_CAPABILITY = 'manage_woocommerce';
+ 
+ 	/**
+ 	 * History and favorites limits.
+@@ -317,6 +318,7 @@
+ 			'history.limit'                  => self::HISTORY_LIMIT,
+ 			'favorites.limit'                => self::FAVORITES_LIMIT,
+ 			'rest.log_limit'                 => self::REST_LOG_LIMIT,
++			'rest.capability'                => self::REST_CAPABILITY,
+ 		);
+ 
+ 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;
+
+
+thinking
+**Preparing to update controller ordering**
+
+I'm confirming the ordering of capabilities near log limits before updating the RestController accordingly.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Rest/RestController.php
+@@ -121,3 +121,4 @@
+ 	public function permissions_check( $request ) {
+-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
++		$capability = AgentWPConfig::get( 'rest.capability', AgentWPConfig::REST_CAPABILITY );
++		if ( ! current_user_can( $capability ) ) {
+ 			return new WP_Error(
+apply_patch(auto_approved=true) exited 0 in 21ms:
+Success. Updated the following files:
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Rest/RestController.php
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d..760bbfd3963501bfa0845ea8a7f0f1402fb2d474
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -162,6 +162,7 @@
+ 	 * REST API configuration.
+ 	 */
+ 	public const REST_NAMESPACE = 'agentwp/v1';
++	public const REST_CAPABILITY = 'manage_woocommerce';
+ 
+ 	/**
+ 	 * History and favorites limits.
+@@ -317,6 +318,7 @@
+ 			'history.limit'                  => self::HISTORY_LIMIT,
+ 			'favorites.limit'                => self::FAVORITES_LIMIT,
+ 			'rest.log_limit'                 => self::REST_LOG_LIMIT,
++			'rest.capability'                => self::REST_CAPABILITY,
+ 		);
+ 
+ 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;
+diff --git a/src/Rest/RestController.php b/src/Rest/RestController.php
+index bee05fa65877b20d4cc1f3ae5602009c02a04f97..43ac9eb103d9360be603548aebbb2e80f3080aa9
+--- a/src/Rest/RestController.php
++++ b/src/Rest/RestController.php
+@@ -119,7 +119,8 @@
+ 	 * @return true|WP_Error
+ 	 */
+ 	public function permissions_check( $request ) {
+-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
++		$capability = AgentWPConfig::get( 'rest.capability', AgentWPConfig::REST_CAPABILITY );
++		if ( ! current_user_can( $capability ) ) {
+ 			return new WP_Error(
+ 				AgentWPConfig::ERROR_CODE_FORBIDDEN,
+ 				__( 'Sorry, you are not allowed to access AgentWP.', 'agentwp' ),
+
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d..760bbfd3963501bfa0845ea8a7f0f1402fb2d474
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -162,6 +162,7 @@
+ 	 * REST API configuration.
+ 	 */
+ 	public const REST_NAMESPACE = 'agentwp/v1';
++	public const REST_CAPABILITY = 'manage_woocommerce';
+ 
+ 	/**
+ 	 * History and favorites limits.
+@@ -317,6 +318,7 @@
+ 			'history.limit'                  => self::HISTORY_LIMIT,
+ 			'favorites.limit'                => self::FAVORITES_LIMIT,
+ 			'rest.log_limit'                 => self::REST_LOG_LIMIT,
++			'rest.capability'                => self::REST_CAPABILITY,
+ 		);
+ 
+ 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;
+diff --git a/src/Rest/RestController.php b/src/Rest/RestController.php
+index bee05fa65877b20d4cc1f3ae5602009c02a04f97..43ac9eb103d9360be603548aebbb2e80f3080aa9
+--- a/src/Rest/RestController.php
++++ b/src/Rest/RestController.php
+@@ -119,7 +119,8 @@
+ 	 * @return true|WP_Error
+ 	 */
+ 	public function permissions_check( $request ) {
+-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
++		$capability = AgentWPConfig::get( 'rest.capability', AgentWPConfig::REST_CAPABILITY );
++		if ( ! current_user_can( $capability ) ) {
+ 			return new WP_Error(
+ 				AgentWPConfig::ERROR_CODE_FORBIDDEN,
+ 				__( 'Sorry, you are not allowed to access AgentWP.', 'agentwp' ),
+
+
+thinking
+**Preparing test setup**
+
+I'm creating a new test file for RestController permissions and will ensure the tests/Unit/Rest directory exists or create it as needed.
+exec
+/bin/zsh -lc 'ls tests/Unit' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 49ms:
+AI
+API
+Billing
+Container
+CustomerServiceTest.php
+Demo
+Infrastructure
+Intent
+OrderRefundHandlerTest.php
+Plugin
+Retry
+Search
+Security
+Services
+Validation
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d..760bbfd3963501bfa0845ea8a7f0f1402fb2d474
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -162,6 +162,7 @@
+ 	 * REST API configuration.
+ 	 */
+ 	public const REST_NAMESPACE = 'agentwp/v1';
++	public const REST_CAPABILITY = 'manage_woocommerce';
+ 
+ 	/**
+ 	 * History and favorites limits.
+@@ -317,6 +318,7 @@
+ 			'history.limit'                  => self::HISTORY_LIMIT,
+ 			'favorites.limit'                => self::FAVORITES_LIMIT,
+ 			'rest.log_limit'                 => self::REST_LOG_LIMIT,
++			'rest.capability'                => self::REST_CAPABILITY,
+ 		);
+ 
+ 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;
+diff --git a/src/Rest/RestController.php b/src/Rest/RestController.php
+index bee05fa65877b20d4cc1f3ae5602009c02a04f97..43ac9eb103d9360be603548aebbb2e80f3080aa9
+--- a/src/Rest/RestController.php
++++ b/src/Rest/RestController.php
+@@ -119,7 +119,8 @@
+ 	 * @return true|WP_Error
+ 	 */
+ 	public function permissions_check( $request ) {
+-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
++		$capability = AgentWPConfig::get( 'rest.capability', AgentWPConfig::REST_CAPABILITY );
++		if ( ! current_user_can( $capability ) ) {
+ 			return new WP_Error(
+ 				AgentWPConfig::ERROR_CODE_FORBIDDEN,
+ 				__( 'Sorry, you are not allowed to access AgentWP.', 'agentwp' ),
+
+
+
+thinking
+**Planning REST controller permission tests**
+
+I'm preparing to add a new test file in tests/Unit/Rest that extends TestCase with WP_Mock setup and teardown, focusing on verifying permission checks via apply_filters and current_user_can mocks to ensure proper REST capability handling.
+thinking
+**Confirming WP_Mock usability for apply_filters**
+
+WP_Mock’s userFunction chaining supports once() calls as expected, and apply_filters is defined in bootstrap, so mocking it won't break function_exists checks; this confirms the planned test file can proceed safely.
+file update
+A /Users/ahmedyounis/Documents/Projects/agentwp/tests/Unit/Rest/RestControllerPermissionsTest.php
+<?php
+/**
+ * REST controller permissions tests.
+ *
+ * @package AgentWP\Tests\Unit\Rest
+ */
+
+namespace AgentWP\Tests\Unit\Rest;
+
+use AgentWP\Rest\RestController;
+use AgentWP\Tests\TestCase;
+use WP_Mock;
+
+class RestControllerPermissionsTest extends TestCase {
+
+	public function setUp(): void {
+		parent::setUp();
+		WP_Mock::setUp();
+	}
+
+	public function tearDown(): void {
+		WP_Mock::tearDown();
+		parent::tearDown();
+	}
+
+	public function test_permissions_check_uses_default_rest_capability(): void {
+		WP_Mock::userFunction( 'apply_filters' )
+			->once()
+			->with( 'agentwp_config_rest_capability', 'manage_woocommerce' )
+			->andReturn( 'manage_woocommerce' );
+
+		WP_Mock::userFunction( 'current_user_can' )
+			->once()
+			->with( 'manage_woocommerce' )
+			->andReturn( true );
+
+		$controller = new TestRestController();
+		$result     = $controller->permissions_check( null );
+
+		$this->assertTrue( $result );
+	}
+
+	public function test_permissions_check_uses_filtered_rest_capability(): void {
+		WP_Mock::userFunction( 'apply_filters' )
+			->once()
+			->with( 'agentwp_config_rest_capability', 'manage_woocommerce' )
+			->andReturn( 'manage_options' );
+
+		WP_Mock::userFunction( 'current_user_can' )
+			->once()
+			->with( 'manage_options' )
+			->andReturn( true );
+
+		$controller = new TestRestController();
+		$result     = $controller->permissions_check( null );
+
+		$this->assertTrue( $result );
+	}
+}
+
+class TestRestController extends RestController {
+
+	protected function verify_nonce( $request ) {
+		return true;
+	}
+
+	protected function check_rate_limit_via_service() {
+		return true;
+	}
+}
+apply_patch(auto_approved=true) exited 0 in 49ms:
+Success. Updated the following files:
+A /Users/ahmedyounis/Documents/Projects/agentwp/tests/Unit/Rest/RestControllerPermissionsTest.php
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d..760bbfd3963501bfa0845ea8a7f0f1402fb2d474
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -162,6 +162,7 @@
+ 	 * REST API configuration.
+ 	 */
+ 	public const REST_NAMESPACE = 'agentwp/v1';
++	public const REST_CAPABILITY = 'manage_woocommerce';
+ 
+ 	/**
+ 	 * History and favorites limits.
+@@ -317,6 +318,7 @@
+ 			'history.limit'                  => self::HISTORY_LIMIT,
+ 			'favorites.limit'                => self::FAVORITES_LIMIT,
+ 			'rest.log_limit'                 => self::REST_LOG_LIMIT,
++			'rest.capability'                => self::REST_CAPABILITY,
+ 		);
+ 
+ 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;
+diff --git a/src/Rest/RestController.php b/src/Rest/RestController.php
+index bee05fa65877b20d4cc1f3ae5602009c02a04f97..43ac9eb103d9360be603548aebbb2e80f3080aa9
+--- a/src/Rest/RestController.php
++++ b/src/Rest/RestController.php
+@@ -119,7 +119,8 @@
+ 	 * @return true|WP_Error
+ 	 */
+ 	public function permissions_check( $request ) {
+-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
++		$capability = AgentWPConfig::get( 'rest.capability', AgentWPConfig::REST_CAPABILITY );
++		if ( ! current_user_can( $capability ) ) {
+ 			return new WP_Error(
+ 				AgentWPConfig::ERROR_CODE_FORBIDDEN,
+ 				__( 'Sorry, you are not allowed to access AgentWP.', 'agentwp' ),
+diff --git a/tests/Unit/Rest/RestControllerPermissionsTest.php b/tests/Unit/Rest/RestControllerPermissionsTest.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..8d2067aaa3f19801e186126f712e0e01c13d7915
+--- /dev/null
++++ b/tests/Unit/Rest/RestControllerPermissionsTest.php
+@@ -0,0 +1,70 @@
++<?php
++/**
++ * REST controller permissions tests.
++ *
++ * @package AgentWP\Tests\Unit\Rest
++ */
++
++namespace AgentWP\Tests\Unit\Rest;
++
++use AgentWP\Rest\RestController;
++use AgentWP\Tests\TestCase;
++use WP_Mock;
++
++class RestControllerPermissionsTest extends TestCase {
++
++	public function setUp(): void {
++		parent::setUp();
++		WP_Mock::setUp();
++	}
++
++	public function tearDown(): void {
++		WP_Mock::tearDown();
++		parent::tearDown();
++	}
++
++	public function test_permissions_check_uses_default_rest_capability(): void {
++		WP_Mock::userFunction( 'apply_filters' )
++			->once()
++			->with( 'agentwp_config_rest_capability', 'manage_woocommerce' )
++			->andReturn( 'manage_woocommerce' );
++
++		WP_Mock::userFunction( 'current_user_can' )
++			->once()
++			->with( 'manage_woocommerce' )
++			->andReturn( true );
++
++		$controller = new TestRestController();
++		$result     = $controller->permissions_check( null );
++
++		$this->assertTrue( $result );
++	}
++
++	public function test_permissions_check_uses_filtered_rest_capability(): void {
++		WP_Mock::userFunction( 'apply_filters' )
++			->once()
++			->with( 'agentwp_config_rest_capability', 'manage_woocommerce' )
++			->andReturn( 'manage_options' );
++
++		WP_Mock::userFunction( 'current_user_can' )
++			->once()
++			->with( 'manage_options' )
++			->andReturn( true );
++
++		$controller = new TestRestController();
++		$result     = $controller->permissions_check( null );
++
++		$this->assertTrue( $result );
++	}
++}
++
++class TestRestController extends RestController {
++
++	protected function verify_nonce( $request ) {
++		return true;
++	}
++
++	protected function check_rate_limit_via_service() {
++		return true;
++	}
++}
+
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d..760bbfd3963501bfa0845ea8a7f0f1402fb2d474
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -162,6 +162,7 @@
+ 	 * REST API configuration.
+ 	 */
+ 	public const REST_NAMESPACE = 'agentwp/v1';
++	public const REST_CAPABILITY = 'manage_woocommerce';
+ 
+ 	/**
+ 	 * History and favorites limits.
+@@ -317,6 +318,7 @@
+ 			'history.limit'                  => self::HISTORY_LIMIT,
+ 			'favorites.limit'                => self::FAVORITES_LIMIT,
+ 			'rest.log_limit'                 => self::REST_LOG_LIMIT,
++			'rest.capability'                => self::REST_CAPABILITY,
+ 		);
+ 
+ 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;
+diff --git a/src/Rest/RestController.php b/src/Rest/RestController.php
+index bee05fa65877b20d4cc1f3ae5602009c02a04f97..43ac9eb103d9360be603548aebbb2e80f3080aa9
+--- a/src/Rest/RestController.php
++++ b/src/Rest/RestController.php
+@@ -119,7 +119,8 @@
+ 	 * @return true|WP_Error
+ 	 */
+ 	public function permissions_check( $request ) {
+-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
++		$capability = AgentWPConfig::get( 'rest.capability', AgentWPConfig::REST_CAPABILITY );
++		if ( ! current_user_can( $capability ) ) {
+ 			return new WP_Error(
+ 				AgentWPConfig::ERROR_CODE_FORBIDDEN,
+ 				__( 'Sorry, you are not allowed to access AgentWP.', 'agentwp' ),
+diff --git a/tests/Unit/Rest/RestControllerPermissionsTest.php b/tests/Unit/Rest/RestControllerPermissionsTest.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..8d2067aaa3f19801e186126f712e0e01c13d7915
+--- /dev/null
++++ b/tests/Unit/Rest/RestControllerPermissionsTest.php
+@@ -0,0 +1,70 @@
++<?php
++/**
++ * REST controller permissions tests.
++ *
++ * @package AgentWP\Tests\Unit\Rest
++ */
++
++namespace AgentWP\Tests\Unit\Rest;
++
++use AgentWP\Rest\RestController;
++use AgentWP\Tests\TestCase;
++use WP_Mock;
++
++class RestControllerPermissionsTest extends TestCase {
++
++	public function setUp(): void {
++		parent::setUp();
++		WP_Mock::setUp();
++	}
++
++	public function tearDown(): void {
++		WP_Mock::tearDown();
++		parent::tearDown();
++	}
++
++	public function test_permissions_check_uses_default_rest_capability(): void {
++		WP_Mock::userFunction( 'apply_filters' )
++			->once()
++			->with( 'agentwp_config_rest_capability', 'manage_woocommerce' )
++			->andReturn( 'manage_woocommerce' );
++
++		WP_Mock::userFunction( 'current_user_can' )
++			->once()
++			->with( 'manage_woocommerce' )
++			->andReturn( true );
++
++		$controller = new TestRestController();
++		$result     = $controller->permissions_check( null );
++
++		$this->assertTrue( $result );
++	}
++
++	public function test_permissions_check_uses_filtered_rest_capability(): void {
++		WP_Mock::userFunction( 'apply_filters' )
++			->once()
++			->with( 'agentwp_config_rest_capability', 'manage_woocommerce' )
++			->andReturn( 'manage_options' );
++
++		WP_Mock::userFunction( 'current_user_can' )
++			->once()
++			->with( 'manage_options' )
++			->andReturn( true );
++
++		$controller = new TestRestController();
++		$result     = $controller->permissions_check( null );
++
++		$this->assertTrue( $result );
++	}
++}
++
++class TestRestController extends RestController {
++
++	protected function verify_nonce( $request ) {
++		return true;
++	}
++
++	protected function check_rate_limit_via_service() {
++		return true;
++	}
++}
+
+
+
+thinking
+**Verifying patch directory creation and config filter naming**
+
+Confirmed the patch likely created new directories as needed since the file was added without error and the directory was not initially visible; also verified the config filter key correctly transforms 'rest.capability' to the applied filter name.
+thinking
+**Confirming test setup and coverage details**
+
+Verified test class setup with proper WP_Mock initialization and method signatures matching PHP 8 expectations; no extra apply_filters calls detected and new config constant usage is appropriate without further changes. Noted no verification commands provided and tests were not run, so final notes should mention this along with file creation confirmation.
+exec
+/bin/zsh -lc 'ls tests/Unit/Rest' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 32ms:
+RestControllerPermissionsTest.php
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d..760bbfd3963501bfa0845ea8a7f0f1402fb2d474
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -162,6 +162,7 @@
+ 	 * REST API configuration.
+ 	 */
+ 	public const REST_NAMESPACE = 'agentwp/v1';
++	public const REST_CAPABILITY = 'manage_woocommerce';
+ 
+ 	/**
+ 	 * History and favorites limits.
+@@ -317,6 +318,7 @@
+ 			'history.limit'                  => self::HISTORY_LIMIT,
+ 			'favorites.limit'                => self::FAVORITES_LIMIT,
+ 			'rest.log_limit'                 => self::REST_LOG_LIMIT,
++			'rest.capability'                => self::REST_CAPABILITY,
+ 		);
+ 
+ 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;
+diff --git a/src/Rest/RestController.php b/src/Rest/RestController.php
+index bee05fa65877b20d4cc1f3ae5602009c02a04f97..43ac9eb103d9360be603548aebbb2e80f3080aa9
+--- a/src/Rest/RestController.php
++++ b/src/Rest/RestController.php
+@@ -119,7 +119,8 @@
+ 	 * @return true|WP_Error
+ 	 */
+ 	public function permissions_check( $request ) {
+-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
++		$capability = AgentWPConfig::get( 'rest.capability', AgentWPConfig::REST_CAPABILITY );
++		if ( ! current_user_can( $capability ) ) {
+ 			return new WP_Error(
+ 				AgentWPConfig::ERROR_CODE_FORBIDDEN,
+ 				__( 'Sorry, you are not allowed to access AgentWP.', 'agentwp' ),
+diff --git a/tests/Unit/Rest/RestControllerPermissionsTest.php b/tests/Unit/Rest/RestControllerPermissionsTest.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..8d2067aaa3f19801e186126f712e0e01c13d7915
+--- /dev/null
++++ b/tests/Unit/Rest/RestControllerPermissionsTest.php
+@@ -0,0 +1,70 @@
++<?php
++/**
++ * REST controller permissions tests.
++ *
++ * @package AgentWP\Tests\Unit\Rest
++ */
++
++namespace AgentWP\Tests\Unit\Rest;
++
++use AgentWP\Rest\RestController;
++use AgentWP\Tests\TestCase;
++use WP_Mock;
++
++class RestControllerPermissionsTest extends TestCase {
++
++	public function setUp(): void {
++		parent::setUp();
++		WP_Mock::setUp();
++	}
++
++	public function tearDown(): void {
++		WP_Mock::tearDown();
++		parent::tearDown();
++	}
++
++	public function test_permissions_check_uses_default_rest_capability(): void {
++		WP_Mock::userFunction( 'apply_filters' )
++			->once()
++			->with( 'agentwp_config_rest_capability', 'manage_woocommerce' )
++			->andReturn( 'manage_woocommerce' );
++
++		WP_Mock::userFunction( 'current_user_can' )
++			->once()
++			->with( 'manage_woocommerce' )
++			->andReturn( true );
++
++		$controller = new TestRestController();
++		$result     = $controller->permissions_check( null );
++
++		$this->assertTrue( $result );
++	}
++
++	public function test_permissions_check_uses_filtered_rest_capability(): void {
++		WP_Mock::userFunction( 'apply_filters' )
++			->once()
++			->with( 'agentwp_config_rest_capability', 'manage_woocommerce' )
++			->andReturn( 'manage_options' );
++
++		WP_Mock::userFunction( 'current_user_can' )
++			->once()
++			->with( 'manage_options' )
++			->andReturn( true );
++
++		$controller = new TestRestController();
++		$result     = $controller->permissions_check( null );
++
++		$this->assertTrue( $result );
++	}
++}
++
++class TestRestController extends RestController {
++
++	protected function verify_nonce( $request ) {
++		return true;
++	}
++
++	protected function check_rate_limit_via_service() {
++		return true;
++	}
++}
+
+
+
+thinking
+**Preparing final change summary**
+
+I'm outlining a concise explanation of the code update with clear sections for status, summary, verification, and risks, matching the requested format and tone without heavy formatting.
+thinking
+**Finalizing summary with file paths and filter mention**
+
+I'm ensuring the summary mentions file paths in backticks and includes the `rest.capability` filter detail, plus noting that tests were not run for completeness.
+codex
+Implemented configurable REST capability via `AgentWPConfig` and wired it into the REST permission check, with unit coverage for default and filtered behavior.
+
+**Status**
+- DONE
+
+**Summary of changes**
+- Added `REST_CAPABILITY` and `rest.capability` mapping with filter support in `src/Config/AgentWPConfig.php`.
+- Updated `src/Rest/RestController.php` to read the configured capability in `permissions_check()`.
+- Added unit tests for default vs. filtered capability in `tests/Unit/Rest/RestControllerPermissionsTest.php`.
+
+**How to verify**
+- No verification commands provided.
+
+**Risks / follow-ups**
+- Tests not run (no commands provided).
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d..760bbfd3963501bfa0845ea8a7f0f1402fb2d474
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -162,6 +162,7 @@
+ 	 * REST API configuration.
+ 	 */
+ 	public const REST_NAMESPACE = 'agentwp/v1';
++	public const REST_CAPABILITY = 'manage_woocommerce';
+ 
+ 	/**
+ 	 * History and favorites limits.
+@@ -317,6 +318,7 @@
+ 			'history.limit'                  => self::HISTORY_LIMIT,
+ 			'favorites.limit'                => self::FAVORITES_LIMIT,
+ 			'rest.log_limit'                 => self::REST_LOG_LIMIT,
++			'rest.capability'                => self::REST_CAPABILITY,
+ 		);
+ 
+ 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;
+diff --git a/src/Rest/RestController.php b/src/Rest/RestController.php
+index bee05fa65877b20d4cc1f3ae5602009c02a04f97..43ac9eb103d9360be603548aebbb2e80f3080aa9
+--- a/src/Rest/RestController.php
++++ b/src/Rest/RestController.php
+@@ -119,7 +119,8 @@
+ 	 * @return true|WP_Error
+ 	 */
+ 	public function permissions_check( $request ) {
+-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
++		$capability = AgentWPConfig::get( 'rest.capability', AgentWPConfig::REST_CAPABILITY );
++		if ( ! current_user_can( $capability ) ) {
+ 			return new WP_Error(
+ 				AgentWPConfig::ERROR_CODE_FORBIDDEN,
+ 				__( 'Sorry, you are not allowed to access AgentWP.', 'agentwp' ),
+diff --git a/tests/Unit/Rest/RestControllerPermissionsTest.php b/tests/Unit/Rest/RestControllerPermissionsTest.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..8d2067aaa3f19801e186126f712e0e01c13d7915
+--- /dev/null
++++ b/tests/Unit/Rest/RestControllerPermissionsTest.php
+@@ -0,0 +1,70 @@
++<?php
++/**
++ * REST controller permissions tests.
++ *
++ * @package AgentWP\Tests\Unit\Rest
++ */
++
++namespace AgentWP\Tests\Unit\Rest;
++
++use AgentWP\Rest\RestController;
++use AgentWP\Tests\TestCase;
++use WP_Mock;
++
++class RestControllerPermissionsTest extends TestCase {
++
++	public function setUp(): void {
++		parent::setUp();
++		WP_Mock::setUp();
++	}
++
++	public function tearDown(): void {
++		WP_Mock::tearDown();
++		parent::tearDown();
++	}
++
++	public function test_permissions_check_uses_default_rest_capability(): void {
++		WP_Mock::userFunction( 'apply_filters' )
++			->once()
++			->with( 'agentwp_config_rest_capability', 'manage_woocommerce' )
++			->andReturn( 'manage_woocommerce' );
++
++		WP_Mock::userFunction( 'current_user_can' )
++			->once()
++			->with( 'manage_woocommerce' )
++			->andReturn( true );
++
++		$controller = new TestRestController();
++		$result     = $controller->permissions_check( null );
++
++		$this->assertTrue( $result );
++	}
++
++	public function test_permissions_check_uses_filtered_rest_capability(): void {
++		WP_Mock::userFunction( 'apply_filters' )
++			->once()
++			->with( 'agentwp_config_rest_capability', 'manage_woocommerce' )
++			->andReturn( 'manage_options' );
++
++		WP_Mock::userFunction( 'current_user_can' )
++			->once()
++			->with( 'manage_options' )
++			->andReturn( true );
++
++		$controller = new TestRestController();
++		$result     = $controller->permissions_check( null );
++
++		$this->assertTrue( $result );
++	}
++}
++
++class TestRestController extends RestController {
++
++	protected function verify_nonce( $request ) {
++		return true;
++	}
++
++	protected function check_rate_limit_via_service() {
++		return true;
++	}
++}
+
+tokens used
+49,263

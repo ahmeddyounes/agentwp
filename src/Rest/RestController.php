@@ -119,7 +119,8 @@ abstract class RestController extends WP_REST_Controller {
 	 * @return true|WP_Error
 	 */
 	public function permissions_check( $request ) {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+		$capability = AgentWPConfig::get( 'rest.capability', AgentWPConfig::REST_CAPABILITY );
+		if ( ! current_user_can( $capability ) ) {
 			return new WP_Error(
 				AgentWPConfig::ERROR_CODE_FORBIDDEN,
 				__( 'Sorry, you are not allowed to access AgentWP.', 'agentwp' ),

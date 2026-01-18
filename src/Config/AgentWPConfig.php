@@ -162,6 +162,7 @@ final class AgentWPConfig {
 	 * REST API configuration.
 	 */
 	public const REST_NAMESPACE = 'agentwp/v1';
+	public const REST_CAPABILITY = 'manage_woocommerce';
 
 	/**
 	 * History and favorites limits.
@@ -317,6 +318,7 @@ final class AgentWPConfig {
 			'history.limit'                  => self::HISTORY_LIMIT,
 			'favorites.limit'                => self::FAVORITES_LIMIT,
 			'rest.log_limit'                 => self::REST_LOG_LIMIT,
+			'rest.capability'                => self::REST_CAPABILITY,
 		);
 
 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;
