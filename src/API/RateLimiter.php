@@ -149,6 +149,9 @@ final class RateLimiter implements RateLimiterInterface {
 	 * This method uses a lock to perform an atomic check-and-increment to prevent
 	 * race conditions where multiple concurrent requests could exceed the rate limit.
 	 *
+	 * Fail-open design: If storage is unavailable or lock cannot be acquired,
+	 * the request is allowed to proceed to avoid blocking legitimate traffic.
+	 *
 	 * @param int $userId The user ID.
 	 * @return bool True if within limits (and incremented), false if exceeded.
 	 */
@@ -158,17 +161,24 @@ final class RateLimiter implements RateLimiterInterface {
 
 		// Try to acquire lock with retry.
 		$lockAcquired = false;
-		for ( $i = 0; $i < self::MAX_LOCK_ATTEMPTS; $i++ ) {
-			if ( $this->cache->add( $lockKey, 1, self::LOCK_TIMEOUT ) ) {
-				$lockAcquired = true;
-				break;
+		try {
+			for ( $i = 0; $i < self::MAX_LOCK_ATTEMPTS; $i++ ) {
+				if ( $this->cache->add( $lockKey, 1, self::LOCK_TIMEOUT ) ) {
+					$lockAcquired = true;
+					break;
+				}
+				usleep( self::LOCK_RETRY_DELAY_US );
 			}
-			usleep( self::LOCK_RETRY_DELAY_US );
+		} catch ( \Throwable $e ) {
+			// Storage unavailable - fail open to avoid blocking legitimate traffic.
+			return true;
 		}
 
-		// If we couldn't acquire lock, fail safe by denying the request.
+		// If we couldn't acquire lock after retries, fail open.
+		// Under high contention, it's better to occasionally exceed limits
+		// than to incorrectly deny legitimate requests.
 		if ( ! $lockAcquired ) {
-			return false;
+			return true;
 		}
 
 		try {
@@ -193,9 +203,18 @@ final class RateLimiter implements RateLimiterInterface {
 			$this->cache->set( $key, $bucket, $this->window );
 
 			return true;
+		} catch ( \Throwable $e ) {
+			// Storage unavailable during read/write - fail open.
+			return true;
 		} finally {
-			// Always release the lock.
-			$this->cache->delete( $lockKey );
+			// Always release the lock if we acquired it.
+			if ( $lockAcquired ) {
+				try {
+					$this->cache->delete( $lockKey );
+				} catch ( \Throwable $e ) {
+					// Ignore lock release failures - lock will expire via timeout.
+				}
+			}
 		}
 	}
 

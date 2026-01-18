@@ -36,9 +36,27 @@ final class FakeTransientCache implements TransientCacheInterface {
 	private ?int $currentTime = null;
 
 	/**
+	 * Whether to simulate storage failures.
+	 *
+	 * @var bool
+	 */
+	private bool $simulateFailure = false;
+
+	/**
+	 * Whether to simulate lock contention (add() always fails).
+	 *
+	 * @var bool
+	 */
+	private bool $simulateLockContention = false;
+
+	/**
 	 * {@inheritDoc}
 	 */
 	public function get( string $key, mixed $default = null ): mixed {
+		if ( $this->simulateFailure ) {
+			throw new \RuntimeException( 'Simulated cache failure' );
+		}
+
 		if ( ! isset( $this->store[ $key ] ) ) {
 			return $default;
 		}
@@ -59,6 +77,10 @@ final class FakeTransientCache implements TransientCacheInterface {
 	 * {@inheritDoc}
 	 */
 	public function set( string $key, mixed $value, int $expiration = 0 ): bool {
+		if ( $this->simulateFailure ) {
+			throw new \RuntimeException( 'Simulated cache failure' );
+		}
+
 		$this->store[ $key ] = $value;
 
 		if ( $expiration > 0 ) {
@@ -75,6 +97,10 @@ final class FakeTransientCache implements TransientCacheInterface {
 	 * {@inheritDoc}
 	 */
 	public function delete( string $key ): bool {
+		if ( $this->simulateFailure ) {
+			throw new \RuntimeException( 'Simulated cache failure' );
+		}
+
 		unset( $this->store[ $key ], $this->expirations[ $key ] );
 		return true;
 	}
@@ -106,6 +132,14 @@ final class FakeTransientCache implements TransientCacheInterface {
 	 * {@inheritDoc}
 	 */
 	public function add( string $key, mixed $value, int $expiration = 0 ): bool {
+		if ( $this->simulateFailure ) {
+			throw new \RuntimeException( 'Simulated cache failure' );
+		}
+
+		if ( $this->simulateLockContention ) {
+			return false;
+		}
+
 		// Check if key already exists and is not expired.
 		if ( isset( $this->store[ $key ] ) ) {
 			// Check expiration.
@@ -173,8 +207,30 @@ final class FakeTransientCache implements TransientCacheInterface {
 	 * @return void
 	 */
 	public function reset(): void {
-		$this->store       = array();
-		$this->expirations = array();
-		$this->currentTime = null;
+		$this->store                 = array();
+		$this->expirations           = array();
+		$this->currentTime           = null;
+		$this->simulateFailure       = false;
+		$this->simulateLockContention = false;
+	}
+
+	/**
+	 * Enable or disable failure simulation.
+	 *
+	 * @param bool $fail Whether to simulate failures.
+	 * @return void
+	 */
+	public function setSimulateFailure( bool $fail ): void {
+		$this->simulateFailure = $fail;
+	}
+
+	/**
+	 * Enable or disable lock contention simulation.
+	 *
+	 * @param bool $contention Whether to simulate lock contention.
+	 * @return void
+	 */
+	public function setSimulateLockContention( bool $contention ): void {
+		$this->simulateLockContention = $contention;
 	}
 }

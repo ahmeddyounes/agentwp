@@ -144,4 +144,80 @@ class RateLimiterTest extends TestCase {
 		// max(1, 60 - 59) = max(1, 1) = 1
 		$this->assertSame( 1, $retryAfter );
 	}
+
+	public function test_check_and_increment_fails_open_on_lock_contention(): void {
+		$limiter = new RateLimiter( $this->cache, $this->clock, 2, 60 );
+
+		// Simulate lock contention where add() always fails.
+		$this->cache->setSimulateLockContention( true );
+
+		// Should fail open (return true) when lock cannot be acquired.
+		$this->assertTrue( $limiter->checkAndIncrement( 1 ) );
+	}
+
+	public function test_check_and_increment_fails_open_on_storage_failure_during_lock(): void {
+		$limiter = new RateLimiter( $this->cache, $this->clock, 2, 60 );
+
+		// Simulate storage failure.
+		$this->cache->setSimulateFailure( true );
+
+		// Should fail open (return true) when storage throws exception.
+		$this->assertTrue( $limiter->checkAndIncrement( 1 ) );
+	}
+
+	public function test_check_and_increment_fails_open_on_storage_failure_during_bucket_read(): void {
+		$limiter = new RateLimiter( $this->cache, $this->clock, 2, 60 );
+
+		// First, do a successful operation to ensure lock works.
+		$this->assertTrue( $limiter->checkAndIncrement( 1 ) );
+
+		// Now simulate failure after lock is acquired using mock.
+		$failingCache = $this->createMock( \AgentWP\Contracts\TransientCacheInterface::class );
+		$failingCache->method( 'add' )->willReturn( true ); // Lock succeeds.
+		$failingCache->method( 'get' )->willThrowException( new \RuntimeException( 'Simulated storage failure' ) );
+		$failingCache->method( 'delete' )->willReturn( true ); // Lock release succeeds.
+
+		$clockForFailingCache = new FakeClock( new DateTimeImmutable( '@1000' ) );
+		$limiterWithFailingCache = new RateLimiter( $failingCache, $clockForFailingCache, 2, 60 );
+
+		// Should fail open when storage fails during bucket read.
+		$this->assertTrue( $limiterWithFailingCache->checkAndIncrement( 1 ) );
+	}
+
+	public function test_lock_released_after_rate_limit_check(): void {
+		$limiter = new RateLimiter( $this->cache, $this->clock, 2, 60 );
+
+		// Perform check and increment.
+		$limiter->checkAndIncrement( 1 );
+
+		// Lock should be released, so we can acquire it again.
+		$this->assertTrue( $this->cache->add( 'rate_1_lock', 1, 5 ) );
+	}
+
+	public function test_lock_released_even_when_at_limit(): void {
+		$limiter = new RateLimiter( $this->cache, $this->clock, 2, 60 );
+
+		// Exhaust the limit.
+		$limiter->checkAndIncrement( 1 );
+		$limiter->checkAndIncrement( 1 );
+		$this->assertFalse( $limiter->checkAndIncrement( 1 ) );
+
+		// Lock should still be released.
+		$this->assertTrue( $this->cache->add( 'rate_1_lock', 1, 5 ) );
+	}
+
+	public function test_check_and_increment_handles_window_expiration(): void {
+		$limiter = new RateLimiter( $this->cache, $this->clock, 2, 60 );
+
+		// Exhaust limit.
+		$this->assertTrue( $limiter->checkAndIncrement( 1 ) );
+		$this->assertTrue( $limiter->checkAndIncrement( 1 ) );
+		$this->assertFalse( $limiter->checkAndIncrement( 1 ) );
+
+		// Advance time past window.
+		$this->clock->advanceSeconds( 61 );
+
+		// Should work again after window reset.
+		$this->assertTrue( $limiter->checkAndIncrement( 1 ) );
+	}
 }
