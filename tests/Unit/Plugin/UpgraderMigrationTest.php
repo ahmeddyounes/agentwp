@@ -7,6 +7,7 @@
 
 namespace AgentWP\Tests\Unit\Plugin;
 
+use AgentWP\Plugin\SchemaManager;
 use AgentWP\Plugin\SettingsManager;
 use AgentWP\Plugin\Upgrader;
 use AgentWP\Tests\TestCase;
@@ -187,5 +188,96 @@ class UpgraderMigrationTest extends TestCase {
 		$steps = Upgrader::get_pending_steps( '0.2.0', '1.0.0' );
 
 		$this->assertNotContains( '0.1.1', $steps );
+	}
+
+	// ===========================================
+	// 0.1.2 Upgrade Step Structure Tests
+	// ===========================================
+
+	public function test_upgrade_0_1_2_step_exists(): void {
+		$reflection = new ReflectionClass( Upgrader::class );
+		$method     = $reflection->getMethod( 'get_upgrade_steps' );
+		$method->setAccessible( true );
+
+		$steps = $method->invoke( null );
+
+		$this->assertArrayHasKey( '0.1.2', $steps );
+	}
+
+	public function test_upgrade_0_1_2_method_exists(): void {
+		$reflection = new ReflectionClass( Upgrader::class );
+
+		$this->assertTrue( $reflection->hasMethod( 'upgrade_to_0_1_2' ) );
+	}
+
+	public function test_upgrade_0_1_2_method_is_private_static(): void {
+		$reflection = new ReflectionClass( Upgrader::class );
+		$method     = $reflection->getMethod( 'upgrade_to_0_1_2' );
+
+		$this->assertTrue( $method->isPrivate() );
+		$this->assertTrue( $method->isStatic() );
+	}
+
+	public function test_upgrade_0_1_2_method_returns_void(): void {
+		$reflection = new ReflectionClass( Upgrader::class );
+		$method     = $reflection->getMethod( 'upgrade_to_0_1_2' );
+		$returnType = $method->getReturnType();
+
+		$this->assertNotNull( $returnType );
+		$this->assertSame( 'void', $returnType->getName() );
+	}
+
+	// ===========================================
+	// 0.1.2 Pending Steps Detection Tests
+	// ===========================================
+
+	public function test_pending_steps_includes_0_1_2_when_upgrading_from_0_1_1(): void {
+		$steps = Upgrader::get_pending_steps( '0.1.1', '1.0.0' );
+
+		$this->assertContains( '0.1.2', $steps );
+	}
+
+	public function test_pending_steps_excludes_0_1_2_when_already_at_0_1_2(): void {
+		$steps = Upgrader::get_pending_steps( '0.1.2', '1.0.0' );
+
+		$this->assertNotContains( '0.1.2', $steps );
+	}
+
+	public function test_pending_steps_excludes_0_1_2_when_upgrading_from_higher_version(): void {
+		$steps = Upgrader::get_pending_steps( '0.2.0', '1.0.0' );
+
+		$this->assertNotContains( '0.1.2', $steps );
+	}
+
+	public function test_upgrade_steps_order_0_1_1_before_0_1_2(): void {
+		$steps = Upgrader::get_pending_steps( '0.1.0', '1.0.0' );
+
+		$index_0_1_1 = array_search( '0.1.1', $steps, true );
+		$index_0_1_2 = array_search( '0.1.2', $steps, true );
+
+		$this->assertNotFalse( $index_0_1_1 );
+		$this->assertNotFalse( $index_0_1_2 );
+		$this->assertLessThan( $index_0_1_2, $index_0_1_1 );
+	}
+
+	// ===========================================
+	// SchemaManager Integration Tests
+	// ===========================================
+
+	public function test_schema_manager_class_exists(): void {
+		$this->assertTrue( class_exists( SchemaManager::class ) );
+	}
+
+	public function test_schema_manager_has_create_tables_method(): void {
+		$this->assertTrue( method_exists( SchemaManager::class, 'create_tables' ) );
+	}
+
+	public function test_schema_manager_has_schema_version_constant(): void {
+		$this->assertTrue( defined( SchemaManager::class . '::SCHEMA_VERSION' ) );
+	}
+
+	public function test_schema_manager_version_option_constant(): void {
+		$this->assertTrue( defined( SchemaManager::class . '::OPTION_SCHEMA_VERSION' ) );
+		$this->assertSame( 'agentwp_schema_version', SchemaManager::OPTION_SCHEMA_VERSION );
 	}
 }

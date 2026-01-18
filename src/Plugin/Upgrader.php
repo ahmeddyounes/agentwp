@@ -180,6 +180,7 @@ class Upgrader {
 	private static function get_upgrade_steps(): array {
 		$steps = array(
 			'0.1.1' => array( __CLASS__, 'upgrade_to_0_1_1' ),
+			'0.1.2' => array( __CLASS__, 'upgrade_to_0_1_2' ),
 		);
 
 		// Sort by version to ensure correct execution order.
@@ -215,6 +216,21 @@ class Upgrader {
 				'',
 				false
 			);
+		}
+	}
+
+	/**
+	 * Upgrade to 0.1.2: Run schema migrations via SchemaManager.
+	 *
+	 * Ensures all database tables (usage tracking, search index) are
+	 * created and up-to-date. This centralizes schema management and
+	 * ensures existing installations get any new or updated tables.
+	 *
+	 * @return void
+	 */
+	private static function upgrade_to_0_1_2(): void {
+		if ( class_exists( 'AgentWP\\Plugin\\SchemaManager' ) ) {
+			SchemaManager::create_tables();
 		}
 	}
 

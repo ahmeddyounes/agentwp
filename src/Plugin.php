@@ -66,6 +66,10 @@ class Plugin {
 	/**
 	 * Plugin activation handler.
 	 *
+	 * Creates initial options and database tables for first-time installations.
+	 * Schema creation is centralized through SchemaManager to ensure a single
+	 * entry point for all database operations.
+	 *
 	 * @return void
 	 */
 	public static function activate() {
@@ -86,12 +90,9 @@ class Plugin {
 			Plugin\Upgrader::update_installed_version( defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '0.0.0' );
 		}
 
-		if ( class_exists( 'AgentWP\\Billing\\UsageTracker' ) ) {
-			Billing\UsageTracker::activate();
-		}
-
-		if ( class_exists( 'AgentWP\\Search\\Index' ) ) {
-			Search\Index::activate();
+		// Create database tables via SchemaManager (single entry point for schema).
+		if ( class_exists( 'AgentWP\\Plugin\\SchemaManager' ) ) {
+			Plugin\SchemaManager::create_tables();
 		}
 	}
 
