@@ -380,7 +380,8 @@ final class IntentServiceProvider extends ServiceProvider {
 					$this->container->get( HandlerRegistry::class ),
 					$this->container->get( FallbackHandler::class ),
 					$hooks,
-					$this->container->get( ToolRegistryInterface::class )
+					$this->container->get( ToolRegistryInterface::class ),
+					$this->container->get( ToolDispatcherInterface::class )
 				);
 			}
 		);

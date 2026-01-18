@@ -12,6 +12,7 @@ use AgentWP\Contracts\ContextBuilderInterface;
 use AgentWP\Contracts\HooksInterface;
 use AgentWP\Contracts\IntentClassifierInterface;
 use AgentWP\Contracts\MemoryStoreInterface;
+use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\ToolSuggestionProvider;
 
@@ -56,6 +57,16 @@ class Engine {
 	private $hooks;
 
 	/**
+	 * @var ToolRegistryInterface|null
+	 */
+	private ?ToolRegistryInterface $tool_registry = null;
+
+	/**
+	 * @var ToolDispatcherInterface|null
+	 */
+	private ?ToolDispatcherInterface $tool_dispatcher = null;
+
+	/**
 	 * @param array                     $handlers          Handlers to register.
 	 * @param FunctionRegistry          $function_registry Function registry.
 	 * @param ContextBuilderInterface   $context_builder   Context builder.
@@ -65,6 +76,7 @@ class Engine {
 	 * @param Handler                   $fallback_handler  Fallback handler for unknown intents.
 	 * @param HooksInterface|null       $hooks             Hooks adapter (optional for backward compatibility).
 	 * @param ToolRegistryInterface|null $tool_registry    Tool registry (optional, used for suggestions).
+	 * @param ToolDispatcherInterface|null $tool_dispatcher Tool dispatcher (optional, used for suggestion filtering).
 	 */
 	public function __construct(
 		array $handlers,
@@ -75,7 +87,8 @@ class Engine {
 		HandlerRegistry $handler_registry,
 		Handler $fallback_handler,
 		?HooksInterface $hooks = null,
-		?ToolRegistryInterface $tool_registry = null
+		?ToolRegistryInterface $tool_registry = null,
+		?ToolDispatcherInterface $tool_dispatcher = null
 	) {
 		$this->classifier        = $classifier;
 		$this->context_builder   = $context_builder;
@@ -84,6 +97,8 @@ class Engine {
 		$this->handler_registry  = $handler_registry;
 		$this->fallback_handler  = $fallback_handler;
 		$this->hooks             = $hooks;
+		$this->tool_registry     = $tool_registry;
+		$this->tool_dispatcher   = $tool_dispatcher;
 
 		$resolved_handlers = $this->hooks
 			? $this->hooks->applyFilters( 'agentwp_intent_handlers', $handlers, $this )
@@ -262,7 +277,7 @@ class Engine {
 				continue;
 			}
 
-			$tools = $handler->getSuggestedTools();
+			$tools = $this->filter_suggested_tools( $handler->getSuggestedTools() );
 			if ( ! empty( $tools ) ) {
 				$mapping[ $intent ] = $tools;
 			}
@@ -271,6 +286,8 @@ class Engine {
 		if ( $this->hooks ) {
 			$mapping = $this->hooks->applyFilters( 'agentwp_default_function_mapping', $mapping, $this );
 		}
+
+		$mapping = $this->sanitize_function_mapping( $mapping );
 
 		foreach ( $mapping as $intent => $functions ) {
 			// Only register functions if a handler is explicitly registered for the intent.
@@ -283,5 +300,62 @@ class Engine {
 				$this->function_registry->register( $function_name, $handler );
 			}
 		}
+	}
+
+	/**
+	 * Filter suggested tools against known schemas/executors (if available).
+	 *
+	 * @param array $tools Suggested tool names.
+	 * @return array<string>
+	 */
+	private function filter_suggested_tools( array $tools ): array {
+		$filtered = array();
+
+		foreach ( $tools as $tool ) {
+			$tool = is_string( $tool ) ? trim( $tool ) : '';
+			if ( '' === $tool ) {
+				continue;
+			}
+
+			if ( $this->tool_registry && ! $this->tool_registry->has( $tool ) ) {
+				continue;
+			}
+
+			if ( $this->tool_dispatcher && ! $this->tool_dispatcher->has( $tool ) ) {
+				continue;
+			}
+
+			$filtered[] = $tool;
+		}
+
+		return array_values( array_unique( $filtered ) );
+	}
+
+	/**
+	 * Sanitize a function mapping after filters run.
+	 *
+	 * @param mixed $mapping Mapping to sanitize.
+	 * @return array<string, array<string>>
+	 */
+	private function sanitize_function_mapping( $mapping ): array {
+		if ( ! is_array( $mapping ) ) {
+			return array();
+		}
+
+		$sanitized = array();
+		foreach ( $mapping as $intent => $functions ) {
+			if ( ! is_array( $functions ) ) {
+				continue;
+			}
+
+			$filtered = $this->filter_suggested_tools( $functions );
+			if ( empty( $filtered ) ) {
+				continue;
+			}
+
+			$sanitized[ $intent ] = $filtered;
+		}
+
+		return $sanitized;
 	}
 }
