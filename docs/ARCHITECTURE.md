@@ -1,5 +1,29 @@
 # AgentWP Technical Architecture
 
+## Where Things Live
+
+Quick reference to locate major subsystems:
+
+| Location | Purpose |
+|----------|---------|
+| `agentwp.php` | Plugin entrypoint: constants, autoloader, activation hooks |
+| `src/Plugin.php` | Singleton bootstrap, container creation, provider orchestration |
+| `src/Providers/` | Service providers (Core, Infrastructure, Services, Rest, Intent) |
+| `src/Rest/` | REST controllers (`IntentController`, `SettingsController`, etc.) |
+| `src/Intent/` | Intent engine, classifier, handlers (`src/Intent/Handlers/`) |
+| `src/Services/` | Domain services (refund, order status, stock, draft management) |
+| `src/Infrastructure/` | Gateways, adapters, WooCommerce wrappers, caching |
+| `src/Contracts/` | Interfaces defining boundaries for DI and testing |
+| `src/DTO/` | Value objects (`ServiceResult`, `DraftPayload`, request DTOs) |
+| `src/Container/` | PSR-11 style DI container and base `ServiceProvider` |
+| `src/Security/` | Policy layer for capability checks |
+| `react/src/` | Command Deck React UI (features, hooks, stores, components) |
+| `assets/` | Built JS/CSS bundles for WordPress admin |
+| `docs/` | Architecture docs, ADRs, API spec, developer guides |
+| `tests/` | PHPUnit tests, integration tests |
+
+For the architecture improvement roadmap, see [ARCHITECTURE-IMPROVEMENT-PLAN.md](ARCHITECTURE-IMPROVEMENT-PLAN.md).
+
 ## 1) System Overview
 
 ### Boot/Composition Flow
