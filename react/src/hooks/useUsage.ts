@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import agentwpClient, { type ApiResponse } from '../api/AgentWPClient';
+import agentwpClient, { getApiError, type ApiResponse } from '../api/AgentWPClient';
 import type { components } from '../types/api';
 import type { UsageSummary } from '../types';
 
@@ -31,12 +31,14 @@ export function useUsage(period: UsagePeriod = 'month', enabled = true) {
 
 export function useUsageData(period: UsagePeriod = 'month') {
   const { data, isLoading, isError, error, refetch } = useUsage(period);
+  const apiError = getApiError(data);
 
   return {
     usage: data?.success && data.data ? normalizeUsageSummary(data.data) : null,
     isLoading,
-    isError: isError || data?.success === false,
-    error: error?.message || (data && !data.success ? data.error?.message : null) || null,
+    isError: isError || Boolean(apiError),
+    error: error?.message || apiError?.message || null,
+    apiError,
     refetch,
   };
 }

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import agentwpClient, { type ApiResponse } from '../api/AgentWPClient';
+import agentwpClient, { getApiError, type ApiResponse } from '../api/AgentWPClient';
 import type { components } from '../types/api';
 import type { SearchResults } from '../types';
 
@@ -75,6 +75,7 @@ export function useDebouncedSearch(initialQuery = '') {
   }, [query]);
 
   const { data, isLoading, isError, error } = useSearchQuery(debouncedQuery);
+  const apiError = getApiError(data);
 
   const results: SearchResults =
     data?.success && data.data
@@ -92,8 +93,9 @@ export function useDebouncedSearch(initialQuery = '') {
     debouncedQuery,
     results,
     isLoading,
-    isError: isError || data?.success === false,
-    error: error?.message || (data && !data.success ? data.error?.message : null) || null,
+    isError: isError || Boolean(apiError),
+    error: error?.message || apiError?.message || null,
+    apiError,
     hasResults:
       results.products.length > 0 || results.orders.length > 0 || results.customers.length > 0,
     clear,

@@ -172,10 +172,14 @@ export const errorHandlers = {
     return HttpResponse.json(
       {
         success: false,
+        data: [],
         error: {
           code: 'agentwp_rate_limited',
           message: 'Too many requests. Please wait and retry.',
           type: 'rate_limit',
+          meta: {
+            retry_after: 60,
+          },
         },
       },
       { status: 429, headers: { 'Retry-After': '60' } },
@@ -186,10 +190,12 @@ export const errorHandlers = {
     return HttpResponse.json(
       {
         success: false,
+        data: [],
         error: {
           code: 'agentwp_unauthorized',
           message: 'Authentication required. Please log in.',
           type: 'auth_error',
+          meta: {},
         },
       },
       { status: 401 },
@@ -200,10 +206,12 @@ export const errorHandlers = {
     return HttpResponse.json(
       {
         success: false,
+        data: [],
         error: {
           code: 'agentwp_api_error',
           message: 'Internal server error',
           type: 'api_error',
+          meta: {},
         },
       },
       { status: 500 },

@@ -1,0 +1,39 @@
+[main 081d233] C07-02: implement
+ 32 files changed, 2994 insertions(+), 21 deletions(-)
+ create mode 100644 .logs/C07-01.gitcommit.txt
+ create mode 100644 .logs/C07-02.codex.impl.last.md
+ create mode 100644 .logs/C07-02.codex.impl.raw.txt
+ create mode 100644 .plans/C07-02.md
+ create mode 100644 .t2/handoff/C07-02.md
+ rename react/{ => src}/components/ErrorBoundary.tsx (100%)
+ rename react/{ => src}/components/HistoryPanel.tsx (100%)
+ rename react/{ => src}/components/cards/BaseCard.tsx (100%)
+ rename react/{ => src}/components/cards/ChartCard.tsx (100%)
+ rename react/{ => src}/components/cards/DangerousActionCard.tsx (100%)
+ rename react/{ => src}/components/cards/DataTableCard.tsx (100%)
+ rename react/{ => src}/components/cards/ErrorCard.tsx (100%)
+ rename react/{ => src}/components/cards/InfoCard.tsx (100%)
+ rename react/{ => src}/components/cards/SuccessCard.tsx (100%)
+ rename react/{ => src}/components/cards/cards.css (100%)
+ rename react/{ => src}/components/cards/index.ts (100%)
+
+[STARTED] Backing up original state...
+[COMPLETED] Backed up original state in git stash (50f9728)
+[STARTED] Running tasks for staged files...
+[STARTED] package.json — 26 files
+[STARTED] *.{ts,tsx,js,jsx} — 24 files
+[STARTED] *.{json,md,css} — 2 files
+[STARTED] eslint --fix
+[STARTED] prettier --write
+[COMPLETED] prettier --write
+[COMPLETED] *.{json,md,css} — 2 files
+[COMPLETED] eslint --fix
+[STARTED] prettier --write
+[COMPLETED] prettier --write
+[COMPLETED] *.{ts,tsx,js,jsx} — 24 files
+[COMPLETED] package.json — 26 files
+[COMPLETED] Running tasks for staged files...
+[STARTED] Applying modifications from tasks...
+[COMPLETED] Applying modifications from tasks...
+[STARTED] Cleaning up temporary files...
+[COMPLETED] Cleaning up temporary files...

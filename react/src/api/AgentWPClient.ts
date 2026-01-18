@@ -24,6 +24,7 @@ type SearchResponseData = components['schemas']['SearchResponseData'];
 type HistoryResponseData = components['schemas']['HistoryResponseData'];
 type HistoryEntry = components['schemas']['HistoryEntry'];
 type ThemeResponseData = components['schemas']['ThemeResponseData'];
+type ErrorPayload = components['schemas']['ErrorObject'];
 
 // Period type from usage query parameter
 type UsagePeriod = 'day' | 'week' | 'month';
@@ -78,6 +79,7 @@ const ERROR_TYPE_MAP: Record<string, ErrorType> = {
   agentwp_api_error: ERROR_TYPES.API_ERROR,
   agentwp_encryption_failed: ERROR_TYPES.API_ERROR,
   agentwp_intent_failed: ERROR_TYPES.API_ERROR,
+  agentwp_service_unavailable: ERROR_TYPES.API_ERROR,
 };
 
 /**
@@ -109,6 +111,12 @@ type RequestOptions = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>;
   signal?: AbortSignal;
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isErrorType = (value: string): value is ErrorType =>
+  Object.values(ERROR_TYPES).includes(value as ErrorType);
 
 /**
  * AgentWP API Client class.
@@ -169,12 +177,42 @@ export class AgentWPClient {
   }
 
   /**
+   * Normalize response envelopes into { success, data, error }.
+   */
+  extractEnvelope(payload: unknown): {
+    success?: boolean;
+    data?: unknown;
+    error?: unknown;
+    meta?: unknown;
+  } {
+    if (!isRecord(payload)) {
+      return {};
+    }
+
+    return {
+      success: typeof payload.success === 'boolean' ? payload.success : undefined,
+      data: 'data' in payload ? payload.data : undefined,
+      error: 'error' in payload ? payload.error : undefined,
+      meta: 'meta' in payload ? payload.meta : undefined,
+    };
+  }
+
+  /**
    * Build error object from response.
    */
   buildErrorResponse(response: Response, data: unknown = null): ApiResponse<never> {
-    const payloadObject =
-      typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : {};
-    const errorPayload = (payloadObject.error as Record<string, unknown>) || {};
+    const payloadObject = isRecord(data) ? data : {};
+    const envelope = this.extractEnvelope(payloadObject);
+    const envelopeError = isRecord(envelope.error) ? envelope.error : null;
+    const errorPayload: ErrorPayload | Record<string, unknown> =
+      envelopeError ??
+      (isRecord(payloadObject) &&
+      (typeof payloadObject.code === 'string' ||
+        typeof payloadObject.message === 'string' ||
+        typeof payloadObject.type === 'string' ||
+        typeof payloadObject.meta === 'object')
+        ? payloadObject
+        : {});
     const retryAfterHeader = Number.parseInt(response.headers.get('Retry-After') || '0', 10);
 
     const errorCode = typeof errorPayload.code === 'string' ? errorPayload.code : '';
@@ -185,7 +223,7 @@ export class AgentWPClient {
         : {};
 
     const categorized = this.categorizeError(errorCode);
-    const errorType: ErrorType = (rawType as ErrorType) || categorized;
+    const errorType: ErrorType = rawType && isErrorType(rawType) ? rawType : categorized;
 
     const message =
       (typeof errorPayload.message === 'string' ? errorPayload.message : '') ||
@@ -205,7 +243,7 @@ export class AgentWPClient {
       success: false,
       data: [] as [],
       error: {
-        code: errorCode,
+        code: errorCode || ERROR_CODES.API_ERROR,
         message,
         type: errorType,
         status: response.status || 0,
@@ -223,33 +261,51 @@ export class AgentWPClient {
    * Returns error objects instead of throwing for API errors.
    */
   async handleResponse<T = unknown>(response: Response): Promise<ApiResponse<T>> {
-    if (!response.ok) {
-      let data: unknown = null;
-      try {
-        data = await response.json();
-      } catch {
-        // JSON parse failed, use empty object.
-      }
+    let data: unknown = null;
+    try {
+      data = await response.json();
+    } catch {
+      // JSON parse failed - handled below.
+    }
+
+    const envelope = this.extractEnvelope(data);
+
+    if (envelope.success === true) {
+      return {
+        success: true,
+        data: (envelope.data as T) ?? (data as T),
+        ...(isRecord(envelope.meta) ? { meta: envelope.meta } : {}),
+      };
+    }
+
+    if (envelope.success === false) {
       return this.buildErrorResponse(response, data);
     }
 
-    try {
-      return (await response.json()) as ApiResponse<T>;
-    } catch {
-      // JSON parse failed on successful response - return error object for consistency.
+    if (!response.ok) {
+      return this.buildErrorResponse(response, data);
+    }
+
+    if (data !== null) {
       return {
-        success: false,
-        data: [] as [],
-        error: {
-          code: ERROR_CODES.API_ERROR,
-          message: DEFAULT_ERROR_MESSAGES[ERROR_TYPES.API_ERROR],
-          type: ERROR_TYPES.API_ERROR,
-          status: response.status || 0,
-          meta: {},
-          retryAfter: 0,
-        },
+        success: true,
+        data: data as T,
       };
     }
+
+    // JSON parse failed on successful response - return error object for consistency.
+    return {
+      success: false,
+      data: [] as [],
+      error: {
+        code: ERROR_CODES.API_ERROR,
+        message: DEFAULT_ERROR_MESSAGES[ERROR_TYPES.API_ERROR],
+        type: ERROR_TYPES.API_ERROR,
+        status: response.status || 0,
+        meta: {},
+        retryAfter: 0,
+      },
+    };
   }
 
   /**
@@ -461,6 +517,13 @@ export class AgentWPClient {
     );
   }
 }
+
+export const getApiError = <T>(response?: ApiResponse<T> | null): ApiError | null => {
+  if (!response || response.success) {
+    return null;
+  }
+  return response.error;
+};
 
 // Export singleton instance.
 export default new AgentWPClient();

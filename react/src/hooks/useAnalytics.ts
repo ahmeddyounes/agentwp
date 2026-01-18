@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import agentwpClient, { type ApiResponse } from '../api/AgentWPClient';
+import agentwpClient, { getApiError, type ApiResponse } from '../api/AgentWPClient';
 import type { AnalyticsData, Period } from '../types';
 
 // Analytics endpoint response data (not yet in OpenAPI spec)
@@ -23,12 +23,14 @@ export function useAnalytics(period: Period, enabled = true) {
 
 export function useAnalyticsData(period: Period) {
   const { data, isLoading, isError, error, refetch } = useAnalytics(period);
+  const apiError = getApiError(data);
 
   return {
     analytics: data?.success ? data.data : null,
     isLoading,
-    isError: isError || data?.success === false,
-    error: error?.message || (data && !data.success ? data.error?.message : null) || null,
+    isError: isError || Boolean(apiError),
+    error: error?.message || apiError?.message || null,
+    apiError,
     refetch,
   };
 }

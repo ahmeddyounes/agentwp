@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import agentwpClient, { type ApiResponse } from '../api/AgentWPClient';
+import agentwpClient, { getApiError, type ApiResponse } from '../api/AgentWPClient';
 import type { components } from '../types/api';
 import { HEALTH_CHECK_INTERVAL_MS } from '../utils/constants';
 
@@ -25,8 +25,9 @@ export function useHealthCheck(enabled = true) {
 
 export function useIsOnline() {
   const { data, isError } = useHealthCheck();
+  const apiError = getApiError(data);
 
-  if (isError) return false;
+  if (isError || apiError) return false;
   if (!data) return true; // Optimistic default
 
   return data.success !== false;
