@@ -24,6 +24,7 @@ use AgentWP\Contracts\SleeperInterface;
 use AgentWP\Contracts\TransientCacheInterface;
 use AgentWP\Contracts\OptionsInterface;
 use AgentWP\Contracts\OpenAIKeyValidatorInterface;
+use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\Contracts\WooCommerceConfigGatewayInterface;
 use AgentWP\Contracts\WooCommercePriceFormatterInterface;
 use AgentWP\Contracts\WooCommerceProductCategoryGatewayInterface;
@@ -46,6 +47,7 @@ use AgentWP\Infrastructure\WordPressObjectCache;
 use AgentWP\Infrastructure\WordPressTransientCache;
 use AgentWP\Infrastructure\WPFunctions;
 use AgentWP\Infrastructure\OpenAIKeyValidator;
+use AgentWP\Infrastructure\UsageTrackerAdapter;
 use AgentWP\Demo\DemoAwareKeyValidator;
 use AgentWP\Retry\ExponentialBackoffPolicy;
 use AgentWP\Retry\RetryExecutor;
@@ -76,6 +78,7 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->registerApiKeyStorage();
 		$this->registerOpenAIKeyValidator();
 		$this->registerPolicy();
+		$this->registerUsageTracker();
 	}
 
 	/**
@@ -334,6 +337,21 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 			fn( $c ) => new WooCommercePolicy(
 				$c->get( WPFunctions::class )
 			)
+		);
+	}
+
+	/**
+	 * Register usage tracker.
+	 *
+	 * The usage tracker adapter wraps the static UsageTracker class
+	 * so it can be injected and mocked in tests.
+	 *
+	 * @return void
+	 */
+	private function registerUsageTracker(): void {
+		$this->container->singleton(
+			UsageTrackerInterface::class,
+			fn() => new UsageTrackerAdapter()
 		);
 	}
 }
