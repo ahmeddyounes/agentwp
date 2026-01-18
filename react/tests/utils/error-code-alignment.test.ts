@@ -48,14 +48,15 @@ describe('Error Code Alignment', () => {
   describe('frontend covers all backend error codes', () => {
     it.each(BACKEND_ERROR_CODES)('AGENTWP_ERROR_MESSAGES includes mapping for "%s"', (code) => {
       expect(AGENTWP_ERROR_MESSAGES).toHaveProperty(code);
-      expect(typeof AGENTWP_ERROR_MESSAGES[code]).toBe('string');
-      expect(AGENTWP_ERROR_MESSAGES[code].length).toBeGreaterThan(0);
+      const message = AGENTWP_ERROR_MESSAGES[code];
+      expect(typeof message).toBe('string');
+      expect(message?.length).toBeGreaterThan(0);
     });
   });
 
   it('frontend does not have orphaned error codes', () => {
     const frontendCodes = Object.keys(AGENTWP_ERROR_MESSAGES);
-    const backendCodesSet = new Set(BACKEND_ERROR_CODES);
+    const backendCodesSet = new Set<string>(BACKEND_ERROR_CODES);
 
     const orphanedCodes = frontendCodes.filter((code) => !backendCodesSet.has(code));
 
@@ -63,7 +64,7 @@ describe('Error Code Alignment', () => {
   });
 
   it('all error messages are non-empty strings', () => {
-    for (const [code, message] of Object.entries(AGENTWP_ERROR_MESSAGES)) {
+    for (const [, message] of Object.entries(AGENTWP_ERROR_MESSAGES)) {
       expect(typeof message).toBe('string');
       expect(message.trim().length).toBeGreaterThan(0);
     }

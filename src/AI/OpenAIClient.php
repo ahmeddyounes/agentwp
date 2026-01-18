@@ -288,12 +288,11 @@ class OpenAIClient implements OpenAIClientInterface {
 	 * @return array
 	 */
 	private function request_with_retry( array $payload ) {
-		$retries     = 0;
-		$lastResult  = null;
+		$retries = 0;
 
 		// Track retries via onRetry callback.
 		$this->retry_executor->onRetry(
-			function ( $attempt, $delayMs, $result ) use ( &$retries ) {
+			function ( $attempt ) use ( &$retries ) {
 				$retries = $attempt + 1;
 			}
 		);

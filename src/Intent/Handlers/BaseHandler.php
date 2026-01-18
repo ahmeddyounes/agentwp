@@ -76,7 +76,7 @@ abstract class BaseHandler implements Handler {
 		);
 
 		if ( function_exists( '_doing_it_wrong' ) ) {
-			_doing_it_wrong( static::class . '::' . $method, esc_html( $message ), '2.0.0' );
+			_doing_it_wrong( esc_html( static::class . '::' . $method ), esc_html( $message ), '2.0.0' );
 		} elseif ( function_exists( 'trigger_error' ) ) {
 			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_trigger_error
 			trigger_error( esc_html( $message ), E_USER_DEPRECATED );

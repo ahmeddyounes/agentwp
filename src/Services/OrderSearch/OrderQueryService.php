@@ -226,7 +226,7 @@ final class OrderQueryService {
 		$options = defined( 'JSON_INVALID_UTF8_SUBSTITUTE' )
 			? JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR
 			: 0;
-		$encoded = json_encode( $parts, $options );
+		$encoded = wp_json_encode( $parts, $options );
 
 		if ( false === $encoded ) {
 			$fallback = '';

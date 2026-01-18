@@ -220,10 +220,6 @@ class AnalyticsService implements AnalyticsServiceInterface {
 		$total_refunds = 0.0;
 
 		foreach ( $orders as $order ) {
-			if ( ! $order ) {
-				continue;
-			}
-
 			// Null safety: check if date is available.
 			$date_created = $order->get_date_created();
 			if ( null === $date_created ) {

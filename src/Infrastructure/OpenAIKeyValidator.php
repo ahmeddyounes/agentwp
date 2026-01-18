@@ -18,20 +18,6 @@ use WP_Error;
 final class OpenAIKeyValidator implements OpenAIKeyValidatorInterface {
 
 	/**
-	 * OpenAI models endpoint.
-	 *
-	 * @deprecated Use AgentWPConfig::OPENAI_API_BASE_URL . '/models' instead.
-	 */
-	private const OPENAI_MODELS_URL = 'https://api.openai.com/v1/models';
-
-	/**
-	 * Validation timeout in seconds.
-	 *
-	 * @deprecated Use AgentWPConfig::OPENAI_VALIDATION_TIMEOUT instead.
-	 */
-	private const VALIDATION_TIMEOUT = 3;
-
-	/**
 	 * HTTP client.
 	 *
 	 * @var HttpClientInterface
