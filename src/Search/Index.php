@@ -19,6 +19,11 @@ class Index {
 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
 	const BACKFILL_LOCK   = 'agentwp_search_backfill_lock';
 
+	// Backward-compat constants (tests + public API expectations).
+	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+	const BACKFILL_LIMIT  = AgentWPConfig::SEARCH_BACKFILL_LIMIT;
+	const BACKFILL_WINDOW = AgentWPConfig::SEARCH_BACKFILL_WINDOW;
+
 	/**
 	 * Get default search limit from config.
 	 *

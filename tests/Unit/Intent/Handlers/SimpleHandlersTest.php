@@ -57,23 +57,23 @@ class SimpleHandlersTest extends TestCase {
 		$handlers = array(
 			array(
 				new AnalyticsQueryHandler(
-					Mockery::mock( AnalyticsServiceInterface::class ),
 					new FakeAIClientFactory(
 						new FakeOpenAIClient( array( Response::success( array( 'content' => 'ok', 'tool_calls' => array() ) ) ) ),
 						true
 					),
-					$toolRegistry
+					$toolRegistry,
+					new FakeToolDispatcher()
 				),
 				Intent::ANALYTICS_QUERY,
 			),
 			array(
 				new EmailDraftHandler(
-					Mockery::mock( EmailDraftServiceInterface::class ),
 					new FakeAIClientFactory(
 						new FakeOpenAIClient( array( Response::success( array( 'content' => 'ok', 'tool_calls' => array() ) ) ) ),
 						true
 					),
-					$toolRegistry
+					$toolRegistry,
+					new FakeToolDispatcher()
 				),
 				Intent::EMAIL_DRAFT,
 			),

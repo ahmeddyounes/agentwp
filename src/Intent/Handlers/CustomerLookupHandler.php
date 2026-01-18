@@ -8,7 +8,6 @@
 namespace AgentWP\Intent\Handlers;
 
 use AgentWP\Contracts\AIClientFactoryInterface;
-use AgentWP\Contracts\CustomerServiceInterface;
 use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Attributes\HandlesIntent;
@@ -16,46 +15,37 @@ use AgentWP\Intent\Intent;
 
 /**
  * Handles customer lookup intents using the agentic loop.
+ *
+ * Uses the centrally-registered GetCustomerProfileTool for execution.
  */
 #[HandlesIntent( Intent::CUSTOMER_LOOKUP )]
 class CustomerLookupHandler extends AbstractAgenticHandler {
 
 	/**
-	 * @var CustomerServiceInterface
-	 */
-	private CustomerServiceInterface $service;
-
-	/**
 	 * Initialize customer lookup intent handler.
 	 *
-	 * @param CustomerServiceInterface     $service        Customer service.
-	 * @param AIClientFactoryInterface     $clientFactory  AI client factory.
-	 * @param ToolRegistryInterface        $toolRegistry   Tool registry.
-	 * @param ToolDispatcherInterface|null $toolDispatcher Tool dispatcher (optional).
+	 * @param AIClientFactoryInterface $clientFactory  AI client factory.
+	 * @param ToolRegistryInterface    $toolRegistry   Tool registry.
+	 * @param ToolDispatcherInterface  $toolDispatcher Tool dispatcher with pre-registered tools.
 	 */
 	public function __construct(
-		CustomerServiceInterface $service,
 		AIClientFactoryInterface $clientFactory,
 		ToolRegistryInterface $toolRegistry,
-		?ToolDispatcherInterface $toolDispatcher = null
+		ToolDispatcherInterface $toolDispatcher
 	) {
-		$this->service = $service;
 		parent::__construct( Intent::CUSTOMER_LOOKUP, $clientFactory, $toolRegistry, $toolDispatcher );
 	}
 
 	/**
 	 * Register tool executors with the dispatcher.
 	 *
+	 * No-op: Tools are pre-registered via the container.
+	 *
 	 * @param ToolDispatcherInterface $dispatcher The tool dispatcher.
 	 * @return void
 	 */
 	protected function registerToolExecutors( ToolDispatcherInterface $dispatcher ): void {
-		$dispatcher->register(
-			'get_customer_profile',
-			function ( array $args ): array {
-				return $this->service->handle( $args )->toLegacyArray();
-			}
-		);
+		// Tools are pre-registered via IntentServiceProvider::registerToolDispatcher().
 	}
 
 	/**

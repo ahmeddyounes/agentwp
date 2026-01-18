@@ -8,7 +8,6 @@
 namespace AgentWP\Intent\Handlers;
 
 use AgentWP\Contracts\AIClientFactoryInterface;
-use AgentWP\Contracts\AnalyticsServiceInterface;
 use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Attributes\HandlesIntent;
@@ -16,56 +15,37 @@ use AgentWP\Intent\Intent;
 
 /**
  * Handles analytics query intents using the agentic loop.
+ *
+ * Uses the centrally-registered GetSalesReportTool for execution.
  */
 #[HandlesIntent( Intent::ANALYTICS_QUERY )]
 class AnalyticsQueryHandler extends AbstractAgenticHandler {
 
 	/**
-	 * @var AnalyticsServiceInterface
-	 */
-	private AnalyticsServiceInterface $service;
-
-	/**
 	 * Initialize analytics intent handler.
 	 *
-	 * @param AnalyticsServiceInterface    $service        Analytics service.
-	 * @param AIClientFactoryInterface     $clientFactory  AI client factory.
-	 * @param ToolRegistryInterface        $toolRegistry   Tool registry.
-	 * @param ToolDispatcherInterface|null $toolDispatcher Tool dispatcher (optional).
+	 * @param AIClientFactoryInterface $clientFactory  AI client factory.
+	 * @param ToolRegistryInterface    $toolRegistry   Tool registry.
+	 * @param ToolDispatcherInterface  $toolDispatcher Tool dispatcher with pre-registered tools.
 	 */
 	public function __construct(
-		AnalyticsServiceInterface $service,
 		AIClientFactoryInterface $clientFactory,
 		ToolRegistryInterface $toolRegistry,
-		?ToolDispatcherInterface $toolDispatcher = null
+		ToolDispatcherInterface $toolDispatcher
 	) {
-		$this->service = $service;
 		parent::__construct( Intent::ANALYTICS_QUERY, $clientFactory, $toolRegistry, $toolDispatcher );
 	}
 
 	/**
 	 * Register tool executors with the dispatcher.
 	 *
+	 * No-op: Tools are pre-registered via the container.
+	 *
 	 * @param ToolDispatcherInterface $dispatcher The tool dispatcher.
 	 * @return void
 	 */
 	protected function registerToolExecutors( ToolDispatcherInterface $dispatcher ): void {
-		$dispatcher->register(
-			'get_sales_report',
-			function ( array $args ): array {
-				$period     = isset( $args['period'] ) ? (string) $args['period'] : 'today';
-				$start_date = isset( $args['start_date'] ) ? (string) $args['start_date'] : null;
-				$end_date   = isset( $args['end_date'] ) ? (string) $args['end_date'] : null;
-
-				$result = $this->service->get_report_by_period( $period, $start_date, $end_date );
-
-				if ( $result->isFailure() ) {
-					return array( 'error' => $result->message );
-				}
-
-				return $result->data;
-			}
-		);
+		// Tools are pre-registered via IntentServiceProvider::registerToolDispatcher().
 	}
 
 	/**

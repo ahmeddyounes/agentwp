@@ -12,16 +12,17 @@ use AgentWP\Intent\Handlers\CustomerLookupHandler;
 use AgentWP\Intent\Intent;
 use AgentWP\Tests\Fakes\FakeAIClientFactory;
 use AgentWP\Tests\Fakes\FakeOpenAIClient;
+use AgentWP\Tests\Fakes\FakeToolDispatcher;
 use AgentWP\Tests\Fakes\FakeToolRegistry;
 use AgentWP\Tests\TestCase;
 use Mockery;
 
 class CustomerLookupHandlerTest extends TestCase {
 	public function test_returns_error_when_api_key_missing(): void {
-		$service      = Mockery::mock( CustomerServiceInterface::class );
-		$factory      = new FakeAIClientFactory( new FakeOpenAIClient(), false );
-		$toolRegistry = new FakeToolRegistry();
-		$handler      = new CustomerLookupHandler( $service, $factory, $toolRegistry );
+		$factory        = new FakeAIClientFactory( new FakeOpenAIClient(), false );
+		$toolRegistry   = new FakeToolRegistry();
+		$toolDispatcher = new FakeToolDispatcher();
+		$handler        = new CustomerLookupHandler( $factory, $toolRegistry, $toolDispatcher );
 
 		$response = $handler->handle( array( 'input' => 'customer@example.com' ) );
 
@@ -76,9 +77,11 @@ class CustomerLookupHandlerTest extends TestCase {
 			)
 		);
 
-		$factory      = new FakeAIClientFactory( $client, true );
-		$toolRegistry = new FakeToolRegistry();
-		$handler      = new CustomerLookupHandler( $service, $factory, $toolRegistry );
+		$factory        = new FakeAIClientFactory( $client, true );
+		$toolRegistry   = new FakeToolRegistry();
+		$toolDispatcher = new FakeToolDispatcher();
+		$toolDispatcher->registerTool( new \AgentWP\Intent\Tools\GetCustomerProfileTool( $service ) );
+		$handler        = new CustomerLookupHandler( $factory, $toolRegistry, $toolDispatcher );
 
 		$response = $handler->handle(
 			array(

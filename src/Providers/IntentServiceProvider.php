@@ -476,9 +476,9 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			ProductStockHandler::class,
 			fn( $c ) => new ProductStockHandler(
-				$c->get( ProductStockServiceInterface::class ),
 				$c->get( AIClientFactoryInterface::class ),
-				$c->get( ToolRegistryInterface::class )
+				$c->get( ToolRegistryInterface::class ),
+				$c->get( ToolDispatcherInterface::class )
 			)
 		);
 		$this->container->tag( ProductStockHandler::class, 'intent.handler' );
@@ -497,9 +497,9 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			EmailDraftHandler::class,
 			fn( $c ) => new EmailDraftHandler(
-				$c->get( EmailDraftServiceInterface::class ),
 				$c->get( AIClientFactoryInterface::class ),
-				$c->get( ToolRegistryInterface::class )
+				$c->get( ToolRegistryInterface::class ),
+				$c->get( ToolDispatcherInterface::class )
 			)
 		);
 		$this->container->tag( EmailDraftHandler::class, 'intent.handler' );
@@ -518,9 +518,9 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			AnalyticsQueryHandler::class,
 			fn( $c ) => new AnalyticsQueryHandler(
-				$c->get( AnalyticsServiceInterface::class ),
 				$c->get( AIClientFactoryInterface::class ),
-				$c->get( ToolRegistryInterface::class )
+				$c->get( ToolRegistryInterface::class ),
+				$c->get( ToolDispatcherInterface::class )
 			)
 		);
 		$this->container->tag( AnalyticsQueryHandler::class, 'intent.handler' );
@@ -539,9 +539,9 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			CustomerLookupHandler::class,
 			fn( $c ) => new CustomerLookupHandler(
-				$c->get( CustomerServiceInterface::class ),
 				$c->get( AIClientFactoryInterface::class ),
-				$c->get( ToolRegistryInterface::class )
+				$c->get( ToolRegistryInterface::class ),
+				$c->get( ToolDispatcherInterface::class )
 			)
 		);
 		$this->container->tag( CustomerLookupHandler::class, 'intent.handler' );

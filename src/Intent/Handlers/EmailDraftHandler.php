@@ -8,7 +8,6 @@
 namespace AgentWP\Intent\Handlers;
 
 use AgentWP\Contracts\AIClientFactoryInterface;
-use AgentWP\Contracts\EmailDraftServiceInterface;
 use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Attributes\HandlesIntent;
@@ -16,47 +15,37 @@ use AgentWP\Intent\Intent;
 
 /**
  * Handles email draft intents using the agentic loop.
+ *
+ * Uses the centrally-registered DraftEmailTool for execution.
  */
 #[HandlesIntent( Intent::EMAIL_DRAFT )]
 class EmailDraftHandler extends AbstractAgenticHandler {
 
 	/**
-	 * @var EmailDraftServiceInterface
-	 */
-	private EmailDraftServiceInterface $service;
-
-	/**
 	 * Initialize email draft intent handler.
 	 *
-	 * @param EmailDraftServiceInterface   $service        Email draft service.
-	 * @param AIClientFactoryInterface     $clientFactory  AI client factory.
-	 * @param ToolRegistryInterface        $toolRegistry   Tool registry.
-	 * @param ToolDispatcherInterface|null $toolDispatcher Tool dispatcher (optional).
+	 * @param AIClientFactoryInterface $clientFactory  AI client factory.
+	 * @param ToolRegistryInterface    $toolRegistry   Tool registry.
+	 * @param ToolDispatcherInterface  $toolDispatcher Tool dispatcher with pre-registered tools.
 	 */
 	public function __construct(
-		EmailDraftServiceInterface $service,
 		AIClientFactoryInterface $clientFactory,
 		ToolRegistryInterface $toolRegistry,
-		?ToolDispatcherInterface $toolDispatcher = null
+		ToolDispatcherInterface $toolDispatcher
 	) {
-		$this->service = $service;
 		parent::__construct( Intent::EMAIL_DRAFT, $clientFactory, $toolRegistry, $toolDispatcher );
 	}
 
 	/**
 	 * Register tool executors with the dispatcher.
 	 *
+	 * No-op: Tools are pre-registered via the container.
+	 *
 	 * @param ToolDispatcherInterface $dispatcher The tool dispatcher.
 	 * @return void
 	 */
 	protected function registerToolExecutors( ToolDispatcherInterface $dispatcher ): void {
-		$dispatcher->register(
-			'draft_email',
-			function ( array $args ): array {
-				$order_id = isset( $args['order_id'] ) ? (int) $args['order_id'] : 0;
-				return $this->service->get_order_context( $order_id )->toLegacyArray();
-			}
-		);
+		// Tools are pre-registered via IntentServiceProvider::registerToolDispatcher().
 	}
 
 	/**
