@@ -154,6 +154,8 @@ The following ADRs document key architectural decisions:
 - **[ADR 0004: OpenAI Client Architecture](adr/0004-openai-client-architecture.md)** — Monolithic client with infrastructure abstractions for HTTP/retry
 - **[ADR 0005: REST Rate Limiting](adr/0005-rest-rate-limiting.md)** — Injected `RateLimiterInterface` for testable rate limiting
 - **[ADR 0006: Search Index Architecture](adr/0006-search-index-architecture.md)** — Static class design for MySQL fulltext search index
+- **[ADR 0007: Request DTO Validation](adr/0007-request-dto-validation.md)** — DTO-based request validation
+- **[ADR 0008: Tool Execution Architecture](adr/0008-tool-execution-architecture.md)** — Schema classes + handler executors for OpenAI function calling
 
 For the improvement roadmap, see [ARCHITECTURE-IMPROVEMENT-PLAN.md](ARCHITECTURE-IMPROVEMENT-PLAN.md).
 
@@ -291,6 +293,80 @@ This abstraction enables:
 - **Unit testing** with fakes/mocks (no WooCommerce runtime required)
 - **Consistent error handling** across all WooCommerce operations
 - **Clear boundaries** between domain logic and infrastructure
+
+## 1.2) Tool Execution Architecture
+
+AgentWP uses OpenAI function calling (tools) to enable AI-driven workflows. The architecture separates tool schemas from execution logic.
+
+```mermaid
+flowchart TB
+    subgraph Schema["Tool Schemas (src/AI/Functions/)"]
+        SO[SearchOrders]
+        PR[PrepareRefund]
+        CR[ConfirmRefund]
+    end
+
+    subgraph Registry["Tool Registry"]
+        TR[ToolRegistry]
+    end
+
+    subgraph Handlers["Intent Handlers"]
+        OSH[OrderSearchHandler]
+        ORH[OrderRefundHandler]
+    end
+
+    subgraph AI["AI Client"]
+        OAI[OpenAIClient]
+    end
+
+    Schema --> TR
+    TR --> Handlers
+    Handlers --> OAI
+    OAI -->|tool_calls| Handlers
+```
+
+### Key Components
+
+| Component | Location | Responsibility |
+|-----------|----------|----------------|
+| `FunctionSchema` | `src/Contracts/FunctionSchema.php` | Interface for tool schema |
+| `AbstractFunction` | `src/AI/Functions/AbstractFunction.php` | Base class with OpenAI format |
+| `ToolRegistry` | `src/Intent/ToolRegistry.php` | O(1) schema lookup |
+| `ToolExecutorInterface` | `src/Contracts/ToolExecutorInterface.php` | Execution contract |
+| `AbstractAgenticHandler` | `src/Intent/Handlers/AbstractAgenticHandler.php` | Agentic loop base |
+
+### Adding a New Tool
+
+1. **Create schema class** in `src/AI/Functions/`:
+   ```php
+   class MyTool extends AbstractFunction {
+       public function get_name(): string { return 'my_tool'; }
+       public function get_parameters(): string { /* JSON schema */ }
+   }
+   ```
+
+2. **Register in IntentServiceProvider**:
+   ```php
+   $registry->register(new MyTool());
+   ```
+
+3. **Declare in handler** via `getToolNames()`:
+   ```php
+   protected function getToolNames(): array {
+       return ['my_tool'];
+   }
+   ```
+
+4. **Implement execution** in `execute_tool()`:
+   ```php
+   public function execute_tool(string $name, array $args) {
+       return match ($name) {
+           'my_tool' => $this->service->doSomething($args),
+       };
+   }
+   ```
+
+See [ADR 0008: Tool Execution Architecture](adr/0008-tool-execution-architecture.md) for detailed rationale and design principles.
 
 ---
 
@@ -844,3 +920,5 @@ flowchart TD
 | [ADR 0004](adr/0004-openai-client-architecture.md) | Monolithic OpenAI client with infrastructure abstractions |
 | [ADR 0005](adr/0005-rest-rate-limiting.md) | Injected `RateLimiterInterface` for rate limiting |
 | [ADR 0006](adr/0006-search-index-architecture.md) | Static search index design |
+| [ADR 0007](adr/0007-request-dto-validation.md) | DTO-based request validation |
+| [ADR 0008](adr/0008-tool-execution-architecture.md) | Schema classes + handler executors for tools |
