@@ -10,9 +10,11 @@ namespace AgentWP\Tests\Unit\AI;
 use AgentWP\AI\AIClientFactory;
 use AgentWP\AI\OpenAIClient;
 use AgentWP\Contracts\HttpClientInterface;
+use AgentWP\Contracts\LoggerInterface;
 use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\Demo\DemoClient;
 use AgentWP\Demo\DemoCredentials;
+use AgentWP\Infrastructure\NullLogger;
 use AgentWP\Plugin\SettingsManager;
 use AgentWP\Tests\TestCase;
 use Mockery;
@@ -51,7 +53,8 @@ class AIClientFactoryTest extends TestCase {
 			$settings,
 			$default_model,
 			$demo_credentials,
-			$usage_tracker
+			$usage_tracker,
+			new NullLogger()
 		);
 	}
 

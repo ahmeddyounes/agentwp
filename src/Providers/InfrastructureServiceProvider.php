@@ -256,7 +256,8 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 					$settings,
 					$default_model,
 					$c->get( DemoCredentials::class ),
-					$c->get( UsageTrackerInterface::class )
+					$c->get( UsageTrackerInterface::class ),
+					$c->get( LoggerInterface::class )
 				);
 			}
 		);

@@ -13,6 +13,7 @@ namespace AgentWP\AI;
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\HttpClientInterface;
+use AgentWP\Contracts\LoggerInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
 use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\Demo\DemoClient;
@@ -67,6 +68,13 @@ class AIClientFactory implements AIClientFactoryInterface {
 	private UsageTrackerInterface $usage_tracker;
 
 	/**
+	 * Logger for operational metrics.
+	 *
+	 * @var LoggerInterface
+	 */
+	private LoggerInterface $logger;
+
+	/**
 	 * Create a new AIClientFactory.
 	 *
 	 * @param HttpClientInterface     $http_client HTTP client.
@@ -74,19 +82,22 @@ class AIClientFactory implements AIClientFactoryInterface {
 	 * @param string                  $default_model Default model.
 	 * @param DemoCredentials         $demo_credentials Demo credentials manager.
 	 * @param UsageTrackerInterface   $usage_tracker Usage tracker.
+	 * @param LoggerInterface         $logger Logger for operational metrics.
 	 */
 	public function __construct(
 		HttpClientInterface $http_client,
 		SettingsManager $settings,
 		string $default_model,
 		DemoCredentials $demo_credentials,
-		UsageTrackerInterface $usage_tracker
+		UsageTrackerInterface $usage_tracker,
+		LoggerInterface $logger
 	) {
 		$this->http_client      = $http_client;
 		$this->settings         = $settings;
 		$this->default_model    = $default_model;
 		$this->demo_credentials = $demo_credentials;
 		$this->usage_tracker    = $usage_tracker;
+		$this->logger           = $logger;
 	}
 
 	/**
@@ -130,7 +141,8 @@ class AIClientFactory implements AIClientFactoryInterface {
 			$client_options,
 			null,
 			null,
-			$this->usage_tracker
+			$this->usage_tracker,
+			$this->logger
 		);
 	}
 

@@ -11,6 +11,7 @@ use AgentWP\AI\TokenCounter;
 use AgentWP\DTO\HttpResponse;
 use AgentWP\Retry\ExponentialBackoffPolicy;
 use AgentWP\Tests\Fakes\FakeHttpClient;
+use AgentWP\Tests\Fakes\FakeLogger;
 use AgentWP\Tests\Fakes\FakeSleeper;
 use AgentWP\Tests\TestCase;
 
@@ -1706,5 +1707,325 @@ class OpenAIClientTest extends TestCase {
 		// Empty string should return false without making HTTP request.
 		$this->assertFalse( $client->validateKey( '' ) );
 		$this->assertSame( 0, $this->http->getRequestCount() );
+	}
+
+	// ========================================
+	// Structured Logging Tests
+	// ========================================
+
+	public function test_logs_successful_request_completion(): void {
+		$fixture = $this->fixture( 'chat-success.json' );
+		$this->http->queueSuccess( $fixture, 200 );
+
+		$logger = new FakeLogger();
+		$client = new OpenAIClient(
+			$this->http,
+			'test-key',
+			'gpt-4o-mini',
+			array(
+				'max_retries'   => 0,
+				'token_counter' => $this->stub_token_counter(),
+				'intent_type'   => 'test-intent',
+			),
+			null,
+			$this->sleeper,
+			null,
+			$logger
+		);
+
+		$response = $client->chat(
+			array( array( 'role' => 'user', 'content' => 'test' ) ),
+			array()
+		);
+
+		$this->assertTrue( $response->is_success() );
+
+		// Verify structured logging occurred.
+		$logs = $logger->getLogsByLevel( 'info' );
+		$this->assertCount( 1, $logs );
+		$this->assertSame( 'OpenAI API request completed', $logs[0]['message'] );
+
+		// Verify log context contains operational metrics.
+		$context = $logs[0]['context'];
+		$this->assertSame( 'gpt-4o-mini', $context['model'] );
+		$this->assertSame( 'test-intent', $context['intent'] );
+		$this->assertSame( false, $context['stream'] );
+		$this->assertSame( 0, $context['retries'] );
+		$this->assertSame( 200, $context['status_code'] );
+		$this->assertTrue( $context['success'] );
+		$this->assertArrayHasKey( 'duration_ms', $context );
+		$this->assertIsInt( $context['duration_ms'] );
+	}
+
+	public function test_logs_failed_request_with_error_details(): void {
+		$error_response = json_encode(
+			array(
+				'error' => array(
+					'message' => 'Rate limit exceeded.',
+					'type'    => 'rate_limit_error',
+					'code'    => 'rate_limit',
+				),
+			)
+		);
+		$this->http->queueResponse(
+			new HttpResponse(
+				success: false,
+				statusCode: 429,
+				body: $error_response
+			)
+		);
+
+		$logger = new FakeLogger();
+		$client = new OpenAIClient(
+			$this->http,
+			'test-key',
+			'gpt-4o-mini',
+			array(
+				'max_retries'   => 0,
+				'token_counter' => $this->stub_token_counter(),
+				'intent_type'   => 'rate-limit-test',
+			),
+			null,
+			$this->sleeper,
+			null,
+			$logger
+		);
+
+		$response = $client->chat(
+			array( array( 'role' => 'user', 'content' => 'test' ) ),
+			array()
+		);
+
+		$this->assertFalse( $response->is_success() );
+
+		// Verify error logging occurred.
+		$logs = $logger->getLogsByLevel( 'error' );
+		$this->assertCount( 1, $logs );
+		$this->assertSame( 'OpenAI API request failed', $logs[0]['message'] );
+
+		// Verify error context includes error details.
+		$context = $logs[0]['context'];
+		$this->assertSame( 'gpt-4o-mini', $context['model'] );
+		$this->assertSame( 'rate-limit-test', $context['intent'] );
+		$this->assertSame( 429, $context['status_code'] );
+		$this->assertFalse( $context['success'] );
+		$this->assertSame( 'rate_limit', $context['error_code'] );
+		$this->assertSame( 'rate_limit_error', $context['error_type'] );
+	}
+
+	public function test_logs_retry_attempts_with_warning_level(): void {
+		$error_fixture = $this->fixture( 'chat-error.json' );
+		$ok_fixture    = $this->fixture( 'chat-success.json' );
+
+		// Queue 2 errors followed by success.
+		$this->http->queueResponse(
+			new HttpResponse( success: false, statusCode: 500, body: $error_fixture )
+		);
+		$this->http->queueResponse(
+			new HttpResponse( success: false, statusCode: 503, body: $error_fixture )
+		);
+		$this->http->queueSuccess( $ok_fixture, 200 );
+
+		$logger = new FakeLogger();
+		$policy = new ExponentialBackoffPolicy(
+			maxRetries: 3,
+			baseDelayMs: 100,
+			maxDelayMs: 1000,
+			jitterFactor: 0.0
+		);
+
+		$client = new OpenAIClient(
+			$this->http,
+			'test-key',
+			'gpt-4o-mini',
+			array(
+				'token_counter' => $this->stub_token_counter(),
+				'intent_type'   => 'retry-test',
+			),
+			$policy,
+			$this->sleeper,
+			null,
+			$logger
+		);
+
+		$response = $client->chat(
+			array( array( 'role' => 'user', 'content' => 'test' ) ),
+			array()
+		);
+
+		$this->assertTrue( $response->is_success() );
+		$this->assertSame( 2, $response->get_meta()['retries'] );
+
+		// Verify retry logging occurred.
+		$warnings = $logger->getLogsByLevel( 'warning' );
+		$this->assertCount( 2, $warnings );
+
+		// First retry.
+		$this->assertSame( 'OpenAI API request retry', $warnings[0]['message'] );
+		$this->assertSame( 1, $warnings[0]['context']['attempt'] );
+		$this->assertSame( 500, $warnings[0]['context']['status_code'] );
+		$this->assertSame( 'gpt-4o-mini', $warnings[0]['context']['model'] );
+		$this->assertSame( 'retry-test', $warnings[0]['context']['intent'] );
+		$this->assertArrayHasKey( 'delay_ms', $warnings[0]['context'] );
+
+		// Second retry.
+		$this->assertSame( 'OpenAI API request retry', $warnings[1]['message'] );
+		$this->assertSame( 2, $warnings[1]['context']['attempt'] );
+		$this->assertSame( 503, $warnings[1]['context']['status_code'] );
+
+		// Verify successful completion was also logged.
+		$infos = $logger->getLogsByLevel( 'info' );
+		$this->assertCount( 1, $infos );
+		$this->assertSame( 'OpenAI API request completed', $infos[0]['message'] );
+		$this->assertSame( 2, $infos[0]['context']['retries'] );
+	}
+
+	public function test_logs_do_not_contain_sensitive_data(): void {
+		$fixture = $this->fixture( 'chat-success.json' );
+		$this->http->queueSuccess( $fixture, 200 );
+
+		$logger = new FakeLogger();
+		$client = new OpenAIClient(
+			$this->http,
+			'sk-secret-api-key-1234567890abcdef', // Sensitive API key.
+			'gpt-4o-mini',
+			array(
+				'max_retries'   => 0,
+				'token_counter' => $this->stub_token_counter(),
+				'intent_type'   => 'security-test',
+			),
+			null,
+			$this->sleeper,
+			null,
+			$logger
+		);
+
+		$client->chat(
+			array( array( 'role' => 'user', 'content' => 'This is a secret prompt' ) ),
+			array()
+		);
+
+		// Verify no logs contain sensitive data.
+		$all_logs = $logger->getLogs();
+		$this->assertNotEmpty( $all_logs );
+
+		foreach ( $all_logs as $log ) {
+			$log_json = json_encode( $log );
+
+			// Verify no API key in logs.
+			$this->assertStringNotContainsString( 'sk-secret', $log_json );
+			$this->assertStringNotContainsString( 'api-key', $log_json );
+
+			// Verify no prompt content in logs.
+			$this->assertStringNotContainsString( 'secret prompt', $log_json );
+		}
+	}
+
+	public function test_logs_streaming_request_completion(): void {
+		$stream = implode(
+			"\n",
+			array(
+				'data: {"choices":[{"delta":{"content":"Hello"}}]}',
+				'data: [DONE]',
+			)
+		);
+		$this->http->queueSuccess( $stream, 200 );
+
+		$logger = new FakeLogger();
+		$client = new OpenAIClient(
+			$this->http,
+			'test-key',
+			'gpt-4o-mini',
+			array(
+				'stream'        => true,
+				'max_retries'   => 0,
+				'token_counter' => $this->stub_token_counter(),
+				'intent_type'   => 'stream-test',
+			),
+			null,
+			$this->sleeper,
+			null,
+			$logger
+		);
+
+		$response = $client->chat(
+			array( array( 'role' => 'user', 'content' => 'test' ) ),
+			array()
+		);
+
+		$this->assertTrue( $response->is_success() );
+
+		// Verify streaming flag is captured in logs.
+		$logs = $logger->getLogsByLevel( 'info' );
+		$this->assertCount( 1, $logs );
+		$this->assertTrue( $logs[0]['context']['stream'] );
+	}
+
+	public function test_logs_network_error_with_zero_status(): void {
+		$this->http->queueError( 'Connection timed out', 'http_request_failed', 0 );
+
+		$logger = new FakeLogger();
+		$client = new OpenAIClient(
+			$this->http,
+			'test-key',
+			'gpt-4o-mini',
+			array(
+				'max_retries'   => 0,
+				'token_counter' => $this->stub_token_counter(),
+				'intent_type'   => 'network-error-test',
+			),
+			null,
+			$this->sleeper,
+			null,
+			$logger
+		);
+
+		$response = $client->chat(
+			array( array( 'role' => 'user', 'content' => 'test' ) ),
+			array()
+		);
+
+		$this->assertFalse( $response->is_success() );
+
+		// Verify error logging with status 0.
+		$logs = $logger->getLogsByLevel( 'error' );
+		$this->assertCount( 1, $logs );
+		$this->assertSame( 0, $logs[0]['context']['status_code'] );
+		$this->assertFalse( $logs[0]['context']['success'] );
+	}
+
+	public function test_logs_duration_is_reasonable(): void {
+		$fixture = $this->fixture( 'chat-success.json' );
+		$this->http->queueSuccess( $fixture, 200 );
+
+		$logger = new FakeLogger();
+		$client = new OpenAIClient(
+			$this->http,
+			'test-key',
+			'gpt-4o-mini',
+			array(
+				'max_retries'   => 0,
+				'token_counter' => $this->stub_token_counter(),
+			),
+			null,
+			$this->sleeper,
+			null,
+			$logger
+		);
+
+		$client->chat(
+			array( array( 'role' => 'user', 'content' => 'test' ) ),
+			array()
+		);
+
+		$logs = $logger->getLogsByLevel( 'info' );
+		$this->assertCount( 1, $logs );
+
+		// Duration should be a non-negative integer.
+		$duration = $logs[0]['context']['duration_ms'];
+		$this->assertIsInt( $duration );
+		$this->assertGreaterThanOrEqual( 0, $duration );
+		// Should be less than 10 seconds for a mock request.
+		$this->assertLessThan( 10000, $duration );
 	}
 }

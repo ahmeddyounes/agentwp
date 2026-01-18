@@ -9,12 +9,14 @@ namespace AgentWP\AI;
 
 use AgentWP\AI\Functions\FunctionSchema;
 use AgentWP\Config\AgentWPConfig;
+use AgentWP\Contracts\LoggerInterface;
 use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\Contracts\HttpClientInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
 use AgentWP\Contracts\RetryPolicyInterface;
 use AgentWP\Contracts\SleeperInterface;
 use AgentWP\DTO\HttpResponse;
+use AgentWP\Infrastructure\NullLogger;
 use AgentWP\Infrastructure\RealSleeper;
 use AgentWP\Retry\ExponentialBackoffPolicy;
 use AgentWP\Retry\RetryExecutor;
@@ -32,6 +34,7 @@ class OpenAIClient implements OpenAIClientInterface {
 	private string $base_url;
 	private string $intent_type;
 	private ?UsageTrackerInterface $usage_tracker;
+	private LoggerInterface $logger;
 
 	/**
 	 * @param HttpClientInterface        $http_client HTTP client for making requests.
@@ -41,6 +44,7 @@ class OpenAIClient implements OpenAIClientInterface {
 	 * @param RetryPolicyInterface|null  $retry_policy Optional custom retry policy.
 	 * @param SleeperInterface|null      $sleeper Optional custom sleeper for testing.
 	 * @param UsageTrackerInterface|null $usage_tracker Optional usage tracker for DI.
+	 * @param LoggerInterface|null       $logger Optional logger for operational metrics.
 	 */
 	public function __construct(
 		HttpClientInterface $http_client,
@@ -49,11 +53,13 @@ class OpenAIClient implements OpenAIClientInterface {
 		array $options = array(),
 		?RetryPolicyInterface $retry_policy = null,
 		?SleeperInterface $sleeper = null,
-		?UsageTrackerInterface $usage_tracker = null
+		?UsageTrackerInterface $usage_tracker = null,
+		?LoggerInterface $logger = null
 	) {
 		$this->http_client   = $http_client;
 		$this->api_key       = is_string( $api_key ) ? $api_key : '';
 		$this->model         = Model::normalize( $model );
+		$this->logger        = $logger ?? new NullLogger();
 
 		// Get timeout bounds from centralized config with filter support.
 		$timeout_min     = (int) AgentWPConfig::get( 'openai.timeout.min', AgentWPConfig::OPENAI_TIMEOUT_MIN );
@@ -256,12 +262,26 @@ class OpenAIClient implements OpenAIClientInterface {
 	 * @return array
 	 */
 	private function request_with_retry( array $payload ) {
-		$retries = 0;
+		$retries    = 0;
+		$start_time = microtime( true );
 
-		// Track retries via onRetry callback.
+		// Track retries via onRetry callback with logging.
 		$this->retry_executor->onRetry(
-			function ( $attempt ) use ( &$retries ) {
+			function ( $attempt, $delay_ms, $result ) use ( &$retries ) {
 				$retries = $attempt + 1;
+
+				// Log retry attempt with operational context (no sensitive data).
+				$this->logger->warning(
+					'OpenAI API request retry',
+					array(
+						'attempt'     => $retries,
+						'delay_ms'    => $delay_ms,
+						'model'       => $this->model,
+						'intent'      => $this->intent_type,
+						'stream'      => $this->stream,
+						'status_code' => $result instanceof HttpResponse ? $result->statusCode : null,
+					)
+				);
 			}
 		);
 
@@ -271,11 +291,49 @@ class OpenAIClient implements OpenAIClientInterface {
 			fn( HttpResponse $r ) => $r->success
 		);
 
+		// Calculate request duration.
+		$duration_ms = (int) round( ( microtime( true ) - $start_time ) * 1000 );
+
 		// Parse the final HttpResponse into expected result format.
-		$result = $this->parse_http_response( $response );
+		$result            = $this->parse_http_response( $response );
 		$result['retries'] = $retries;
 
+		// Log completed request with structured operational data.
+		$this->logRequestCompletion( $result, $duration_ms, $retries );
+
 		return $result;
+	}
+
+	/**
+	 * Log request completion with structured operational data.
+	 *
+	 * Logs only operational metrics without any sensitive data like prompts or API keys.
+	 *
+	 * @param array $result      Parsed response result.
+	 * @param int   $duration_ms Request duration in milliseconds.
+	 * @param int   $retries     Number of retries performed.
+	 * @return void
+	 */
+	private function logRequestCompletion( array $result, int $duration_ms, int $retries ): void {
+		$context = array(
+			'model'       => $this->model,
+			'intent'      => $this->intent_type,
+			'stream'      => $this->stream,
+			'duration_ms' => $duration_ms,
+			'retries'     => $retries,
+			'status_code' => $result['status'],
+			'success'     => $result['success'],
+		);
+
+		if ( ! $result['success'] ) {
+			// Add error details (sanitized by WooCommerceLogger).
+			$context['error_code'] = $result['error_code'] ?? '';
+			$context['error_type'] = $result['error_type'] ?? '';
+
+			$this->logger->error( 'OpenAI API request failed', $context );
+		} else {
+			$this->logger->info( 'OpenAI API request completed', $context );
+		}
 	}
 
 	/**
