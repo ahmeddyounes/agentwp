@@ -45,6 +45,8 @@ class OrderSearchHandler extends AbstractAgenticHandler {
 	 * @return void
 	 */
 	protected function registerToolExecutors( ToolDispatcherInterface $dispatcher ): void {
+		unset( $dispatcher );
+
 		// Tools are pre-registered via IntentServiceProvider::registerToolDispatcher().
 	}
 

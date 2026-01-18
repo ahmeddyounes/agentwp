@@ -21,55 +21,55 @@ final class NullLogger implements LoggerInterface {
 	 * {@inheritDoc}
 	 */
 	public function emergency( string $message, array $context = array() ): void {
-		// No-op.
+		unset( $message, $context );
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	public function alert( string $message, array $context = array() ): void {
-		// No-op.
+		unset( $message, $context );
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	public function critical( string $message, array $context = array() ): void {
-		// No-op.
+		unset( $message, $context );
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	public function error( string $message, array $context = array() ): void {
-		// No-op.
+		unset( $message, $context );
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	public function warning( string $message, array $context = array() ): void {
-		// No-op.
+		unset( $message, $context );
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	public function notice( string $message, array $context = array() ): void {
-		// No-op.
+		unset( $message, $context );
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	public function info( string $message, array $context = array() ): void {
-		// No-op.
+		unset( $message, $context );
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	public function debug( string $message, array $context = array() ): void {
-		// No-op.
+		unset( $message, $context );
 	}
 }

@@ -155,7 +155,10 @@
   background: var(--card-button-bg);
   color: var(--card-button-text);
   cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    transform 120ms ease;
 }
 
 .agentwp-card__button:hover {
@@ -339,7 +342,9 @@
   background: transparent;
   color: var(--card-button-text);
   cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
 }
 
 .agentwp-card__pagination-button:hover {

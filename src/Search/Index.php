@@ -894,8 +894,9 @@ class Index {
 		}
 
 		// Register a custom one-minute interval if not present.
-		add_filter( 'cron_schedules', array( __CLASS__, 'add_cron_interval' ) );
+		add_filter( 'cron_schedules', array( __CLASS__, 'add_cron_interval' ) ); // phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- Short interval needed for backfill.
 
+		// phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- Short interval needed for backfill.
 		wp_schedule_event( time() + 30, 'agentwp_one_minute', self::BACKFILL_HOOK );
 	}
 

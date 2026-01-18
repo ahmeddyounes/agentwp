@@ -99,6 +99,8 @@ class SchemaManager {
 	 * @return bool True if migrations completed successfully.
 	 */
 	public static function migrate( string $from_version, string $to_version ): bool {
+		unset( $from_version, $to_version );
+
 		$current_schema = self::get_schema_version();
 
 		// If schema is already at or beyond target, skip.

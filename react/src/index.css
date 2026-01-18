@@ -5,7 +5,13 @@
 :host {
   color-scheme: light;
   display: block;
-  font-family: system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
   line-height: 1.5;
   --awp-bg-primary: #f8fafc;
   --awp-bg-secondary: #f1f5f9;
@@ -55,9 +61,21 @@
 
   --awp-body-bg: #f8fafc;
   --awp-body-bg-secondary: #e2e8f0;
-  --awp-body-gradient-1: radial-gradient(circle at 12% 18%, rgba(14, 165, 233, 0.12), transparent 45%);
-  --awp-body-gradient-2: radial-gradient(circle at 80% 10%, rgba(99, 102, 241, 0.1), transparent 35%);
-  --awp-body-gradient-3: radial-gradient(circle at 20% 90%, rgba(16, 185, 129, 0.14), transparent 40%);
+  --awp-body-gradient-1: radial-gradient(
+    circle at 12% 18%,
+    rgba(14, 165, 233, 0.12),
+    transparent 45%
+  );
+  --awp-body-gradient-2: radial-gradient(
+    circle at 80% 10%,
+    rgba(99, 102, 241, 0.1),
+    transparent 35%
+  );
+  --awp-body-gradient-3: radial-gradient(
+    circle at 20% 90%,
+    rgba(16, 185, 129, 0.14),
+    transparent 40%
+  );
   --awp-body-gradient-4: linear-gradient(160deg, #f8fafc 0%, #e2e8f0 50%, #f8fafc 100%);
 
   --awp-link: #0284c7;
@@ -172,9 +190,21 @@
 
   --awp-body-bg: #05070c;
   --awp-body-bg-secondary: #0a1120;
-  --awp-body-gradient-1: radial-gradient(circle at 12% 18%, rgba(56, 189, 248, 0.12), transparent 45%);
-  --awp-body-gradient-2: radial-gradient(circle at 80% 10%, rgba(99, 102, 241, 0.12), transparent 35%);
-  --awp-body-gradient-3: radial-gradient(circle at 20% 90%, rgba(14, 116, 144, 0.2), transparent 40%);
+  --awp-body-gradient-1: radial-gradient(
+    circle at 12% 18%,
+    rgba(56, 189, 248, 0.12),
+    transparent 45%
+  );
+  --awp-body-gradient-2: radial-gradient(
+    circle at 80% 10%,
+    rgba(99, 102, 241, 0.12),
+    transparent 35%
+  );
+  --awp-body-gradient-3: radial-gradient(
+    circle at 20% 90%,
+    rgba(14, 116, 144, 0.2),
+    transparent 40%
+  );
   --awp-body-gradient-4: linear-gradient(160deg, #05070c 0%, #0a1120 50%, #05070c 100%);
 
   --awp-link: #7dd3fc;
@@ -290,9 +320,21 @@
 
     --awp-body-bg: #05070c;
     --awp-body-bg-secondary: #0a1120;
-    --awp-body-gradient-1: radial-gradient(circle at 12% 18%, rgba(56, 189, 248, 0.12), transparent 45%);
-    --awp-body-gradient-2: radial-gradient(circle at 80% 10%, rgba(99, 102, 241, 0.12), transparent 35%);
-    --awp-body-gradient-3: radial-gradient(circle at 20% 90%, rgba(14, 116, 144, 0.2), transparent 40%);
+    --awp-body-gradient-1: radial-gradient(
+      circle at 12% 18%,
+      rgba(56, 189, 248, 0.12),
+      transparent 45%
+    );
+    --awp-body-gradient-2: radial-gradient(
+      circle at 80% 10%,
+      rgba(99, 102, 241, 0.12),
+      transparent 35%
+    );
+    --awp-body-gradient-3: radial-gradient(
+      circle at 20% 90%,
+      rgba(14, 116, 144, 0.2),
+      transparent 40%
+    );
     --awp-body-gradient-4: linear-gradient(160deg, #05070c 0%, #0a1120 50%, #05070c 100%);
 
     --awp-link: #7dd3fc;
@@ -397,8 +439,13 @@
 
 :host(.awp-theme-transition),
 :host(.awp-theme-transition) * {
-  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease,
-    box-shadow 150ms ease, fill 150ms ease, stroke 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    fill 150ms ease,
+    stroke 150ms ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -411,8 +458,9 @@
 .agentwp-app {
   min-height: 100vh;
   background-color: var(--awp-body-bg);
-  background-image: var(--awp-body-gradient-1), var(--awp-body-gradient-2),
-    var(--awp-body-gradient-3), var(--awp-body-gradient-4);
+  background-image:
+    var(--awp-body-gradient-1), var(--awp-body-gradient-2), var(--awp-body-gradient-3),
+    var(--awp-body-gradient-4);
   background-attachment: fixed;
   color: var(--awp-text-primary);
 }
@@ -442,7 +490,7 @@
 }
 
 .agentwp-markdown code {
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   font-size: 0.85em;
   background: var(--awp-code-bg);
   padding: 0.15rem 0.35rem;
