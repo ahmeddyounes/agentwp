@@ -32,20 +32,32 @@ final class WooCommerceLogger implements LoggerInterface {
 	private const SECRET_PATTERNS = array(
 		// OpenAI API keys (including project keys like sk-proj-...).
 		'/sk-[a-zA-Z0-9\-_]{20,}/',
+		// Stripe-style keys (sk_test_ / sk_live_).
+		'/sk_(?:live|test)_[a-zA-Z0-9]{10,}/',
 		// Generic API key patterns.
-		'/api[_-]?key["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{16,}["\']?/i',
+		'/(?:x[-_])?api[ _-]?key["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+		// Client secrets.
+		'/client[_-]?secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
 		// Bearer tokens.
-		'/Bearer\s+[a-zA-Z0-9_\-\.]+/i',
+		'/Bearer\s+[A-Za-z0-9\-._~+/=:]+/i',
+		// Basic auth tokens.
+		'/Basic\s+[A-Za-z0-9+/=]+/i',
 		// Authorization headers.
-		'/Authorization["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]+["\']?/i',
+		'/Authorization["\']?\s*[:=]\s*["\']?(?:[A-Za-z]+\s+)?[A-Za-z0-9\-._~+/=:]+["\']?/i',
 		// Password patterns.
 		'/password["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
 		// Secret patterns.
 		'/secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
 		// Token patterns.
-		'/token["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]{16,}["\']?/i',
+		'/token["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+		// Cookie headers.
+		'/(?:set-cookie|cookie)["\']?\s*[:=]\s*["\']?[^"\r\n]+["\']?/i',
+		// JWT tokens without labels.
+		'/eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/',
 		// Credit card patterns (basic).
 		'/\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/',
+		// PEM private keys.
+		'/-----BEGIN [A-Z ]+PRIVATE KEY-----.*?-----END [A-Z ]+PRIVATE KEY-----/s',
 	);
 
 	/**
@@ -235,10 +247,12 @@ final class WooCommerceLogger implements LoggerInterface {
 
 		foreach ( $context as $key => $value ) {
 			// Redact keys that are likely to contain secrets.
-			$lower_key = strtolower( $key );
-			if ( $this->isSensitiveKey( $lower_key ) ) {
-				$sanitized[ $key ] = self::REDACTED;
-				continue;
+			if ( is_string( $key ) ) {
+				$lower_key = strtolower( $key );
+				if ( $this->isSensitiveKey( $lower_key ) ) {
+					$sanitized[ $key ] = self::REDACTED;
+					continue;
+				}
 			}
 
 			if ( is_string( $value ) ) {
@@ -264,10 +278,18 @@ final class WooCommerceLogger implements LoggerInterface {
 			'api_key',
 			'apikey',
 			'api-key',
+			'client_secret',
+			'clientsecret',
+			'client-secret',
 			'secret',
+			'secret_key',
+			'secretkey',
+			'secret-key',
 			'password',
 			'passwd',
 			'token',
+			'id_token',
+			'idtoken',
 			'auth',
 			'authorization',
 			'bearer',
@@ -276,12 +298,20 @@ final class WooCommerceLogger implements LoggerInterface {
 			'private_key',
 			'privatekey',
 			'private-key',
+			'cookie',
+			'set-cookie',
+			'session_id',
+			'sessionid',
+			'session-token',
 			'access_token',
 			'accesstoken',
 			'access-token',
 			'refresh_token',
 			'refreshtoken',
 			'refresh-token',
+			'csrf',
+			'xsrf',
+			'signature',
 			'openai_key',
 			'openai-key',
 			'sk-',

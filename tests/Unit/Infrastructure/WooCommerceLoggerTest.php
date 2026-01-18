@@ -40,6 +40,15 @@ class WooCommerceLoggerTest extends TestCase {
 		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
 	}
 
+	public function test_sanitizes_basic_auth_in_message(): void {
+		$message = 'Authorization: Basic dXNlcjpwYXNz';
+
+		$sanitized = $this->invokeSanitize( $message );
+
+		$this->assertStringContainsString( '[REDACTED]', $sanitized );
+		$this->assertStringNotContainsString( 'dXNlcjpwYXNz', $sanitized );
+	}
+
 	public function test_sanitizes_password_pattern_in_message(): void {
 		$message = 'Connection with password="secretPassword123"';
 
@@ -56,6 +65,15 @@ class WooCommerceLoggerTest extends TestCase {
 
 		$this->assertStringContainsString( '[REDACTED]', $sanitized );
 		$this->assertStringNotContainsString( '4111-1111-1111-1111', $sanitized );
+	}
+
+	public function test_sanitizes_jwt_in_message(): void {
+		$message = 'JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature';
+
+		$sanitized = $this->invokeSanitize( $message );
+
+		$this->assertStringContainsString( '[REDACTED]', $sanitized );
+		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
 	}
 
 	public function test_sanitizes_api_key_context_key(): void {
@@ -106,6 +124,39 @@ class WooCommerceLoggerTest extends TestCase {
 
 		$this->assertSame( '[REDACTED]', $sanitized['config']['api_key'] );
 		$this->assertSame( 30, $sanitized['config']['timeout'] );
+	}
+
+	public function test_sanitizes_cookie_headers_in_context(): void {
+		$context = array(
+			'headers' => array(
+				'Set-Cookie' => 'sessionid=abc123; HttpOnly',
+				'Cookie'     => 'foo=bar; session=secret',
+			),
+		);
+
+		$sanitized = $this->invokeSanitizeContext( $context );
+
+		$this->assertSame( '[REDACTED]', $sanitized['headers']['Set-Cookie'] );
+		$this->assertSame( '[REDACTED]', $sanitized['headers']['Cookie'] );
+	}
+
+	public function test_sanitizes_list_context_values(): void {
+		$context = array(
+			'messages' => array(
+				array(
+					'role'    => 'user',
+					'content' => 'token=abc123xyz789defghi',
+				),
+				'Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456',
+			),
+		);
+
+		$sanitized = $this->invokeSanitizeContext( $context );
+
+		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][0]['content'] );
+		$this->assertStringNotContainsString( 'abc123xyz789defghi', $sanitized['messages'][0]['content'] );
+		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][1] );
+		$this->assertStringNotContainsString( 'abcdefghijklmnopqrstuvwxyz123456', $sanitized['messages'][1] );
 	}
 
 	public function test_sanitizes_string_values_in_context(): void {

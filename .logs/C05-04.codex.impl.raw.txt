@@ -1,0 +1,1718 @@
+Status: DONE
+
+Summary of changes
+- Expanded secret redaction patterns (API keys, Basic auth, cookies, JWTs, PEM blocks) and added more sensitive key names in `src/Infrastructure/WooCommerceLogger.php`.
+- Hardened nested context sanitization to handle list-style arrays without key-type errors in `src/Infrastructure/WooCommerceLogger.php`.
+- Added unit tests covering Basic auth, JWTs, cookie headers, and list-based nested context in `tests/Unit/Infrastructure/WooCommerceLoggerTest.php`.
+
+How to verify (exact commands)
+- `./vendor/bin/phpunit tests/Unit/Infrastructure/WooCommerceLoggerTest.php`
+
+Risks / follow-ups
+- Broader redaction rules may mask more log detail than before; confirm that’s acceptable for ops/debugging.
+- Tests not run in this session.
+
+OpenAI Codex v0.87.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019bd23e-a9b3-74d2-8134-424b426741f9
+--------
+user
+You are implementing task C05-04 in this git repository.
+
+1) Read the spec: .plans/C05-04.md
+2) Read handoff/context: .t2/handoff/C05-04.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 30ms:
+agentwp.php
+assets
+composer.json
+composer.lock
+docker
+docker-compose.demo.yml
+docker-compose.yml
+docs
+includes
+languages
+node_modules
+package-lock.json
+package.json
+phpcs.xml
+phpstan
+phpstan.neon
+phpunit.xml.dist
+plan_tasks.csv
+playwright.config.cjs
+react
+exec
+/bin/zsh -lc 'cat .plans/C05-04.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 33ms:
+# C05-04 — Strengthen log redaction + tests
+
+Extend `src/Infrastructure/WooCommerceLogger.php` secret redaction (message + nested context) to cover missed patterns/keys. Add unit tests confirming secrets are redacted consistently.
+exec
+/bin/zsh -lc 'cat .t2/handoff/C05-04.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+# Handoff: C05-04
+
+Created: 2026-01-18T17:54:40.679007Z
+
+Spec: .plans/C05-04.md
+
+thinking
+**Inspecting logger file and tests**
+exec
+/bin/zsh -lc 'rg -n "WooCommerceLogger|redact|redaction|secret" src tests includes' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 63ms:
+tests/Integration/Container/ContainerWiringTest.php:46:use AgentWP\Infrastructure\WooCommerceLogger;
+tests/Integration/Container/ContainerWiringTest.php:907:	 * Test that LoggerInterface resolves to WooCommerceLogger.
+tests/Integration/Container/ContainerWiringTest.php:915:			WooCommerceLogger::class,
+tests/Integration/Container/ContainerWiringTest.php:917:			'LoggerInterface should resolve to WooCommerceLogger'
+tests/Unit/AI/OpenAIClientTest.php:1890:			'sk-secret-api-key-1234567890abcdef', // Sensitive API key.
+tests/Unit/AI/OpenAIClientTest.php:1904:			array( array( 'role' => 'user', 'content' => 'This is a secret prompt' ) ),
+tests/Unit/AI/OpenAIClientTest.php:1916:			$this->assertStringNotContainsString( 'sk-secret', $log_json );
+tests/Unit/AI/OpenAIClientTest.php:1920:			$this->assertStringNotContainsString( 'secret prompt', $log_json );
+src/Infrastructure/WooCommerceLogger.php:16: * to PHP's error_log. All messages are sanitized to prevent leaking secrets.
+src/Infrastructure/WooCommerceLogger.php:18:final class WooCommerceLogger implements LoggerInterface {
+src/Infrastructure/WooCommerceLogger.php:28:	 * Patterns that match sensitive data to redact.
+src/Infrastructure/WooCommerceLogger.php:44:		'/secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+src/Infrastructure/WooCommerceLogger.php:52:	 * Replacement string for redacted content.
+src/Infrastructure/WooCommerceLogger.php:59:	 * Create a new WooCommerceLogger.
+src/Infrastructure/WooCommerceLogger.php:237:			// Redact keys that are likely to contain secrets.
+src/Infrastructure/WooCommerceLogger.php:267:			'secret',
+src/Contracts/LoggerInterface.php:14: * Implementations should sanitize messages to prevent leaking secrets.
+tests/Unit/Infrastructure/WooCommerceLoggerTest.php:3: * Unit tests for WooCommerceLogger class.
+tests/Unit/Infrastructure/WooCommerceLoggerTest.php:9:use AgentWP\Infrastructure\WooCommerceLogger;
+tests/Unit/Infrastructure/WooCommerceLoggerTest.php:12:class WooCommerceLoggerTest extends TestCase {
+
+thinking
+**Reviewing logger and tests**
+exec
+/bin/zsh -lc "sed -n '1,240p' src/Infrastructure/WooCommerceLogger.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 32ms:
+<?php
+/**
+ * WooCommerce logger adapter.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Contracts\LoggerInterface;
+
+/**
+ * Logger implementation using WooCommerce logger with error_log fallback.
+ *
+ * Uses WooCommerce's logging system when available, otherwise falls back
+ * to PHP's error_log. All messages are sanitized to prevent leaking secrets.
+ */
+final class WooCommerceLogger implements LoggerInterface {
+
+	/**
+exec
+/bin/zsh -lc "sed -n '240,520p' src/Infrastructure/WooCommerceLogger.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+				$sanitized[ $key ] = self::REDACTED;
+				continue;
+			}
+
+			if ( is_string( $value ) ) {
+				$sanitized[ $key ] = $this->sanitize( $value );
+			} elseif ( is_array( $value ) ) {
+				$sanitized[ $key ] = $this->sanitizeContext( $value );
+			} else {
+				$sanitized[ $key ] = $value;
+			}
+		}
+
+		return $sanitized;
+	}
+
+	/**
+	 * Check if a key name indicates sensitive data.
+	 *
+	 * @param string $key Key name (lowercase).
+
+thinking
+**Reviewing logger tests for redaction**
+
+I'm examining the WooCommerceLoggerTest.php file to understand current redaction coverage and identify how to strengthen it in the logger implementation.
+exec
+/bin/zsh -lc "sed -n '1,220p' tests/Unit/Infrastructure/WooCommerceLoggerTest.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 49ms:
+<?php
+/**
+ * Unit tests for WooCommerceLogger class.
+ */
+
+namespace AgentWP\Tests\Unit\Infrastructure;
+
+use AgentWP\Contracts\LoggerInterface;
+use AgentWP\Infrastructure\WooCommerceLogger;
+use AgentWP\Tests\TestCase;
+
+class WooCommerceLoggerTest extends TestCase {
+
+	private WooCommerceLogger $logger;
+
+	public function setUp(): void {
+		parent::setUp();
+		$this->logger = new WooCommerceLogger( 'test-source' );
+	}
+
+
+thinking
+**Inspecting redaction coverage**
+
+I'm checking test references to logging and JSON in OpenAIClient to identify any missed sensitive keys or patterns for redaction, considering variations like "apiKey" and "api-key".
+exec
+/bin/zsh -lc "sed -n '1860,1945p' tests/Unit/AI/OpenAIClientTest.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+		$warnings = $logger->getLogsByLevel( 'warning' );
+		$this->assertCount( 2, $warnings );
+
+		// First retry.
+		$this->assertSame( 'OpenAI API request retry', $warnings[0]['message'] );
+		$this->assertSame( 1, $warnings[0]['context']['attempt'] );
+		$this->assertSame( 500, $warnings[0]['context']['status_code'] );
+		$this->assertSame( 'gpt-4o-mini', $warnings[0]['context']['model'] );
+		$this->assertSame( 'retry-test', $warnings[0]['context']['intent'] );
+		$this->assertArrayHasKey( 'delay_ms', $warnings[0]['context'] );
+
+		// Second retry.
+		$this->assertSame( 'OpenAI API request retry', $warnings[1]['message'] );
+		$this->assertSame( 2, $warnings[1]['context']['attempt'] );
+		$this->assertSame( 503, $warnings[1]['context']['status_code'] );
+
+		// Verify successful completion was also logged.
+		$infos = $logger->getLogsByLevel( 'info' );
+		$this->assertCount( 1, $infos );
+		$this->assertSame( 'OpenAI API request completed', $infos[0]['message'] );
+
+
+thinking
+**Reviewing and extending secret redaction patterns**
+
+I'm analyzing existing key substring checks in the sanitizer to cover missing sensitive keys like camelCase variants, webhook secrets, PEM private keys, and less common auth tokens, aiming to strengthen message and nested context redaction based on typical secret naming conventions.
+thinking
+**Analyzing gaps in redaction patterns and edge cases**
+
+The current patterns generally cover many keys via substring matching and regex but may miss keys with spaces like "api key", certain token formats like Stripe keys starting with "sk_", JWT detection without keys, and some variations in message formatting; updating patterns to cover these and adding targeted tests is needed.
+exec
+/bin/zsh -lc "rg -n \"logger->|log\\(\" src" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 63ms:
+src/Billing/UsageTracker.php:167:				$logger->error(
+src/Billing/UsageTracker.php:333:				$logger->warning(
+src/Billing/UsageTracker.php:362:				$logger->error(
+src/Rest/SettingsController.php:327:		$logger->logApiKeyUpdate( $action, $this->getCurrentUserId(), $key_last4 );
+src/Infrastructure/WooCommerceLogger.php:71:		$this->log( 'emergency', $message, $context );
+src/Infrastructure/WooCommerceLogger.php:78:		$this->log( 'alert', $message, $context );
+src/Infrastructure/WooCommerceLogger.php:85:		$this->log( 'critical', $message, $context );
+src/Infrastructure/WooCommerceLogger.php:92:		$this->log( 'error', $message, $context );
+src/Infrastructure/WooCommerceLogger.php:99:		$this->log( 'warning', $message, $context );
+src/Infrastructure/WooCommerceLogger.php:106:		$this->log( 'notice', $message, $context );
+src/Infrastructure/WooCommerceLogger.php:113:		$this->log( 'info', $message, $context );
+src/Infrastructure/WooCommerceLogger.php:120:		$this->log( 'debug', $message, $context );
+src/Infrastructure/WooCommerceLogger.php:131:	private function log( string $level, string $message, array $context ): void {
+src/Infrastructure/WooCommerceLogger.php:157:				$logger->emergency( $message, $context );
+src/Infrastructure/WooCommerceLogger.php:160:				$logger->alert( $message, $context );
+src/Infrastructure/WooCommerceLogger.php:163:				$logger->critical( $message, $context );
+src/Infrastructure/WooCommerceLogger.php:166:				$logger->error( $message, $context );
+src/Infrastructure/WooCommerceLogger.php:169:				$logger->warning( $message, $context );
+src/Infrastructure/WooCommerceLogger.php:172:				$logger->notice( $message, $context );
+src/Infrastructure/WooCommerceLogger.php:175:				$logger->info( $message, $context );
+
+thinking
+**Inspecting log contexts for secrets**
+exec
+/bin/zsh -lc "sed -n '240,380p' src/AI/OpenAIClient.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 47ms:
+	public function validateKey( string $key ): bool {
+		if ( '' === $key ) {
+			return false;
+		}
+
+		$options = array(
+			'timeout'     => 3,
+			'redirection' => 0,
+			'headers'     => array(
+				'Authorization' => 'Bearer ' . $key,
+			),
+		);
+
+		$response = $this->http_client->get( $this->base_url . '/models', $options );
+
+		return $response->success && 200 === $response->statusCode;
+	}
+
+	/**
+	 * Execute request with centralized retry logic via RetryExecutor.
+
+thinking
+**Reviewing secret redaction scope**
+
+I'm assessing which secret patterns might be missing from redaction, especially within nested context keys like "key" or "apiKey"; I'll check code for context keys and compare them against the spec's comprehensive list to identify gaps.
+exec
+/bin/zsh -lc "rg -n \"'key'\\s*=>|\\\"key\\\"\\s*=>|key\\s*=>\" src" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 36ms:
+src/Services/OrderSearch/OrderQueryService.php:253:			foreach ( $parts as $key => $value ) {
+src/Services/OrderSearch/OrderFormatter.php:44:		foreach ( $address as $key => $value ) {
+src/Infrastructure/WooCommerceOrderRepository.php:161:						'key'     => '_billing_first_name',
+src/Infrastructure/WooCommerceOrderRepository.php:166:					'key'     => '_billing_last_name',
+src/Infrastructure/WooCommerceOrderRepository.php:171:					'key'     => '_billing_email',
+src/Infrastructure/WooCommerceLogger.php:236:		foreach ( $context as $key => $value ) {
+src/AI/TokenCounter.php:51:			foreach ( $message as $key => $value ) {
+src/AI/OpenAIClient.php:449:			foreach ( $headers as $key => $value ) {
+src/Plugin/SettingsManager.php:116:		return $this->update( array( $key => $value ) );
+src/Plugin/SchemaManager.php:154:	 * @return array<string, string> Map of table key => full table name.
+src/Intent/ContextBuilder.php:51:		foreach ( $this->providers as $key => $provider ) {
+
+
+thinking
+**Analyzing potential key handling bug**
+
+Noted that the sanitizer lowercases array keys but may not handle numeric keys correctly, which could cause warnings or skipped redaction; next step is to verify how numeric keys affect key processing and if nested arrays with numeric keys are missed.
+thinking
+**Identifying missed sensitive keys and patterns**
+
+Discovered sanitizeContext doesn't handle numeric keys safely and misses redacting keys like "cookie", "set-cookie", and "signature"; also message patterns lack handling for private key blocks and some auth formats like Basic auth—next step is to extend redaction for these gaps and add tests.
+exec
+/bin/zsh -lc 'rg -n "signature|sig" src' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 41ms:
+src/Billing/UsageTracker.php:343:			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+src/Billing/UsageTracker.php:346:			input_tokens bigint(20) unsigned NOT NULL DEFAULT 0,
+src/Billing/UsageTracker.php:347:			output_tokens bigint(20) unsigned NOT NULL DEFAULT 0,
+src/Billing/UsageTracker.php:348:			total_tokens bigint(20) unsigned NOT NULL DEFAULT 0,
+src/Infrastructure/RateLimiting/RateLimiter.php:171:	 * Fail-open design: If storage is unavailable or lock cannot be acquired,
+src/Infrastructure/WPFunctions.php:124:					$sign = $offset >= 0 ? '+' : '-';
+src/Infrastructure/WPFunctions.php:125:					$timezoneString = sprintf( '%s%02d:%02d', $sign, abs( $hours ), $minutes );
+src/Infrastructure/AuditLogger.php:23: * significant actions that should be traceable.
+src/Intent/ContextProviders/StoreContextProvider.php:53:			$sign     = $offset >= 0 ? '+' : '-';
+src/Intent/ContextProviders/StoreContextProvider.php:54:			$timezone = sprintf( 'UTC%s%s', $sign, abs( $offset ) );
+src/Search/Index.php:167:			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+src/Search/Index.php:169:			object_id bigint(20) unsigned NOT NULL,
+src/Demo/DemoClient.php:118:			'customer'   => '[Demo] Customer insights would be shown here. This is a demonstration response.',
+src/Contracts/LoggerInterface.php:76:	 * Normal but significant events.
+src/DTO/CustomerLtvProjectionDTO.php:84:	 * Check if customer has significant LTV.
+
+thinking
+**Searching for client_secret usage**
+exec
+/bin/zsh -lc 'rg -n "client_secret|clientSecret|secret_key|secretKey|webhook|cookie|session" src tests' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 70ms:
+tests/wp-env/mu-plugins/agentwp-openai-vcr.php:102:		'cookies'  => array(),
+tests/e2e/woocommerce-mount.spec.js:85:        return window.sessionStorage.getItem('agentwp-command-deck-open');
+tests/e2e/ui-load.spec.js:144:    // Check that command deck loaded (session storage should be set)
+tests/e2e/ui-load.spec.js:147:        return window.sessionStorage.getItem('agentwp-command-deck-open');
+tests/e2e/command-deck.spec.js:27:      return window.sessionStorage.getItem('agentwp-command-deck-open');
+tests/e2e/intent-prompt.spec.js:53:        session_id: 'test-session-123',
+src/Infrastructure/PhpSessionHandler.php:15: * Provides session-like key/value storage without using PHP sessions.
+src/Infrastructure/PhpSessionHandler.php:221:	 * Prefix a session key.
+src/Config/AgentWPConfig.php:218:	public const CACHE_PREFIX_SESSION       = 'session_';
+src/Providers/InfrastructureServiceProvider.php:155:	 * Register session handler.
+src/Contracts/SessionHandlerInterface.php:11: * Contract for session handling services.
+src/Contracts/SessionHandlerInterface.php:16:	 * Ensure session is started.
+src/Contracts/SessionHandlerInterface.php:23:	 * Check if session is started.
+src/Contracts/SessionHandlerInterface.php:25:	 * @return bool True if session is active.
+src/Contracts/SessionHandlerInterface.php:30:	 * Get a session value.
+src/Contracts/SessionHandlerInterface.php:38:	 * Set a session value.
+src/Contracts/SessionHandlerInterface.php:47:	 * Delete a session value.
+src/Contracts/SessionHandlerInterface.php:55:	 * Check if a session key exists.
+
+
+
+thinking
+**Refining sensitive key patterns**
+
+I'm considering adding explicit keys like "client_secret," "cookie," and "set-cookie" to the sensitive list for more precise redaction, and pondering regex updates to better cover API keys and bearer tokens, especially to handle characters common in JWTs that the current pattern might miss.
+thinking
+**Expanding and refining secret patterns**
+
+I'm broadening regexes to better cover API keys, bearer/basic auth tokens, JWTs, cookies, and client secrets, while updating the sensitive keys list to include terms like 'client_secret', 'cookie', and 'csrf'. Also planning fixes to handle nested contexts with numeric keys safely during sanitization and adding related targeted tests.
+thinking
+**Adjusting authorization pattern and regex order**
+
+I'm refining the Authorization header pattern to fully redact tokens with schemes like Bearer or Basic by expanding allowed characters and ensuring its regex captures the entire token. I'll also ensure Bearer and Basic patterns run before Authorization to prevent partial redaction, and plan tests to verify proper handling including nested contexts and numeric keys.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Infrastructure/WooCommerceLogger.php
+@@ -34,8 +34,14 @@
+ 		'/sk-[a-zA-Z0-9\-_]{20,}/',
++		// Stripe-style keys (sk_test_ / sk_live_).
++		'/sk_(?:live|test)_[a-zA-Z0-9]{10,}/',
+ 		// Generic API key patterns.
+-		'/api[_-]?key["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{16,}["\']?/i',
++		'/(?:x[-_])?api[ _-]?key["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Client secrets.
++		'/client[_-]?secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Bearer tokens.
+-		'/Bearer\s+[a-zA-Z0-9_\-\.]+/i',
++		'/Bearer\s+[A-Za-z0-9\-._~+/=:]+/i',
++		// Basic auth tokens.
++		'/Basic\s+[A-Za-z0-9+/=]+/i',
+ 		// Authorization headers.
+-		'/Authorization["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]+["\']?/i',
++		'/Authorization["\']?\s*[:=]\s*["\']?(?:Bearer|Basic)?\s*[A-Za-z0-9\-._~+/=:]+["\']?/i',
+ 		// Password patterns.
+@@ -45,5 +51,11 @@
+ 		// Token patterns.
+-		'/token["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]{16,}["\']?/i',
++		'/token["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Cookie headers.
++		'/(?:set-cookie|cookie)["\']?\s*[:=]\s*["\']?[^"\r\n]+["\']?/i',
++		// JWT tokens without labels.
++		'/eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/',
+ 		// Credit card patterns (basic).
+ 		'/\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/',
++		// PEM private keys.
++		'/-----BEGIN [A-Z ]+PRIVATE KEY-----.*?-----END [A-Z ]+PRIVATE KEY-----/s',
+ 	);
+apply_patch(auto_approved=true) exited 0 in 24ms:
+Success. Updated the following files:
+M src/Infrastructure/WooCommerceLogger.php
+file update:
+diff --git a/src/Infrastructure/WooCommerceLogger.php b/src/Infrastructure/WooCommerceLogger.php
+index 85e62a357e2a5e993baabc29fbd0201e954d2cbc..a575dcb54e7f8fa3a329876ce4eeeb37119fabeb
+--- a/src/Infrastructure/WooCommerceLogger.php
++++ b/src/Infrastructure/WooCommerceLogger.php
+@@ -32,20 +32,32 @@
+ 	private const SECRET_PATTERNS = array(
+ 		// OpenAI API keys (including project keys like sk-proj-...).
+ 		'/sk-[a-zA-Z0-9\-_]{20,}/',
++		// Stripe-style keys (sk_test_ / sk_live_).
++		'/sk_(?:live|test)_[a-zA-Z0-9]{10,}/',
+ 		// Generic API key patterns.
+-		'/api[_-]?key["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{16,}["\']?/i',
++		'/(?:x[-_])?api[ _-]?key["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Client secrets.
++		'/client[_-]?secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Bearer tokens.
+-		'/Bearer\s+[a-zA-Z0-9_\-\.]+/i',
++		'/Bearer\s+[A-Za-z0-9\-._~+/=:]+/i',
++		// Basic auth tokens.
++		'/Basic\s+[A-Za-z0-9+/=]+/i',
+ 		// Authorization headers.
+-		'/Authorization["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]+["\']?/i',
++		'/Authorization["\']?\s*[:=]\s*["\']?(?:Bearer|Basic)?\s*[A-Za-z0-9\-._~+/=:]+["\']?/i',
+ 		// Password patterns.
+ 		'/password["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Secret patterns.
+ 		'/secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Token patterns.
+-		'/token["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]{16,}["\']?/i',
++		'/token["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Cookie headers.
++		'/(?:set-cookie|cookie)["\']?\s*[:=]\s*["\']?[^"\r\n]+["\']?/i',
++		// JWT tokens without labels.
++		'/eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/',
+ 		// Credit card patterns (basic).
+ 		'/\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/',
++		// PEM private keys.
++		'/-----BEGIN [A-Z ]+PRIVATE KEY-----.*?-----END [A-Z ]+PRIVATE KEY-----/s',
+ 	);
+ 
+ 	/**
+
+file update:
+diff --git a/src/Infrastructure/WooCommerceLogger.php b/src/Infrastructure/WooCommerceLogger.php
+index 85e62a357e2a5e993baabc29fbd0201e954d2cbc..a575dcb54e7f8fa3a329876ce4eeeb37119fabeb
+--- a/src/Infrastructure/WooCommerceLogger.php
++++ b/src/Infrastructure/WooCommerceLogger.php
+@@ -32,20 +32,32 @@
+ 	private const SECRET_PATTERNS = array(
+ 		// OpenAI API keys (including project keys like sk-proj-...).
+ 		'/sk-[a-zA-Z0-9\-_]{20,}/',
++		// Stripe-style keys (sk_test_ / sk_live_).
++		'/sk_(?:live|test)_[a-zA-Z0-9]{10,}/',
+ 		// Generic API key patterns.
+-		'/api[_-]?key["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{16,}["\']?/i',
++		'/(?:x[-_])?api[ _-]?key["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Client secrets.
++		'/client[_-]?secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Bearer tokens.
+-		'/Bearer\s+[a-zA-Z0-9_\-\.]+/i',
++		'/Bearer\s+[A-Za-z0-9\-._~+/=:]+/i',
++		// Basic auth tokens.
++		'/Basic\s+[A-Za-z0-9+/=]+/i',
+ 		// Authorization headers.
+-		'/Authorization["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]+["\']?/i',
++		'/Authorization["\']?\s*[:=]\s*["\']?(?:Bearer|Basic)?\s*[A-Za-z0-9\-._~+/=:]+["\']?/i',
+ 		// Password patterns.
+ 		'/password["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Secret patterns.
+ 		'/secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Token patterns.
+-		'/token["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]{16,}["\']?/i',
++		'/token["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Cookie headers.
++		'/(?:set-cookie|cookie)["\']?\s*[:=]\s*["\']?[^"\r\n]+["\']?/i',
++		// JWT tokens without labels.
++		'/eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/',
+ 		// Credit card patterns (basic).
+ 		'/\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/',
++		// PEM private keys.
++		'/-----BEGIN [A-Z ]+PRIVATE KEY-----.*?-----END [A-Z ]+PRIVATE KEY-----/s',
+ 	);
+ 
+ 	/**
+
+
+thinking
+**Updating context sanitization functions**
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Infrastructure/WooCommerceLogger.php
+@@ -249,6 +249,8 @@
+ 			// Redact keys that are likely to contain secrets.
+-			$lower_key = strtolower( $key );
+-			if ( $this->isSensitiveKey( $lower_key ) ) {
+-				$sanitized[ $key ] = self::REDACTED;
+-				continue;
++			if ( is_string( $key ) ) {
++				$lower_key = strtolower( $key );
++				if ( $this->isSensitiveKey( $lower_key ) ) {
++					$sanitized[ $key ] = self::REDACTED;
++					continue;
++				}
+ 			}
+@@ -278,3 +280,9 @@
+ 			'api-key',
++			'client_secret',
++			'clientsecret',
++			'client-secret',
+ 			'secret',
++			'secret_key',
++			'secretkey',
++			'secret-key',
+ 			'password',
+@@ -282,2 +290,4 @@
+ 			'token',
++			'id_token',
++			'idtoken',
+ 			'auth',
+@@ -290,2 +300,7 @@
+ 			'private-key',
++			'cookie',
++			'set-cookie',
++			'session_id',
++			'sessionid',
++			'session-token',
+ 			'access_token',
+@@ -296,2 +311,5 @@
+ 			'refresh-token',
++			'csrf',
++			'xsrf',
++			'signature',
+ 			'openai_key',
+apply_patch(auto_approved=true) exited 0 in 23ms:
+Success. Updated the following files:
+M src/Infrastructure/WooCommerceLogger.php
+file update:
+diff --git a/src/Infrastructure/WooCommerceLogger.php b/src/Infrastructure/WooCommerceLogger.php
+index 85e62a357e2a5e993baabc29fbd0201e954d2cbc..c2edfb2f0dcb3d6eb68f08abc0d3cc72c06c3854
+--- a/src/Infrastructure/WooCommerceLogger.php
++++ b/src/Infrastructure/WooCommerceLogger.php
+@@ -32,20 +32,32 @@
+ 	private const SECRET_PATTERNS = array(
+ 		// OpenAI API keys (including project keys like sk-proj-...).
+ 		'/sk-[a-zA-Z0-9\-_]{20,}/',
++		// Stripe-style keys (sk_test_ / sk_live_).
++		'/sk_(?:live|test)_[a-zA-Z0-9]{10,}/',
+ 		// Generic API key patterns.
+-		'/api[_-]?key["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{16,}["\']?/i',
++		'/(?:x[-_])?api[ _-]?key["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Client secrets.
++		'/client[_-]?secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Bearer tokens.
+-		'/Bearer\s+[a-zA-Z0-9_\-\.]+/i',
++		'/Bearer\s+[A-Za-z0-9\-._~+/=:]+/i',
++		// Basic auth tokens.
++		'/Basic\s+[A-Za-z0-9+/=]+/i',
+ 		// Authorization headers.
+-		'/Authorization["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]+["\']?/i',
++		'/Authorization["\']?\s*[:=]\s*["\']?(?:Bearer|Basic)?\s*[A-Za-z0-9\-._~+/=:]+["\']?/i',
+ 		// Password patterns.
+ 		'/password["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Secret patterns.
+ 		'/secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Token patterns.
+-		'/token["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]{16,}["\']?/i',
++		'/token["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Cookie headers.
++		'/(?:set-cookie|cookie)["\']?\s*[:=]\s*["\']?[^"\r\n]+["\']?/i',
++		// JWT tokens without labels.
++		'/eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/',
+ 		// Credit card patterns (basic).
+ 		'/\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/',
++		// PEM private keys.
++		'/-----BEGIN [A-Z ]+PRIVATE KEY-----.*?-----END [A-Z ]+PRIVATE KEY-----/s',
+ 	);
+ 
+ 	/**
+@@ -235,10 +247,12 @@
+ 
+ 		foreach ( $context as $key => $value ) {
+ 			// Redact keys that are likely to contain secrets.
+-			$lower_key = strtolower( $key );
+-			if ( $this->isSensitiveKey( $lower_key ) ) {
+-				$sanitized[ $key ] = self::REDACTED;
+-				continue;
++			if ( is_string( $key ) ) {
++				$lower_key = strtolower( $key );
++				if ( $this->isSensitiveKey( $lower_key ) ) {
++					$sanitized[ $key ] = self::REDACTED;
++					continue;
++				}
+ 			}
+ 
+ 			if ( is_string( $value ) ) {
+@@ -264,10 +278,18 @@
+ 			'api_key',
+ 			'apikey',
+ 			'api-key',
++			'client_secret',
++			'clientsecret',
++			'client-secret',
+ 			'secret',
++			'secret_key',
++			'secretkey',
++			'secret-key',
+ 			'password',
+ 			'passwd',
+ 			'token',
++			'id_token',
++			'idtoken',
+ 			'auth',
+ 			'authorization',
+ 			'bearer',
+@@ -276,12 +298,20 @@
+ 			'private_key',
+ 			'privatekey',
+ 			'private-key',
++			'cookie',
++			'set-cookie',
++			'session_id',
++			'sessionid',
++			'session-token',
+ 			'access_token',
+ 			'accesstoken',
+ 			'access-token',
+ 			'refresh_token',
+ 			'refreshtoken',
+ 			'refresh-token',
++			'csrf',
++			'xsrf',
++			'signature',
+ 			'openai_key',
+ 			'openai-key',
+ 			'sk-',
+
+file update:
+diff --git a/src/Infrastructure/WooCommerceLogger.php b/src/Infrastructure/WooCommerceLogger.php
+index 85e62a357e2a5e993baabc29fbd0201e954d2cbc..c2edfb2f0dcb3d6eb68f08abc0d3cc72c06c3854
+--- a/src/Infrastructure/WooCommerceLogger.php
++++ b/src/Infrastructure/WooCommerceLogger.php
+@@ -32,20 +32,32 @@
+ 	private const SECRET_PATTERNS = array(
+ 		// OpenAI API keys (including project keys like sk-proj-...).
+ 		'/sk-[a-zA-Z0-9\-_]{20,}/',
++		// Stripe-style keys (sk_test_ / sk_live_).
++		'/sk_(?:live|test)_[a-zA-Z0-9]{10,}/',
+ 		// Generic API key patterns.
+-		'/api[_-]?key["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{16,}["\']?/i',
++		'/(?:x[-_])?api[ _-]?key["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Client secrets.
++		'/client[_-]?secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Bearer tokens.
+-		'/Bearer\s+[a-zA-Z0-9_\-\.]+/i',
++		'/Bearer\s+[A-Za-z0-9\-._~+/=:]+/i',
++		// Basic auth tokens.
++		'/Basic\s+[A-Za-z0-9+/=]+/i',
+ 		// Authorization headers.
+-		'/Authorization["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]+["\']?/i',
++		'/Authorization["\']?\s*[:=]\s*["\']?(?:Bearer|Basic)?\s*[A-Za-z0-9\-._~+/=:]+["\']?/i',
+ 		// Password patterns.
+ 		'/password["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Secret patterns.
+ 		'/secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Token patterns.
+-		'/token["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]{16,}["\']?/i',
++		'/token["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Cookie headers.
++		'/(?:set-cookie|cookie)["\']?\s*[:=]\s*["\']?[^"\r\n]+["\']?/i',
++		// JWT tokens without labels.
++		'/eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/',
+ 		// Credit card patterns (basic).
+ 		'/\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/',
++		// PEM private keys.
++		'/-----BEGIN [A-Z ]+PRIVATE KEY-----.*?-----END [A-Z ]+PRIVATE KEY-----/s',
+ 	);
+ 
+ 	/**
+@@ -235,10 +247,12 @@
+ 
+ 		foreach ( $context as $key => $value ) {
+ 			// Redact keys that are likely to contain secrets.
+-			$lower_key = strtolower( $key );
+-			if ( $this->isSensitiveKey( $lower_key ) ) {
+-				$sanitized[ $key ] = self::REDACTED;
+-				continue;
++			if ( is_string( $key ) ) {
++				$lower_key = strtolower( $key );
++				if ( $this->isSensitiveKey( $lower_key ) ) {
++					$sanitized[ $key ] = self::REDACTED;
++					continue;
++				}
+ 			}
+ 
+ 			if ( is_string( $value ) ) {
+@@ -264,10 +278,18 @@
+ 			'api_key',
+ 			'apikey',
+ 			'api-key',
++			'client_secret',
++			'clientsecret',
++			'client-secret',
+ 			'secret',
++			'secret_key',
++			'secretkey',
++			'secret-key',
+ 			'password',
+ 			'passwd',
+ 			'token',
++			'id_token',
++			'idtoken',
+ 			'auth',
+ 			'authorization',
+ 			'bearer',
+@@ -276,12 +298,20 @@
+ 			'private_key',
+ 			'privatekey',
+ 			'private-key',
++			'cookie',
++			'set-cookie',
++			'session_id',
++			'sessionid',
++			'session-token',
+ 			'access_token',
+ 			'accesstoken',
+ 			'access-token',
+ 			'refresh_token',
+ 			'refreshtoken',
+ 			'refresh-token',
++			'csrf',
++			'xsrf',
++			'signature',
+ 			'openai_key',
+ 			'openai-key',
+ 			'sk-',
+
+
+
+thinking
+**Adding comprehensive sanitization tests**
+
+Planning to add multiple test functions covering sanitization of basic auth, cookie keys, JWTs, and list context values with numeric keys, ensuring tokens in nested message arrays get redacted properly and assertions confirm expected replacements.
+thinking
+**Expanding tests for cookie and auth sanitization**
+
+I'm adding tests verifying that cookie-related headers and basic auth strings are properly redacted, confirming nested keys and typical token patterns get replaced with [REDACTED] as expected.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
+@@ -42,2 +42,11 @@
+ 
++	public function test_sanitizes_basic_auth_in_message(): void {
++		$message = 'Authorization: Basic dXNlcjpwYXNz';
++
++		$sanitized = $this->invokeSanitize( $message );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized );
++		$this->assertStringNotContainsString( 'dXNlcjpwYXNz', $sanitized );
++	}
++
+ 	public function test_sanitizes_password_pattern_in_message(): void {
+@@ -60,2 +69,11 @@
+ 
++	public function test_sanitizes_jwt_in_message(): void {
++		$message = 'JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature';
++
++		$sanitized = $this->invokeSanitize( $message );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized );
++		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
++	}
++
+ 	public function test_sanitizes_api_key_context_key(): void {
+@@ -110,2 +128,35 @@
+ 
++	public function test_sanitizes_cookie_headers_in_context(): void {
++		$context = array(
++			'headers' => array(
++				'Set-Cookie' => 'sessionid=abc123; HttpOnly',
++				'Cookie'     => 'foo=bar; session=secret',
++			),
++		);
++
++		$sanitized = $this->invokeSanitizeContext( $context );
++
++		$this->assertSame( '[REDACTED]', $sanitized['headers']['Set-Cookie'] );
++		$this->assertSame( '[REDACTED]', $sanitized['headers']['Cookie'] );
++	}
++
++	public function test_sanitizes_list_context_values(): void {
++		$context = array(
++			'messages' => array(
++				array(
++					'role'    => 'user',
++					'content' => 'token=abc123xyz789defghi',
++				),
++				'Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456',
++			),
++		);
++
++		$sanitized = $this->invokeSanitizeContext( $context );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][0]['content'] );
++		$this->assertStringNotContainsString( 'abc123xyz789defghi', $sanitized['messages'][0]['content'] );
++		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][1] );
++		$this->assertStringNotContainsString( 'abcdefghijklmnopqrstuvwxyz123456', $sanitized['messages'][1] );
++	}
++
+ 	public function test_sanitizes_string_values_in_context(): void {
+apply_patch(auto_approved=true) exited 0 in 24ms:
+Success. Updated the following files:
+M tests/Unit/Infrastructure/WooCommerceLoggerTest.php
+file update:
+diff --git a/src/Infrastructure/WooCommerceLogger.php b/src/Infrastructure/WooCommerceLogger.php
+index 85e62a357e2a5e993baabc29fbd0201e954d2cbc..c2edfb2f0dcb3d6eb68f08abc0d3cc72c06c3854
+--- a/src/Infrastructure/WooCommerceLogger.php
++++ b/src/Infrastructure/WooCommerceLogger.php
+@@ -32,20 +32,32 @@
+ 	private const SECRET_PATTERNS = array(
+ 		// OpenAI API keys (including project keys like sk-proj-...).
+ 		'/sk-[a-zA-Z0-9\-_]{20,}/',
++		// Stripe-style keys (sk_test_ / sk_live_).
++		'/sk_(?:live|test)_[a-zA-Z0-9]{10,}/',
+ 		// Generic API key patterns.
+-		'/api[_-]?key["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{16,}["\']?/i',
++		'/(?:x[-_])?api[ _-]?key["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Client secrets.
++		'/client[_-]?secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Bearer tokens.
+-		'/Bearer\s+[a-zA-Z0-9_\-\.]+/i',
++		'/Bearer\s+[A-Za-z0-9\-._~+/=:]+/i',
++		// Basic auth tokens.
++		'/Basic\s+[A-Za-z0-9+/=]+/i',
+ 		// Authorization headers.
+-		'/Authorization["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]+["\']?/i',
++		'/Authorization["\']?\s*[:=]\s*["\']?(?:Bearer|Basic)?\s*[A-Za-z0-9\-._~+/=:]+["\']?/i',
+ 		// Password patterns.
+ 		'/password["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Secret patterns.
+ 		'/secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Token patterns.
+-		'/token["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]{16,}["\']?/i',
++		'/token["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Cookie headers.
++		'/(?:set-cookie|cookie)["\']?\s*[:=]\s*["\']?[^"\r\n]+["\']?/i',
++		// JWT tokens without labels.
++		'/eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/',
+ 		// Credit card patterns (basic).
+ 		'/\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/',
++		// PEM private keys.
++		'/-----BEGIN [A-Z ]+PRIVATE KEY-----.*?-----END [A-Z ]+PRIVATE KEY-----/s',
+ 	);
+ 
+ 	/**
+@@ -235,10 +247,12 @@
+ 
+ 		foreach ( $context as $key => $value ) {
+ 			// Redact keys that are likely to contain secrets.
+-			$lower_key = strtolower( $key );
+-			if ( $this->isSensitiveKey( $lower_key ) ) {
+-				$sanitized[ $key ] = self::REDACTED;
+-				continue;
++			if ( is_string( $key ) ) {
++				$lower_key = strtolower( $key );
++				if ( $this->isSensitiveKey( $lower_key ) ) {
++					$sanitized[ $key ] = self::REDACTED;
++					continue;
++				}
+ 			}
+ 
+ 			if ( is_string( $value ) ) {
+@@ -264,10 +278,18 @@
+ 			'api_key',
+ 			'apikey',
+ 			'api-key',
++			'client_secret',
++			'clientsecret',
++			'client-secret',
+ 			'secret',
++			'secret_key',
++			'secretkey',
++			'secret-key',
+ 			'password',
+ 			'passwd',
+ 			'token',
++			'id_token',
++			'idtoken',
+ 			'auth',
+ 			'authorization',
+ 			'bearer',
+@@ -276,12 +298,20 @@
+ 			'private_key',
+ 			'privatekey',
+ 			'private-key',
++			'cookie',
++			'set-cookie',
++			'session_id',
++			'sessionid',
++			'session-token',
+ 			'access_token',
+ 			'accesstoken',
+ 			'access-token',
+ 			'refresh_token',
+ 			'refreshtoken',
+ 			'refresh-token',
++			'csrf',
++			'xsrf',
++			'signature',
+ 			'openai_key',
+ 			'openai-key',
+ 			'sk-',
+diff --git a/tests/Unit/Infrastructure/WooCommerceLoggerTest.php b/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
+index 8e94b5c3114290751a1b5387a9416ccbc726f196..cd421a0aacddb9ea42794e81f15bec3f6a0b61b4
+--- a/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
++++ b/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
+@@ -40,6 +40,15 @@
+ 		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
+ 	}
+ 
++	public function test_sanitizes_basic_auth_in_message(): void {
++		$message = 'Authorization: Basic dXNlcjpwYXNz';
++
++		$sanitized = $this->invokeSanitize( $message );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized );
++		$this->assertStringNotContainsString( 'dXNlcjpwYXNz', $sanitized );
++	}
++
+ 	public function test_sanitizes_password_pattern_in_message(): void {
+ 		$message = 'Connection with password="secretPassword123"';
+ 
+@@ -58,6 +67,15 @@
+ 		$this->assertStringNotContainsString( '4111-1111-1111-1111', $sanitized );
+ 	}
+ 
++	public function test_sanitizes_jwt_in_message(): void {
++		$message = 'JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature';
++
++		$sanitized = $this->invokeSanitize( $message );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized );
++		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
++	}
++
+ 	public function test_sanitizes_api_key_context_key(): void {
+ 		$context = array(
+ 			'api_key'  => 'sk-secret-key-value',
+@@ -108,6 +126,39 @@
+ 		$this->assertSame( 30, $sanitized['config']['timeout'] );
+ 	}
+ 
++	public function test_sanitizes_cookie_headers_in_context(): void {
++		$context = array(
++			'headers' => array(
++				'Set-Cookie' => 'sessionid=abc123; HttpOnly',
++				'Cookie'     => 'foo=bar; session=secret',
++			),
++		);
++
++		$sanitized = $this->invokeSanitizeContext( $context );
++
++		$this->assertSame( '[REDACTED]', $sanitized['headers']['Set-Cookie'] );
++		$this->assertSame( '[REDACTED]', $sanitized['headers']['Cookie'] );
++	}
++
++	public function test_sanitizes_list_context_values(): void {
++		$context = array(
++			'messages' => array(
++				array(
++					'role'    => 'user',
++					'content' => 'token=abc123xyz789defghi',
++				),
++				'Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456',
++			),
++		);
++
++		$sanitized = $this->invokeSanitizeContext( $context );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][0]['content'] );
++		$this->assertStringNotContainsString( 'abc123xyz789defghi', $sanitized['messages'][0]['content'] );
++		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][1] );
++		$this->assertStringNotContainsString( 'abcdefghijklmnopqrstuvwxyz123456', $sanitized['messages'][1] );
++	}
++
+ 	public function test_sanitizes_string_values_in_context(): void {
+ 		$context = array(
+ 			'message' => 'User with token=abc123xyz789defghi logged in',
+
+file update:
+diff --git a/src/Infrastructure/WooCommerceLogger.php b/src/Infrastructure/WooCommerceLogger.php
+index 85e62a357e2a5e993baabc29fbd0201e954d2cbc..c2edfb2f0dcb3d6eb68f08abc0d3cc72c06c3854
+--- a/src/Infrastructure/WooCommerceLogger.php
++++ b/src/Infrastructure/WooCommerceLogger.php
+@@ -32,20 +32,32 @@
+ 	private const SECRET_PATTERNS = array(
+ 		// OpenAI API keys (including project keys like sk-proj-...).
+ 		'/sk-[a-zA-Z0-9\-_]{20,}/',
++		// Stripe-style keys (sk_test_ / sk_live_).
++		'/sk_(?:live|test)_[a-zA-Z0-9]{10,}/',
+ 		// Generic API key patterns.
+-		'/api[_-]?key["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{16,}["\']?/i',
++		'/(?:x[-_])?api[ _-]?key["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Client secrets.
++		'/client[_-]?secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Bearer tokens.
+-		'/Bearer\s+[a-zA-Z0-9_\-\.]+/i',
++		'/Bearer\s+[A-Za-z0-9\-._~+/=:]+/i',
++		// Basic auth tokens.
++		'/Basic\s+[A-Za-z0-9+/=]+/i',
+ 		// Authorization headers.
+-		'/Authorization["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]+["\']?/i',
++		'/Authorization["\']?\s*[:=]\s*["\']?(?:Bearer|Basic)?\s*[A-Za-z0-9\-._~+/=:]+["\']?/i',
+ 		// Password patterns.
+ 		'/password["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Secret patterns.
+ 		'/secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Token patterns.
+-		'/token["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]{16,}["\']?/i',
++		'/token["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Cookie headers.
++		'/(?:set-cookie|cookie)["\']?\s*[:=]\s*["\']?[^"\r\n]+["\']?/i',
++		// JWT tokens without labels.
++		'/eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/',
+ 		// Credit card patterns (basic).
+ 		'/\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/',
++		// PEM private keys.
++		'/-----BEGIN [A-Z ]+PRIVATE KEY-----.*?-----END [A-Z ]+PRIVATE KEY-----/s',
+ 	);
+ 
+ 	/**
+@@ -235,10 +247,12 @@
+ 
+ 		foreach ( $context as $key => $value ) {
+ 			// Redact keys that are likely to contain secrets.
+-			$lower_key = strtolower( $key );
+-			if ( $this->isSensitiveKey( $lower_key ) ) {
+-				$sanitized[ $key ] = self::REDACTED;
+-				continue;
++			if ( is_string( $key ) ) {
++				$lower_key = strtolower( $key );
++				if ( $this->isSensitiveKey( $lower_key ) ) {
++					$sanitized[ $key ] = self::REDACTED;
++					continue;
++				}
+ 			}
+ 
+ 			if ( is_string( $value ) ) {
+@@ -264,10 +278,18 @@
+ 			'api_key',
+ 			'apikey',
+ 			'api-key',
++			'client_secret',
++			'clientsecret',
++			'client-secret',
+ 			'secret',
++			'secret_key',
++			'secretkey',
++			'secret-key',
+ 			'password',
+ 			'passwd',
+ 			'token',
++			'id_token',
++			'idtoken',
+ 			'auth',
+ 			'authorization',
+ 			'bearer',
+@@ -276,12 +298,20 @@
+ 			'private_key',
+ 			'privatekey',
+ 			'private-key',
++			'cookie',
++			'set-cookie',
++			'session_id',
++			'sessionid',
++			'session-token',
+ 			'access_token',
+ 			'accesstoken',
+ 			'access-token',
+ 			'refresh_token',
+ 			'refreshtoken',
+ 			'refresh-token',
++			'csrf',
++			'xsrf',
++			'signature',
+ 			'openai_key',
+ 			'openai-key',
+ 			'sk-',
+diff --git a/tests/Unit/Infrastructure/WooCommerceLoggerTest.php b/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
+index 8e94b5c3114290751a1b5387a9416ccbc726f196..cd421a0aacddb9ea42794e81f15bec3f6a0b61b4
+--- a/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
++++ b/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
+@@ -40,6 +40,15 @@
+ 		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
+ 	}
+ 
++	public function test_sanitizes_basic_auth_in_message(): void {
++		$message = 'Authorization: Basic dXNlcjpwYXNz';
++
++		$sanitized = $this->invokeSanitize( $message );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized );
++		$this->assertStringNotContainsString( 'dXNlcjpwYXNz', $sanitized );
++	}
++
+ 	public function test_sanitizes_password_pattern_in_message(): void {
+ 		$message = 'Connection with password="secretPassword123"';
+ 
+@@ -58,6 +67,15 @@
+ 		$this->assertStringNotContainsString( '4111-1111-1111-1111', $sanitized );
+ 	}
+ 
++	public function test_sanitizes_jwt_in_message(): void {
++		$message = 'JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature';
++
++		$sanitized = $this->invokeSanitize( $message );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized );
++		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
++	}
++
+ 	public function test_sanitizes_api_key_context_key(): void {
+ 		$context = array(
+ 			'api_key'  => 'sk-secret-key-value',
+@@ -108,6 +126,39 @@
+ 		$this->assertSame( 30, $sanitized['config']['timeout'] );
+ 	}
+ 
++	public function test_sanitizes_cookie_headers_in_context(): void {
++		$context = array(
++			'headers' => array(
++				'Set-Cookie' => 'sessionid=abc123; HttpOnly',
++				'Cookie'     => 'foo=bar; session=secret',
++			),
++		);
++
++		$sanitized = $this->invokeSanitizeContext( $context );
++
++		$this->assertSame( '[REDACTED]', $sanitized['headers']['Set-Cookie'] );
++		$this->assertSame( '[REDACTED]', $sanitized['headers']['Cookie'] );
++	}
++
++	public function test_sanitizes_list_context_values(): void {
++		$context = array(
++			'messages' => array(
++				array(
++					'role'    => 'user',
++					'content' => 'token=abc123xyz789defghi',
++				),
++				'Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456',
++			),
++		);
++
++		$sanitized = $this->invokeSanitizeContext( $context );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][0]['content'] );
++		$this->assertStringNotContainsString( 'abc123xyz789defghi', $sanitized['messages'][0]['content'] );
++		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][1] );
++		$this->assertStringNotContainsString( 'abcdefghijklmnopqrstuvwxyz123456', $sanitized['messages'][1] );
++	}
++
+ 	public function test_sanitizes_string_values_in_context(): void {
+ 		$context = array(
+ 			'message' => 'User with token=abc123xyz789defghi logged in',
+
+
+
+thinking
+**Verifying authorization sanitization patterns**
+
+Confirmed the patterns replace the bearer token and authorization header with [REDACTED], producing sanitized strings that include [REDACTED] and exclude original tokens as expected despite overlapping regex matches.
+thinking
+**Refining authorization header pattern**
+
+Decided to update the authorization regex to capture any scheme plus token fully, fixing partial matches like "Authorization: Token abc" that previously left tokens unredacted, ensuring complete redaction without breaking existing patterns or tests.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Infrastructure/WooCommerceLogger.php
+@@ -45,3 +45,3 @@
+ 		// Authorization headers.
+-		'/Authorization["\']?\s*[:=]\s*["\']?(?:Bearer|Basic)?\s*[A-Za-z0-9\-._~+/=:]+["\']?/i',
++		'/Authorization["\']?\s*[:=]\s*["\']?(?:[A-Za-z]+\s+)?[A-Za-z0-9\-._~+/=:]+["\']?/i',
+ 		// Password patterns.
+apply_patch(auto_approved=true) exited 0 in 40ms:
+Success. Updated the following files:
+M src/Infrastructure/WooCommerceLogger.php
+file update:
+diff --git a/src/Infrastructure/WooCommerceLogger.php b/src/Infrastructure/WooCommerceLogger.php
+index 85e62a357e2a5e993baabc29fbd0201e954d2cbc..4d3f2340cbbf169360da0afa6a1c50a58a56b763
+--- a/src/Infrastructure/WooCommerceLogger.php
++++ b/src/Infrastructure/WooCommerceLogger.php
+@@ -32,20 +32,32 @@
+ 	private const SECRET_PATTERNS = array(
+ 		// OpenAI API keys (including project keys like sk-proj-...).
+ 		'/sk-[a-zA-Z0-9\-_]{20,}/',
++		// Stripe-style keys (sk_test_ / sk_live_).
++		'/sk_(?:live|test)_[a-zA-Z0-9]{10,}/',
+ 		// Generic API key patterns.
+-		'/api[_-]?key["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{16,}["\']?/i',
++		'/(?:x[-_])?api[ _-]?key["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Client secrets.
++		'/client[_-]?secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Bearer tokens.
+-		'/Bearer\s+[a-zA-Z0-9_\-\.]+/i',
++		'/Bearer\s+[A-Za-z0-9\-._~+/=:]+/i',
++		// Basic auth tokens.
++		'/Basic\s+[A-Za-z0-9+/=]+/i',
+ 		// Authorization headers.
+-		'/Authorization["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]+["\']?/i',
++		'/Authorization["\']?\s*[:=]\s*["\']?(?:[A-Za-z]+\s+)?[A-Za-z0-9\-._~+/=:]+["\']?/i',
+ 		// Password patterns.
+ 		'/password["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Secret patterns.
+ 		'/secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Token patterns.
+-		'/token["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]{16,}["\']?/i',
++		'/token["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Cookie headers.
++		'/(?:set-cookie|cookie)["\']?\s*[:=]\s*["\']?[^"\r\n]+["\']?/i',
++		// JWT tokens without labels.
++		'/eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/',
+ 		// Credit card patterns (basic).
+ 		'/\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/',
++		// PEM private keys.
++		'/-----BEGIN [A-Z ]+PRIVATE KEY-----.*?-----END [A-Z ]+PRIVATE KEY-----/s',
+ 	);
+ 
+ 	/**
+@@ -235,10 +247,12 @@
+ 
+ 		foreach ( $context as $key => $value ) {
+ 			// Redact keys that are likely to contain secrets.
+-			$lower_key = strtolower( $key );
+-			if ( $this->isSensitiveKey( $lower_key ) ) {
+-				$sanitized[ $key ] = self::REDACTED;
+-				continue;
++			if ( is_string( $key ) ) {
++				$lower_key = strtolower( $key );
++				if ( $this->isSensitiveKey( $lower_key ) ) {
++					$sanitized[ $key ] = self::REDACTED;
++					continue;
++				}
+ 			}
+ 
+ 			if ( is_string( $value ) ) {
+@@ -264,10 +278,18 @@
+ 			'api_key',
+ 			'apikey',
+ 			'api-key',
++			'client_secret',
++			'clientsecret',
++			'client-secret',
+ 			'secret',
++			'secret_key',
++			'secretkey',
++			'secret-key',
+ 			'password',
+ 			'passwd',
+ 			'token',
++			'id_token',
++			'idtoken',
+ 			'auth',
+ 			'authorization',
+ 			'bearer',
+@@ -276,12 +298,20 @@
+ 			'private_key',
+ 			'privatekey',
+ 			'private-key',
++			'cookie',
++			'set-cookie',
++			'session_id',
++			'sessionid',
++			'session-token',
+ 			'access_token',
+ 			'accesstoken',
+ 			'access-token',
+ 			'refresh_token',
+ 			'refreshtoken',
+ 			'refresh-token',
++			'csrf',
++			'xsrf',
++			'signature',
+ 			'openai_key',
+ 			'openai-key',
+ 			'sk-',
+diff --git a/tests/Unit/Infrastructure/WooCommerceLoggerTest.php b/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
+index 8e94b5c3114290751a1b5387a9416ccbc726f196..cd421a0aacddb9ea42794e81f15bec3f6a0b61b4
+--- a/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
++++ b/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
+@@ -40,6 +40,15 @@
+ 		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
+ 	}
+ 
++	public function test_sanitizes_basic_auth_in_message(): void {
++		$message = 'Authorization: Basic dXNlcjpwYXNz';
++
++		$sanitized = $this->invokeSanitize( $message );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized );
++		$this->assertStringNotContainsString( 'dXNlcjpwYXNz', $sanitized );
++	}
++
+ 	public function test_sanitizes_password_pattern_in_message(): void {
+ 		$message = 'Connection with password="secretPassword123"';
+ 
+@@ -58,6 +67,15 @@
+ 		$this->assertStringNotContainsString( '4111-1111-1111-1111', $sanitized );
+ 	}
+ 
++	public function test_sanitizes_jwt_in_message(): void {
++		$message = 'JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature';
++
++		$sanitized = $this->invokeSanitize( $message );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized );
++		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
++	}
++
+ 	public function test_sanitizes_api_key_context_key(): void {
+ 		$context = array(
+ 			'api_key'  => 'sk-secret-key-value',
+@@ -108,6 +126,39 @@
+ 		$this->assertSame( 30, $sanitized['config']['timeout'] );
+ 	}
+ 
++	public function test_sanitizes_cookie_headers_in_context(): void {
++		$context = array(
++			'headers' => array(
++				'Set-Cookie' => 'sessionid=abc123; HttpOnly',
++				'Cookie'     => 'foo=bar; session=secret',
++			),
++		);
++
++		$sanitized = $this->invokeSanitizeContext( $context );
++
++		$this->assertSame( '[REDACTED]', $sanitized['headers']['Set-Cookie'] );
++		$this->assertSame( '[REDACTED]', $sanitized['headers']['Cookie'] );
++	}
++
++	public function test_sanitizes_list_context_values(): void {
++		$context = array(
++			'messages' => array(
++				array(
++					'role'    => 'user',
++					'content' => 'token=abc123xyz789defghi',
++				),
++				'Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456',
++			),
++		);
++
++		$sanitized = $this->invokeSanitizeContext( $context );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][0]['content'] );
++		$this->assertStringNotContainsString( 'abc123xyz789defghi', $sanitized['messages'][0]['content'] );
++		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][1] );
++		$this->assertStringNotContainsString( 'abcdefghijklmnopqrstuvwxyz123456', $sanitized['messages'][1] );
++	}
++
+ 	public function test_sanitizes_string_values_in_context(): void {
+ 		$context = array(
+ 			'message' => 'User with token=abc123xyz789defghi logged in',
+
+file update:
+diff --git a/src/Infrastructure/WooCommerceLogger.php b/src/Infrastructure/WooCommerceLogger.php
+index 85e62a357e2a5e993baabc29fbd0201e954d2cbc..4d3f2340cbbf169360da0afa6a1c50a58a56b763
+--- a/src/Infrastructure/WooCommerceLogger.php
++++ b/src/Infrastructure/WooCommerceLogger.php
+@@ -32,20 +32,32 @@
+ 	private const SECRET_PATTERNS = array(
+ 		// OpenAI API keys (including project keys like sk-proj-...).
+ 		'/sk-[a-zA-Z0-9\-_]{20,}/',
++		// Stripe-style keys (sk_test_ / sk_live_).
++		'/sk_(?:live|test)_[a-zA-Z0-9]{10,}/',
+ 		// Generic API key patterns.
+-		'/api[_-]?key["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{16,}["\']?/i',
++		'/(?:x[-_])?api[ _-]?key["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Client secrets.
++		'/client[_-]?secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Bearer tokens.
+-		'/Bearer\s+[a-zA-Z0-9_\-\.]+/i',
++		'/Bearer\s+[A-Za-z0-9\-._~+/=:]+/i',
++		// Basic auth tokens.
++		'/Basic\s+[A-Za-z0-9+/=]+/i',
+ 		// Authorization headers.
+-		'/Authorization["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]+["\']?/i',
++		'/Authorization["\']?\s*[:=]\s*["\']?(?:[A-Za-z]+\s+)?[A-Za-z0-9\-._~+/=:]+["\']?/i',
+ 		// Password patterns.
+ 		'/password["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Secret patterns.
+ 		'/secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Token patterns.
+-		'/token["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]{16,}["\']?/i',
++		'/token["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Cookie headers.
++		'/(?:set-cookie|cookie)["\']?\s*[:=]\s*["\']?[^"\r\n]+["\']?/i',
++		// JWT tokens without labels.
++		'/eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/',
+ 		// Credit card patterns (basic).
+ 		'/\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/',
++		// PEM private keys.
++		'/-----BEGIN [A-Z ]+PRIVATE KEY-----.*?-----END [A-Z ]+PRIVATE KEY-----/s',
+ 	);
+ 
+ 	/**
+@@ -235,10 +247,12 @@
+ 
+ 		foreach ( $context as $key => $value ) {
+ 			// Redact keys that are likely to contain secrets.
+-			$lower_key = strtolower( $key );
+-			if ( $this->isSensitiveKey( $lower_key ) ) {
+-				$sanitized[ $key ] = self::REDACTED;
+-				continue;
++			if ( is_string( $key ) ) {
++				$lower_key = strtolower( $key );
++				if ( $this->isSensitiveKey( $lower_key ) ) {
++					$sanitized[ $key ] = self::REDACTED;
++					continue;
++				}
+ 			}
+ 
+ 			if ( is_string( $value ) ) {
+@@ -264,10 +278,18 @@
+ 			'api_key',
+ 			'apikey',
+ 			'api-key',
++			'client_secret',
++			'clientsecret',
++			'client-secret',
+ 			'secret',
++			'secret_key',
++			'secretkey',
++			'secret-key',
+ 			'password',
+ 			'passwd',
+ 			'token',
++			'id_token',
++			'idtoken',
+ 			'auth',
+ 			'authorization',
+ 			'bearer',
+@@ -276,12 +298,20 @@
+ 			'private_key',
+ 			'privatekey',
+ 			'private-key',
++			'cookie',
++			'set-cookie',
++			'session_id',
++			'sessionid',
++			'session-token',
+ 			'access_token',
+ 			'accesstoken',
+ 			'access-token',
+ 			'refresh_token',
+ 			'refreshtoken',
+ 			'refresh-token',
++			'csrf',
++			'xsrf',
++			'signature',
+ 			'openai_key',
+ 			'openai-key',
+ 			'sk-',
+diff --git a/tests/Unit/Infrastructure/WooCommerceLoggerTest.php b/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
+index 8e94b5c3114290751a1b5387a9416ccbc726f196..cd421a0aacddb9ea42794e81f15bec3f6a0b61b4
+--- a/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
++++ b/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
+@@ -40,6 +40,15 @@
+ 		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
+ 	}
+ 
++	public function test_sanitizes_basic_auth_in_message(): void {
++		$message = 'Authorization: Basic dXNlcjpwYXNz';
++
++		$sanitized = $this->invokeSanitize( $message );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized );
++		$this->assertStringNotContainsString( 'dXNlcjpwYXNz', $sanitized );
++	}
++
+ 	public function test_sanitizes_password_pattern_in_message(): void {
+ 		$message = 'Connection with password="secretPassword123"';
+ 
+@@ -58,6 +67,15 @@
+ 		$this->assertStringNotContainsString( '4111-1111-1111-1111', $sanitized );
+ 	}
+ 
++	public function test_sanitizes_jwt_in_message(): void {
++		$message = 'JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature';
++
++		$sanitized = $this->invokeSanitize( $message );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized );
++		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
++	}
++
+ 	public function test_sanitizes_api_key_context_key(): void {
+ 		$context = array(
+ 			'api_key'  => 'sk-secret-key-value',
+@@ -108,6 +126,39 @@
+ 		$this->assertSame( 30, $sanitized['config']['timeout'] );
+ 	}
+ 
++	public function test_sanitizes_cookie_headers_in_context(): void {
++		$context = array(
++			'headers' => array(
++				'Set-Cookie' => 'sessionid=abc123; HttpOnly',
++				'Cookie'     => 'foo=bar; session=secret',
++			),
++		);
++
++		$sanitized = $this->invokeSanitizeContext( $context );
++
++		$this->assertSame( '[REDACTED]', $sanitized['headers']['Set-Cookie'] );
++		$this->assertSame( '[REDACTED]', $sanitized['headers']['Cookie'] );
++	}
++
++	public function test_sanitizes_list_context_values(): void {
++		$context = array(
++			'messages' => array(
++				array(
++					'role'    => 'user',
++					'content' => 'token=abc123xyz789defghi',
++				),
++				'Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456',
++			),
++		);
++
++		$sanitized = $this->invokeSanitizeContext( $context );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][0]['content'] );
++		$this->assertStringNotContainsString( 'abc123xyz789defghi', $sanitized['messages'][0]['content'] );
++		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][1] );
++		$this->assertStringNotContainsString( 'abcdefghijklmnopqrstuvwxyz123456', $sanitized['messages'][1] );
++	}
++
+ 	public function test_sanitizes_string_values_in_context(): void {
+ 		$context = array(
+ 			'message' => 'User with token=abc123xyz789defghi logged in',
+
+
+
+thinking
+**Confirming redact pattern order and coverage**
+
+The Authorization pattern runs after Bearer, so the header gets partially redacted but remains replaced overall, which is acceptable. The current order preserves full redaction for non-Bearer schemes like "Token abc," so no reordering is needed. Next, I'll ensure tests cover the new patterns and confirm no extraneous character encoding issues or overlooked replacements.
+thinking
+**Preparing final summary and verification instructions**
+
+I'm consolidating changes including added sensitive key patterns and enhanced test coverage for nested and numeric keys. I'll recommend running the specific unit tests for verification and note the potential risk of broader redaction masking more log data, while confirming no automated tests were run beyond these.
+codex
+Status: DONE
+
+Summary of changes
+- Expanded secret redaction patterns (API keys, Basic auth, cookies, JWTs, PEM blocks) and added more sensitive key names in `src/Infrastructure/WooCommerceLogger.php`.
+- Hardened nested context sanitization to handle list-style arrays without key-type errors in `src/Infrastructure/WooCommerceLogger.php`.
+- Added unit tests covering Basic auth, JWTs, cookie headers, and list-based nested context in `tests/Unit/Infrastructure/WooCommerceLoggerTest.php`.
+
+How to verify (exact commands)
+- `./vendor/bin/phpunit tests/Unit/Infrastructure/WooCommerceLoggerTest.php`
+
+Risks / follow-ups
+- Broader redaction rules may mask more log detail than before; confirm that’s acceptable for ops/debugging.
+- Tests not run in this session.
+file update:
+diff --git a/src/Infrastructure/WooCommerceLogger.php b/src/Infrastructure/WooCommerceLogger.php
+index 85e62a357e2a5e993baabc29fbd0201e954d2cbc..4d3f2340cbbf169360da0afa6a1c50a58a56b763
+--- a/src/Infrastructure/WooCommerceLogger.php
++++ b/src/Infrastructure/WooCommerceLogger.php
+@@ -32,20 +32,32 @@
+ 	private const SECRET_PATTERNS = array(
+ 		// OpenAI API keys (including project keys like sk-proj-...).
+ 		'/sk-[a-zA-Z0-9\-_]{20,}/',
++		// Stripe-style keys (sk_test_ / sk_live_).
++		'/sk_(?:live|test)_[a-zA-Z0-9]{10,}/',
+ 		// Generic API key patterns.
+-		'/api[_-]?key["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-]{16,}["\']?/i',
++		'/(?:x[-_])?api[ _-]?key["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Client secrets.
++		'/client[_-]?secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Bearer tokens.
+-		'/Bearer\s+[a-zA-Z0-9_\-\.]+/i',
++		'/Bearer\s+[A-Za-z0-9\-._~+/=:]+/i',
++		// Basic auth tokens.
++		'/Basic\s+[A-Za-z0-9+/=]+/i',
+ 		// Authorization headers.
+-		'/Authorization["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]+["\']?/i',
++		'/Authorization["\']?\s*[:=]\s*["\']?(?:[A-Za-z]+\s+)?[A-Za-z0-9\-._~+/=:]+["\']?/i',
+ 		// Password patterns.
+ 		'/password["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Secret patterns.
+ 		'/secret["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
+ 		// Token patterns.
+-		'/token["\']?\s*[:=]\s*["\']?[a-zA-Z0-9_\-\.]{16,}["\']?/i',
++		'/token["\']?\s*[:=]\s*["\']?[^\s"\']+["\']?/i',
++		// Cookie headers.
++		'/(?:set-cookie|cookie)["\']?\s*[:=]\s*["\']?[^"\r\n]+["\']?/i',
++		// JWT tokens without labels.
++		'/eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/',
+ 		// Credit card patterns (basic).
+ 		'/\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b/',
++		// PEM private keys.
++		'/-----BEGIN [A-Z ]+PRIVATE KEY-----.*?-----END [A-Z ]+PRIVATE KEY-----/s',
+ 	);
+ 
+ 	/**
+@@ -235,10 +247,12 @@
+ 
+ 		foreach ( $context as $key => $value ) {
+ 			// Redact keys that are likely to contain secrets.
+-			$lower_key = strtolower( $key );
+-			if ( $this->isSensitiveKey( $lower_key ) ) {
+-				$sanitized[ $key ] = self::REDACTED;
+-				continue;
++			if ( is_string( $key ) ) {
++				$lower_key = strtolower( $key );
++				if ( $this->isSensitiveKey( $lower_key ) ) {
++					$sanitized[ $key ] = self::REDACTED;
++					continue;
++				}
+ 			}
+ 
+ 			if ( is_string( $value ) ) {
+@@ -264,10 +278,18 @@
+ 			'api_key',
+ 			'apikey',
+ 			'api-key',
++			'client_secret',
++			'clientsecret',
++			'client-secret',
+ 			'secret',
++			'secret_key',
++			'secretkey',
++			'secret-key',
+ 			'password',
+ 			'passwd',
+ 			'token',
++			'id_token',
++			'idtoken',
+ 			'auth',
+ 			'authorization',
+ 			'bearer',
+@@ -276,12 +298,20 @@
+ 			'private_key',
+ 			'privatekey',
+ 			'private-key',
++			'cookie',
++			'set-cookie',
++			'session_id',
++			'sessionid',
++			'session-token',
+ 			'access_token',
+ 			'accesstoken',
+ 			'access-token',
+ 			'refresh_token',
+ 			'refreshtoken',
+ 			'refresh-token',
++			'csrf',
++			'xsrf',
++			'signature',
+ 			'openai_key',
+ 			'openai-key',
+ 			'sk-',
+diff --git a/tests/Unit/Infrastructure/WooCommerceLoggerTest.php b/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
+index 8e94b5c3114290751a1b5387a9416ccbc726f196..cd421a0aacddb9ea42794e81f15bec3f6a0b61b4
+--- a/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
++++ b/tests/Unit/Infrastructure/WooCommerceLoggerTest.php
+@@ -40,6 +40,15 @@
+ 		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
+ 	}
+ 
++	public function test_sanitizes_basic_auth_in_message(): void {
++		$message = 'Authorization: Basic dXNlcjpwYXNz';
++
++		$sanitized = $this->invokeSanitize( $message );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized );
++		$this->assertStringNotContainsString( 'dXNlcjpwYXNz', $sanitized );
++	}
++
+ 	public function test_sanitizes_password_pattern_in_message(): void {
+ 		$message = 'Connection with password="secretPassword123"';
+ 
+@@ -58,6 +67,15 @@
+ 		$this->assertStringNotContainsString( '4111-1111-1111-1111', $sanitized );
+ 	}
+ 
++	public function test_sanitizes_jwt_in_message(): void {
++		$message = 'JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature';
++
++		$sanitized = $this->invokeSanitize( $message );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized );
++		$this->assertStringNotContainsString( 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', $sanitized );
++	}
++
+ 	public function test_sanitizes_api_key_context_key(): void {
+ 		$context = array(
+ 			'api_key'  => 'sk-secret-key-value',
+@@ -108,6 +126,39 @@
+ 		$this->assertSame( 30, $sanitized['config']['timeout'] );
+ 	}
+ 
++	public function test_sanitizes_cookie_headers_in_context(): void {
++		$context = array(
++			'headers' => array(
++				'Set-Cookie' => 'sessionid=abc123; HttpOnly',
++				'Cookie'     => 'foo=bar; session=secret',
++			),
++		);
++
++		$sanitized = $this->invokeSanitizeContext( $context );
++
++		$this->assertSame( '[REDACTED]', $sanitized['headers']['Set-Cookie'] );
++		$this->assertSame( '[REDACTED]', $sanitized['headers']['Cookie'] );
++	}
++
++	public function test_sanitizes_list_context_values(): void {
++		$context = array(
++			'messages' => array(
++				array(
++					'role'    => 'user',
++					'content' => 'token=abc123xyz789defghi',
++				),
++				'Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456',
++			),
++		);
++
++		$sanitized = $this->invokeSanitizeContext( $context );
++
++		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][0]['content'] );
++		$this->assertStringNotContainsString( 'abc123xyz789defghi', $sanitized['messages'][0]['content'] );
++		$this->assertStringContainsString( '[REDACTED]', $sanitized['messages'][1] );
++		$this->assertStringNotContainsString( 'abcdefghijklmnopqrstuvwxyz123456', $sanitized['messages'][1] );
++	}
++
+ 	public function test_sanitizes_string_values_in_context(): void {
+ 		$context = array(
+ 			'message' => 'User with token=abc123xyz789defghi logged in',
+
+tokens used
+53,896
