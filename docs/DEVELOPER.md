@@ -199,18 +199,38 @@ The pipeline is wired via `ServicesServiceProvider`. When WooCommerce is not ava
 - UI source lives in `react/` and is bundled with Vite.
 - WordPress integration tests use `@wordpress/env` and Playwright from the repository root.
 
-Common commands:
+### Building UI assets
+
+To build the React UI for production (the exact assets WordPress will enqueue):
+
+```bash
+./scripts/build-assets.sh
+```
+
+This single command:
+1. Installs npm dependencies (if needed)
+2. Runs the Vite production build with TypeScript checking
+3. Outputs hashed assets to `assets/build/`
+4. Generates the manifest at `assets/build/.vite/manifest.json`
+
+WordPress reads the manifest to resolve the correct hashed filenames for enqueuing.
+
+### Development workflow
+
+For local development with hot reloading:
 ```bash
 cd react
 npm install
 npm run dev
 ```
 
+Build manually (alternative to build-assets.sh):
 ```bash
 cd react
 npm run build
 ```
 
+Start the WordPress dev environment:
 ```bash
 npm install
 npm run wp-env:start
