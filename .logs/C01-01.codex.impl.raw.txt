@@ -1,0 +1,119 @@
+Status: DONE
+
+Summary of changes:
+- No code changes required; `composer run docs:check-links` already passes.
+
+How to verify (exact commands):
+- `composer run docs:check-links`
+
+Risks / follow-ups:
+- None.
+
+OpenAI Codex v0.87.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019bd1bb-1e78-79d0-b394-e4aa21d56964
+--------
+user
+You are implementing task C01-01 in this git repository.
+
+1) Read the spec: .plans/C01-01.md
+2) Read handoff/context: .t2/handoff/C01-01.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+
+thinking
+**Planning initial approach**
+
+I'm starting by reading the plan to understand requirements before implementing the spec using shell commands to read files.
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 43ms:
+agentwp.php
+assets
+composer.json
+composer.lock
+docker
+docker-compose.demo.yml
+docker-compose.yml
+docs
+includes
+languages
+node_modules
+package-lock.json
+package.json
+phpcs.xml
+phpstan
+phpstan.neon
+phpunit.xml.dist
+plan_tasks.csv
+playwright.config.cjs
+react
+
+thinking
+**Planning to read spec**
+exec
+/bin/zsh -lc "sed -n '1,200p' .plans/C01-01.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 54ms:
+# C01-01 — Fix docs link check
+
+Ensure all markdown links under `docs/` resolve (create missing targets or update broken relative links). Run `composer run docs:check-links` and iterate until it passes.
+exec
+/bin/zsh -lc "sed -n '1,200p' .t2/handoff/C01-01.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 39ms:
+# Handoff: C01-01
+
+Created: 2026-01-18T15:30:59.819776Z
+
+Spec: .plans/C01-01.md
+
+thinking
+**Running composer docs link check**
+exec
+/bin/zsh -lc 'composer run docs:check-links' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 239ms:
+> php scripts/check-doc-links.php
+Documentation Link Checker
+==================================================
+
+Scanning docs/ for markdown files...
+Found 25 markdown files
+
+Checked 59 links in 7 files
+
+--------------------------------------------------
+
+All links are valid.
+
+thinking
+**Confirming no changes needed**
+
+All tests already pass and documentation links resolve correctly, so no code changes are required. I'll provide a final confirmation with the docs link check command and mark the task as done.
+codex
+Status: DONE
+
+Summary of changes:
+- No code changes required; `composer run docs:check-links` already passes.
+
+How to verify (exact commands):
+- `composer run docs:check-links`
+
+Risks / follow-ups:
+- None.
+tokens used
+3,935

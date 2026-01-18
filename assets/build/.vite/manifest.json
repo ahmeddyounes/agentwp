@@ -3,8 +3,8 @@
     "file": "assets/ErrorBoundary-CjKmDUXe.css",
     "src": "_ErrorBoundary-!~{005}~.js"
   },
-  "_ErrorBoundary-D3MloVnV.js": {
-    "file": "assets/ErrorBoundary-D3MloVnV.js",
+  "_ErrorBoundary-CP4M_jlp.js": {
+    "file": "assets/ErrorBoundary-CP4M_jlp.js",
     "name": "ErrorBoundary",
     "isDynamicEntry": true,
     "imports": [
@@ -46,18 +46,18 @@
     ]
   },
   "components/cards/ChartCard.tsx": {
-    "file": "assets/ChartCard-BZNnW5eV.js",
+    "file": "assets/ChartCard-BT_G5T7n.js",
     "name": "ChartCard",
     "src": "components/cards/ChartCard.tsx",
     "isDynamicEntry": true,
     "imports": [
       "_charts-wlAe7WTx.js",
-      "_ErrorBoundary-D3MloVnV.js",
+      "_ErrorBoundary-CP4M_jlp.js",
       "index.html"
     ]
   },
   "index.html": {
-    "file": "assets/index-B_Qu4uoW.js",
+    "file": "assets/index-C-MDGPZF.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -68,7 +68,7 @@
       "_charts-wlAe7WTx.js",
       "_client-DfjPjhPa.js",
       "src/App.tsx",
-      "_ErrorBoundary-D3MloVnV.js",
+      "_ErrorBoundary-CP4M_jlp.js",
       "node_modules/@tanstack/react-query/build/modern/index.js",
       "src/index.css?inline",
       "src/theme.ts"
@@ -85,7 +85,7 @@
     ]
   },
   "src/App.tsx": {
-    "file": "assets/App-DRVPowt0.js",
+    "file": "assets/App-Ba2wmQd6.js",
     "name": "App",
     "src": "src/App.tsx",
     "isDynamicEntry": true,
