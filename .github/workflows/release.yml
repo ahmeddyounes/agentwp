@@ -48,10 +48,6 @@ jobs:
             npm install --prefix react
           fi
           npm --prefix react run build --if-present
-          if [ -d react/dist ]; then
-            mkdir -p assets
-            rsync -a react/dist/ assets/
-          fi
 
       - name: Generate changelog
         run: |
