@@ -65,16 +65,16 @@ class FakeWPFunctions implements HooksInterface, WPUserFunctionsInterface {
 	 *
 	 * @param string $hook_name Filter name.
 	 * @param mixed  $value     Value to filter.
+	 * @param mixed  ...$args   Additional arguments passed to the filter.
 	 * @return mixed Filtered value.
 	 */
-	public function applyFilters( string $hook_name, $value ) {
-		$args = func_get_args();
-		array_shift( $args ); // Remove $hook_name.
+	public function applyFilters( string $hook_name, $value, ...$args ) {
+		$captured_args = array_merge( array( $value ), $args );
 
 		$this->filters[] = array(
 			'hook'  => $hook_name,
 			'value' => $value,
-			'args'  => $args,
+			'args'  => $captured_args,
 		);
 
 		// Return mocked value if set.

@@ -1,0 +1,704 @@
+Status: NEEDS-REVIEW
+
+Summary of changes
+- Updated `tests/Fakes/FakeWPFunctions.php` so `applyFilters` is variadic and captures arguments consistently with the interface.
+
+How to verify
+- `composer run phpstan`
+
+Risks / follow-ups
+- `composer run phpstan` currently fails with “If condition is always true” in `src/Infrastructure/RateLimiting/RateLimiter.php:227`. This appears unrelated to this change and needs separate attention.
+
+OpenAI Codex v0.87.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019bd1bc-28c3-7b12-82c0-7c3d68e2012c
+--------
+user
+You are implementing task C01-03 in this git repository.
+
+1) Read the spec: .plans/C01-03.md
+2) Read handoff/context: .t2/handoff/C01-03.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+
+thinking
+**Preparing to read files**
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 57ms:
+agentwp.php
+assets
+composer.json
+composer.lock
+docker
+docker-compose.demo.yml
+docker-compose.yml
+docs
+includes
+languages
+node_modules
+package-lock.json
+package.json
+phpcs.xml
+phpstan
+phpstan.neon
+phpunit.xml.dist
+plan_tasks.csv
+playwright.config.cjs
+react
+
+thinking
+**Preparing to read spec**
+exec
+/bin/zsh -lc 'cat .plans/C01-03.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 66ms:
+# C01-03 — Align WPFunctions + test fakes with HooksInterface
+
+Update `src/Infrastructure/WPFunctions.php` `applyFilters()` signature to match `HooksInterface` (keep behavior equivalent). Update any test fakes implementing `HooksInterface` (e.g., `tests/Fakes/FakeWPFunctions.php`) to match. Run `composer run phpstan`.
+
+thinking
+**Reviewing handoff instructions**
+exec
+/bin/zsh -lc 'cat .t2/handoff/C01-03.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 72ms:
+# Handoff: C01-03
+
+Created: 2026-01-18T15:32:07.962193Z
+
+Spec: .plans/C01-03.md
+
+thinking
+**Planning to inspect HooksInterface**
+exec
+/bin/zsh -lc 'rg "interface HooksInterface|HooksInterface" -n src includes tests' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 85ms:
+src/Infrastructure/WPFunctions.php:10:use AgentWP\Contracts\HooksInterface;
+src/Infrastructure/WPFunctions.php:40:final class WPFunctions implements HooksInterface, WPUserFunctionsInterface {
+src/Intent/Engine.php:12:use AgentWP\Contracts\HooksInterface;
+src/Intent/Engine.php:52:	 * @var HooksInterface
+src/Intent/Engine.php:64:	 * @param HooksInterface|null       $hooks             Hooks adapter (optional for backward compatibility).
+src/Intent/Engine.php:74:		?HooksInterface $hooks = null
+src/Providers/IntentServiceProvider.php:28:use AgentWP\Contracts\HooksInterface;
+src/Providers/IntentServiceProvider.php:368:				$hooks = $this->container->has( HooksInterface::class )
+src/Providers/IntentServiceProvider.php:369:					? $this->container->get( HooksInterface::class )
+tests/Fakes/FakeWPFunctions.php:10:use AgentWP\Contracts\HooksInterface;
+tests/Fakes/FakeWPFunctions.php:16: * This class implements HooksInterface and WPUserFunctionsInterface for use in unit tests.
+tests/Fakes/FakeWPFunctions.php:19:class FakeWPFunctions implements HooksInterface, WPUserFunctionsInterface {
+src/Contracts/HooksInterface.php:17:interface HooksInterface {
+tests/Unit/Intent/EngineHooksTest.php:24: * Tests that Engine uses injected HooksInterface instead of WordPress globals.
+
+thinking
+**Opening Hooks Interface**
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Contracts/HooksInterface.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 72ms:
+<?php
+/**
+ * WordPress hooks interface.
+ *
+ * @package AgentWP\Contracts
+ */
+
+namespace AgentWP\Contracts;
+
+/**
+ * Contract for WordPress filter and action hooks.
+ *
+ * This interface enables testability by abstracting WordPress's global
+ * apply_filters() and do_action() functions. Business logic should depend
+ * on this interface rather than calling WordPress functions directly.
+ */
+interface HooksInterface {
+
+	/**
+	 * Apply WordPress filters.
+
+thinking
+**Identifying applyFilters signature mismatch**
+
+I'm opening the relevant file to examine the applyFilters function signature and understand the mismatch causing issues.
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Infrastructure/WPFunctions.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 67ms:
+<?php
+/**
+ * WordPress functions wrapper.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Contracts\HooksInterface;
+use AgentWP\Contracts\WPUserFunctionsInterface;
+use DateTimeZone;
+
+/**
+ * Wrapper for WordPress functions to enable testability.
+ *
+ * This class wraps WordPress core and WooCommerce functions,
+ * allowing them to be mocked in unit tests. Use this wrapper
+ * instead of calling WordPress functions directly in business logic.
+ *
+
+thinking
+**Adding applyFilters method**
+exec
+/bin/zsh -lc 'rg "applyFilters" -n src/Infrastructure/WPFunctions.php' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 72ms:
+288:	public function applyFilters( string $hook_name, $value, ...$args ) {
+exec
+/bin/zsh -lc "sed -n '250,360p' src/Infrastructure/WPFunctions.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 73ms:
+	 *
+	 * @param string $key     Cache key.
+	 * @param mixed  $value   Cache value.
+	 * @param string $group   Cache group.
+	 * @param int    $expire  Expiration in seconds.
+	 * @return bool True if set.
+	 */
+	public function setCache( string $key, $value, string $group = '', int $expire = 0 ): bool {
+		if ( ! function_exists( 'wp_cache_set' ) ) {
+			return false;
+		}
+
+		return wp_cache_set( $key, $value, $group, $expire ); // phpcs:ignore WordPressVIPMinimum.Performance.LowExpiryCacheTime.CacheTimeUndetermined -- Expiry is controlled by the caller; 0 means no expiration.
+	}
+
+	/**
+	 * Delete object cache value.
+	 *
+	 * @param string $key   Cache key.
+	 * @param string $group Cache group.
+
+thinking
+**Verifying method signature consistency**
+
+I'm checking if the method signature in the implementation matches the interface exactly, focusing on parameter types and return types since discrepancy there often causes issues, and considering that the interface lacks a return type while the implementation might have one. I'm also verifying if parameter typing (like using mixed) or order mismatches might be causing the problem, and plan to check any variants such as in test doubles for differences.
+exec
+/bin/zsh -lc "sed -n '1,200p' tests/Fakes/FakeWPFunctions.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 56ms:
+<?php
+/**
+ * Fake WordPress functions wrapper for testing.
+ *
+ * @package AgentWP\Tests\Fakes
+ */
+
+namespace AgentWP\Tests\Fakes;
+
+use AgentWP\Contracts\HooksInterface;
+use AgentWP\Contracts\WPUserFunctionsInterface;
+
+/**
+ * Testable WordPress functions wrapper that captures hook calls.
+ *
+ * This class implements HooksInterface and WPUserFunctionsInterface for use in unit tests.
+ * It captures all action and filter calls for assertions.
+ */
+class FakeWPFunctions implements HooksInterface, WPUserFunctionsInterface {
+
+
+
+thinking
+**Analyzing applyFilters signature mismatch**
+
+I'm comparing applyFilters signatures in WPFunctions and HooksInterface and finding discrepancies around variadic args and return types; this suggests WPFunctions needs updating to match the interface’s parameter types and maybe add or align return types accordingly.
+thinking
+**Evaluating PHP signature compatibility and type hint needs**
+
+I'm clarifying that the spec requires updating WPFunctions and its test fakes to match the HooksInterface applyFilters signature, likely adding PHP 8-style `mixed` type hints and possibly a return type to align signatures precisely and satisfy PHPStan checks.
+exec
+/bin/zsh -lc "sed -n '1,200p' tests/Unit/Intent/EngineHooksTest.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 34ms:
+<?php
+/**
+ * Unit tests for Engine hooks injection.
+ *
+ * @package AgentWP\Tests\Unit\Intent
+ */
+
+namespace AgentWP\Tests\Unit\Intent;
+
+use AgentWP\AI\Response;
+use AgentWP\Intent\ContextBuilder;
+use AgentWP\Intent\Engine;
+use AgentWP\Intent\FunctionRegistry;
+use AgentWP\Intent\Handler;
+use AgentWP\Intent\HandlerRegistry;
+use AgentWP\Intent\Handlers\FallbackHandler;
+use AgentWP\Intent\Intent;
+use AgentWP\Intent\IntentClassifier;
+use AgentWP\Tests\Fakes\FakeMemoryStore;
+use AgentWP\Tests\Fakes\FakeWPFunctions;
+
+
+thinking
+**Clarifying method signature mismatches**
+
+The fake applyFilters lacks a variadic parameter causing a mismatch with the interface that expects it; WPFunctions has the variadic but may need its return type updated to match the interface. I'll verify and align both applyFilters signatures to ensure they conform to the interface, including variadic parameters and return types.
+thinking
+**Searching for duplicate interface definitions**
+
+I'm checking if there is another HooksInterface definition elsewhere, like in includes, to confirm if the interface needs updating with a return type as the spec might expect.
+exec
+/bin/zsh -lc "rg \"applyFilters\\(\" -n src tests includes" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 86ms:
+tests/Fakes/FakeWPFunctions.php:70:	public function applyFilters( string $hook_name, $value ) {
+src/Contracts/HooksInterface.php:27:	public function applyFilters( string $hook_name, $value, ...$args );
+src/Providers/IntentServiceProvider.php:129:				$limit = (int) $wp->applyFilters( 'agentwp_memory_limit', $limit );
+src/Providers/IntentServiceProvider.php:130:				$ttl   = (int) $wp->applyFilters( 'agentwp_memory_ttl', $ttl );
+src/Providers/IntentServiceProvider.php:199:				$scorers = $wp->applyFilters( 'agentwp_intent_scorers', $default_scorers );
+src/Infrastructure/WPFunctions.php:288:	public function applyFilters( string $hook_name, $value, ...$args ) {
+src/Intent/Engine.php:85:			? $this->hooks->applyFilters( 'agentwp_intent_handlers', $handlers, $this )
+src/Intent/Engine.php:259:			$mapping = $this->hooks->applyFilters( 'agentwp_default_function_mapping', $mapping, $this );
+
+
+thinking
+**Assessing return type mismatch**
+
+I'm clarifying that the signature mismatch likely involves WPFunctions missing an explicit `mixed` return type, while the interface expects no declared return type; the plan is to align WPFunctions and fakes to match the interface without changing the interface itself.
+thinking
+**Confirming signature alignment**
+
+I'm concluding WPFunctions already matches the interface signature including `...$args`, so I'll focus on updating FakeWPFunctions to ensure it also matches exactly, as mandated by the spec.
+exec
+/bin/zsh -lc 'rg "implements HooksInterface" -n' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 85ms:
+src/Infrastructure/WPFunctions.php:40:final class WPFunctions implements HooksInterface, WPUserFunctionsInterface {
+tests/Fakes/FakeWPFunctions.php:16: * This class implements HooksInterface and WPUserFunctionsInterface for use in unit tests.
+tests/Fakes/FakeWPFunctions.php:19:class FakeWPFunctions implements HooksInterface, WPUserFunctionsInterface {
+
+
+thinking
+**Assessing method signature alignment**
+
+I’m analyzing subtle differences in the applyFilters method signatures between the interface and implementations, focusing on PHP version constraints that prevent adding mixed types, so updates will likely be minimal to keep compatibility while ensuring exact signature matches.
+thinking
+**Confirming minimal signature changes**
+
+The only necessary update is adding `...$args` to Fake's applyFilters to match the interface, while WPFunctions already aligns, so I'll make a minimal change to Fake and possibly adjust WPFunctions docblocks without altering code or adding PHP 8-only types.
+exec
+/bin/zsh -lc 'cat composer.json' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 67ms:
+{
+  "name": "agentwp/agentwp",
+  "description": "AgentWP WordPress plugin.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "autoload": {
+    "psr-4": {
+      "AgentWP\\": "src/"
+    }
+  },
+  "require": {
+    "php": ">=8.0",
+    "yethee/tiktoken": "^0.1.2"
+  },
+  "require-dev": {
+    "10up/wp_mock": "^1.0",
+    "automattic/vipwpcs": "^3.0",
+    "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+    "mockery/mockery": "^1.6",
+    "phpstan/phpstan": "^1.10",
+
+
+thinking
+**Considering interface update for mixed types**
+
+I'm weighing adding `mixed` types and return hints to the interface and implementations to align with PHP 8 standards and the spec’s mention of matching the interface, though the spec only explicitly requires changing WPFunctions. This may require updating both the interface and all implementations for consistency.
+thinking
+**Confirming no mandatory signature changes needed**
+
+I found the WPFunctions and interface applyFilters signatures already match without types; the spec’s instruction likely reflects earlier mismatch. Since adding mixed type hints isn’t strictly required and could be intrusive, I’ll keep the signatures consistent without type hints, focusing on Fake implementation updates instead.
+exec
+/bin/zsh -lc 'rg "mixed" -n src | head' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 70ms:
+src/Rest/HealthController.php:37:	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
+src/Rest/SettingsController.php:77:	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
+src/Rest/SettingsController.php:107:	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
+src/Rest/SettingsController.php:145:	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
+src/Rest/SettingsController.php:211:	 * @param WP_REST_Request<array<string, mixed>> $request Request instance.
+src/Rest/HistoryController.php:48:	 * @param \WP_REST_Request<array<string, mixed>> $request Request instance.
+src/Rest/HistoryController.php:73:	 * @param \WP_REST_Request<array<string, mixed>> $request Request instance.
+src/Rest/ThemeController.php:52:	 * @param \WP_REST_Request<array<string, mixed>> $request Request instance.
+src/Rest/ThemeController.php:76:	 * @param \WP_REST_Request<array<string, mixed>> $request Request instance.
+src/Rest/AnalyticsController.php:42:	 * @param \WP_REST_Request<array<string, mixed>> $request Request object.
+
+thinking
+**Checking usage of mixed type hints**
+
+I'm searching the codebase for occurrences of the `mixed` type hint in function signatures to confirm if it's being used or avoided.
+exec
+/bin/zsh -lc "rg \"\\)\\s*:\\s*mixed\" -n src" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 79ms:
+src/Infrastructure/PhpSessionHandler.php:79:	public function get( string $key ): mixed {
+src/Infrastructure/WordPressOptions.php:36:	public function get( string $key, mixed $default = null ): mixed {
+src/Infrastructure/WordPressTransientCache.php:38:	public function get( string $key, mixed $default = null ): mixed {
+src/Infrastructure/WordPressTransientCache.php:136:	public function remember( string $key, callable $callback, int $expiration = 0 ): mixed {
+src/Infrastructure/WooCommerceConfigGateway.php:44:	public function apply_filters( string $hook, mixed $value, mixed ...$args ): mixed {
+src/Infrastructure/WordPressObjectCache.php:36:	public function get( string $key, mixed $default = null ): mixed {
+src/Infrastructure/WordPressObjectCache.php:84:	public function remember( string $key, callable $callback, int $ttl = 0 ): mixed {
+src/Retry/RetryExecutor.php:70:	public function execute( callable $operation ): mixed {
+src/Retry/RetryExecutor.php:141:	public function executeWithCheck( callable $operation, callable $successCheck ): mixed {
+src/Plugin/ResponseFormatter.php:100:	public function formatResponse( mixed $result, WP_REST_Server $server, WP_REST_Request $request ): mixed {
+src/Container/ContainerInterface.php:23:	public function get( string $id ): mixed;
+src/Plugin/SettingsManager.php:89:	public function get( string $key, mixed $default = null ): mixed {
+src/Contracts/ToolDispatcherInterface.php:28:	 * @param callable $executor Callable that executes the tool: fn(array $args): mixed
+src/Contracts/OptionsInterface.php:22:	public function get( string $key, mixed $default = null ): mixed;
+src/Container/Container.php:61:	public function get( string $id ): mixed {
+src/Container/Container.php:210:	private function resolve( callable|string $resolver ): mixed {
+src/Contracts/CacheInterface.php:22:	public function get( string $key, mixed $default = null ): mixed;
+src/Contracts/CacheInterface.php:65:	public function remember( string $key, callable $callback, int $ttl = 0 ): mixed;
+src/Contracts/SessionHandlerInterface.php:35:	public function get( string $key ): mixed;
+src/Intent/ToolDispatcher.php:67:	 * @param callable $executor Callable that executes the tool: fn(array $args): mixed
+
+thinking
+**Noting mixed type hints**
+
+I observed that the codebase uses mixed type hints, and there might be an analogous method to applyFilters called apply_filters with mixed types in WooCommerceConfigGateway. Next, I'll verify this connection.
+exec
+/bin/zsh -lc "sed -n '1,120p' src/Infrastructure/WooCommerceConfigGateway.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 70ms:
+<?php
+/**
+ * WooCommerce config gateway implementation.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Contracts\WooCommerceConfigGatewayInterface;
+
+/**
+ * Wraps WooCommerce configuration functions.
+ */
+final class WooCommerceConfigGateway implements WooCommerceConfigGatewayInterface {
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function get_paid_statuses(): array {
+
+thinking
+**Noticing mixed types on applyFilters**
+
+The apply_filters method uses mixed types, so adding mixed types for applyFilters aligns with that. I'll check WooCommerceConfigGatewayInterface next.
+exec
+/bin/zsh -lc "sed -n '1,120p' src/Contracts/WooCommerceConfigGatewayInterface.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 65ms:
+<?php
+/**
+ * WooCommerce config gateway interface.
+ *
+ * @package AgentWP\Contracts
+ */
+
+namespace AgentWP\Contracts;
+
+/**
+ * Contract for WooCommerce configuration operations.
+ *
+ * Abstracts wc_get_is_paid_statuses() and similar config functions.
+ */
+interface WooCommerceConfigGatewayInterface {
+
+	/**
+	 * Get the list of paid order statuses.
+	 *
+	 * @return array<string> List of status slugs.
+
+
+thinking
+**Considering interface type update**
+
+The applyFilters method in WPFunctions needs its signature updated to match the HooksInterface, which likely uses mixed types; this suggests also updating HooksInterface and related Fake implementations for consistency despite the spec not explicitly requiring interface changes.
+thinking
+**Confirming minimal interface changes and focusing on test fake update**
+
+The HooksInterface and WPFunctions signatures mostly already match, so no significant WPFunctions changes are needed; the key focus is updating the test Fake to accept the variadic argument properly and adjust its internal handling to align with the updated signature.
+exec
+/bin/zsh -lc 'rg "getLastFilter|filters" -n tests' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 71ms:
+tests/Support/EncryptionFunctionOverrides.php:14:	public static $apply_filters;
+tests/Support/EncryptionFunctionOverrides.php:22:		self::$apply_filters           = null;
+tests/Support/EncryptionFunctionOverrides.php:88:	public static function apply_filters( $hook, $value, ...$args ) {
+tests/Support/EncryptionFunctionOverrides.php:89:		if ( null !== self::$apply_filters ) {
+tests/Support/EncryptionFunctionOverrides.php:90:			return call_user_func( self::$apply_filters, $hook, $value, ...$args );
+tests/Support/EncryptionFunctionOverrides.php:93:		return \apply_filters( $hook, $value, ...$args );
+tests/Support/encryption-functions.php:30:function apply_filters( $hook, $value, ...$args ) {
+tests/Support/encryption-functions.php:31:	return EncryptionFunctionOverrides::apply_filters( $hook, $value, ...$args );
+tests/bootstrap.php:121:if ( ! function_exists( 'apply_filters' ) ) {
+tests/bootstrap.php:122:	function apply_filters( $hook, $value, ...$args ) {
+tests/Fakes/FakeWPFunctions.php:33:	public array $filters = array();
+tests/Fakes/FakeWPFunctions.php:64:	 * Apply WordPress filters.
+tests/Fakes/FakeWPFunctions.php:74:		$this->filters[] = array(
+tests/Fakes/FakeWPFunctions.php:113:	public function getLastFilter(): ?array {
+tests/Fakes/FakeWPFunctions.php:114:		return count( $this->filters ) > 0 ? $this->filters[ count( $this->filters ) - 1 ] : null;
+tests/Fakes/FakeWPFunctions.php:139:		foreach ( $this->filters as $filter ) {
+tests/Fakes/FakeWPFunctions.php:167:		$this->filters       = array();
+tests/Integration/Architecture/BoundariesTest.php:104:		'apply_filters',
+tests/Unit/Plugin/UpgraderTest.php:178:	public function test_get_pending_steps_filters_by_version_range(): void {
+tests/Unit/Intent/MemoryStoreConfigTest.php:112:		// Check that filters were applied with settings values.
+
+thinking
+**Inspecting test expectations on args**
+exec
+/bin/zsh -lc "sed -n '80,150p' tests/Unit/Intent/MemoryStoreConfigTest.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 71ms:
+		$container->singleton( OptionsInterface::class, fn() => $options );
+		$container->singleton( SettingsManager::class, fn( $c ) => new SettingsManager( $c->get( OptionsInterface::class ) ) );
+		$container->singleton( WPFunctions::class, fn() => $wp );
+
+		$provider = new IntentServiceProvider( $container );
+		$provider->register();
+
+		$container->get( MemoryStoreInterface::class );
+
+		$this->assertTrue( $wp->wasFilterApplied( 'agentwp_memory_ttl' ) );
+	}
+
+	public function test_memory_store_passes_settings_to_filter(): void {
+		$wp = new FakeWPFunctions();
+
+		$options = new FakeOptions(
+			array(
+				SettingsManager::OPTION_MEMORY_LIMIT => 15,
+				SettingsManager::OPTION_MEMORY_TTL   => 2400,
+			)
+
+thinking
+**Searching for filter argument usage**
+exec
+/bin/zsh -lc "rg \"\\['args'\\]\" -n tests/Fakes tests/Unit" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 67ms:
+tests/Unit/Intent/Classifier/ScorerRegistryTest.php:262:		$this->assertSame( Intent::ORDER_REFUND, $lastAction['args'][0] );
+tests/Unit/Intent/Classifier/ScorerRegistryTest.php:263:		$this->assertIsArray( $lastAction['args'][1] ); // scores.
+tests/Unit/Intent/Classifier/ScorerRegistryTest.php:264:		$this->assertSame( 'I need a refund', $lastAction['args'][2] );
+tests/Unit/Intent/Classifier/ScorerRegistryTest.php:265:		$this->assertSame( array(), $lastAction['args'][3] );
+tests/Unit/Intent/Classifier/ScorerRegistryTest.php:280:		$this->assertSame( Intent::ORDER_STATUS, $lastAction['args'][0] );
+tests/Unit/Intent/Classifier/ScorerRegistryTest.php:281:		$this->assertSame( array(), $lastAction['args'][1] ); // Empty scores on override.
+tests/Unit/Intent/Classifier/ScorerRegistryTest.php:282:		$this->assertSame( 'some input', $lastAction['args'][2] );
+tests/Unit/Intent/Classifier/ScorerRegistryTest.php:283:		$this->assertSame( array( 'intent' => 'ORDER_STATUS' ), $lastAction['args'][3] );
+
+
+thinking
+**Preserving filter args behavior**
+
+I'm keeping the args array structure to start with `$value` followed by additional args to maintain current behavior and avoid test breaks, updating the applyFilters signature to include splat `...$args` while aligning the docblock accordingly.
+thinking
+**Deciding not to add types to interface**
+
+I'm avoiding adding `mixed` types or return types to the interface to prevent breaking compatibility, so WPFunctions stays unchanged except for docblock tweaks, and only Fake will get a variadic update to align signatures without changing interface or WPFunctions parameter types.
+exec
+/bin/zsh -lc 'ls .plans' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 74ms:
+C01-01.md
+C01-02.md
+C01-03.md
+M00-01.md
+M00-02.md
+M00-03.md
+M01-01.md
+M01-02.md
+M01-03.md
+M01-04.md
+M01-05.md
+M01-06.md
+M02-01.md
+M02-02.md
+M02-03.md
+M02-04.md
+M02-05.md
+M02-06.md
+M03-01.md
+M03-02.md
+
+thinking
+**Checking recent HooksInterface changes**
+exec
+/bin/zsh -lc 'cat .plans/C01-02.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 29ms:
+# C01-02 — Make HooksInterface::applyFilters variadic
+
+Update `src/Contracts/HooksInterface.php` so `applyFilters()` accepts variadic args (to match real usage in `src/Intent/Engine.php`) and fix the PHPDoc/signature mismatch. Target: PHPStan no longer reports HookInterface argument/param errors.
+
+
+thinking
+**Verifying function signature alignment**
+
+WPFunctions already uses the variadic signature matching the updated interface, including the docblock, so no changes needed there; the focus now shifts to ensuring FakeWPFunctions and test fakes reflect this update.
+thinking
+**Planning precise FakeWPFunctions update**
+
+WPFunctions signature already matches and needs no change; I'll update FakeWPFunctions to use the variadic signature and preserve existing behavior of capturing `$args` including the value for compatibility, adjusting the docblock accordingly before running phpstan for validation.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/tests/Fakes/FakeWPFunctions.php
+@@ -67,7 +67,7 @@
+ 	 * @param mixed  $value     Value to filter.
++	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value ) {
+-		$args = func_get_args();
+-		array_shift( $args ); // Remove $hook_name.
++	public function applyFilters( string $hook_name, $value, ...$args ) {
++		$captured_args = array_merge( array( $value ), $args );
+ 
+@@ -76,3 +76,3 @@
+ 			'value' => $value,
+-			'args'  => $args,
++			'args'  => $captured_args,
+ 		);
+apply_patch(auto_approved=true) exited 0 in 30ms:
+Success. Updated the following files:
+M tests/Fakes/FakeWPFunctions.php
+file update:
+diff --git a/tests/Fakes/FakeWPFunctions.php b/tests/Fakes/FakeWPFunctions.php
+index 69faabc96184d5afae753fc02e7de34854e34693..8abbb4ddca7c5bf9f6d739051a759f6e5977a9ff
+--- a/tests/Fakes/FakeWPFunctions.php
++++ b/tests/Fakes/FakeWPFunctions.php
+@@ -65,16 +65,16 @@
+ 	 *
+ 	 * @param string $hook_name Filter name.
+ 	 * @param mixed  $value     Value to filter.
++	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value ) {
+-		$args = func_get_args();
+-		array_shift( $args ); // Remove $hook_name.
++	public function applyFilters( string $hook_name, $value, ...$args ) {
++		$captured_args = array_merge( array( $value ), $args );
+ 
+ 		$this->filters[] = array(
+ 			'hook'  => $hook_name,
+ 			'value' => $value,
+-			'args'  => $args,
++			'args'  => $captured_args,
+ 		);
+ 
+ 		// Return mocked value if set.
+
+file update:
+diff --git a/tests/Fakes/FakeWPFunctions.php b/tests/Fakes/FakeWPFunctions.php
+index 69faabc96184d5afae753fc02e7de34854e34693..8abbb4ddca7c5bf9f6d739051a759f6e5977a9ff
+--- a/tests/Fakes/FakeWPFunctions.php
++++ b/tests/Fakes/FakeWPFunctions.php
+@@ -65,16 +65,16 @@
+ 	 *
+ 	 * @param string $hook_name Filter name.
+ 	 * @param mixed  $value     Value to filter.
++	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value ) {
+-		$args = func_get_args();
+-		array_shift( $args ); // Remove $hook_name.
++	public function applyFilters( string $hook_name, $value, ...$args ) {
++		$captured_args = array_merge( array( $value ), $args );
+ 
+ 		$this->filters[] = array(
+ 			'hook'  => $hook_name,
+ 			'value' => $value,
+-			'args'  => $args,
++			'args'  => $captured_args,
+ 		);
+ 
+ 		// Return mocked value if set.
+
+
+thinking
+**Verifying function signature alignment**
+
+Confirmed the WPFunctions signature already matches the spec, so no changes are needed there or in tests; next step is running static analysis with phpstan.
+exec
+/bin/zsh -lc 'composer run phpstan' in /Users/ahmedyounis/Documents/Projects/agentwp exited 1 in 2.23s:
+> php -d memory_limit=1G vendor/bin/phpstan analyse --no-progress
+Note: Using configuration file /Users/ahmedyounis/Documents/Projects/agentwp/phpstan.neon.
+ ------ ------------------------------------------------- 
+  Line   src/Infrastructure/RateLimiting/RateLimiter.php  
+ ------ ------------------------------------------------- 
+  227    If condition is always true.                     
+ ------ ------------------------------------------------- 
+
+
+ [ERROR] Found 1 error                                                          
+
+Script php -d memory_limit=1G vendor/bin/phpstan analyse --no-progress handling the phpstan event returned with error code 1
+file update:
+diff --git a/tests/Fakes/FakeWPFunctions.php b/tests/Fakes/FakeWPFunctions.php
+index 69faabc96184d5afae753fc02e7de34854e34693..8abbb4ddca7c5bf9f6d739051a759f6e5977a9ff
+--- a/tests/Fakes/FakeWPFunctions.php
++++ b/tests/Fakes/FakeWPFunctions.php
+@@ -65,16 +65,16 @@
+ 	 *
+ 	 * @param string $hook_name Filter name.
+ 	 * @param mixed  $value     Value to filter.
++	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value ) {
+-		$args = func_get_args();
+-		array_shift( $args ); // Remove $hook_name.
++	public function applyFilters( string $hook_name, $value, ...$args ) {
++		$captured_args = array_merge( array( $value ), $args );
+ 
+ 		$this->filters[] = array(
+ 			'hook'  => $hook_name,
+ 			'value' => $value,
+-			'args'  => $args,
++			'args'  => $captured_args,
+ 		);
+ 
+ 		// Return mocked value if set.
+
+
+
+thinking
+**Noting phpstan failure as risk**
+
+The phpstan error is unrelated to current changes and shouldn't be fixed now, but it will be reported as a risk in the final summary with status set to NEEDS-REVIEW. Also confirmed WPFunctions applyFilters signature matches the interface and documentation is adequate.
+thinking
+**Finalizing summary with phpstan failure**
+
+Setting status to NEEDS-REVIEW due to phpstan failing on an always-true condition in `RateLimiter.php`. The only change was updating `tests/Fakes/FakeWPFunctions.php` to make `applyFilters` variadic and update its docblock. Verification is via `composer run phpstan` with the noted failure. Risks include the existing phpstan error needing separate attention.
+codex
+Status: NEEDS-REVIEW
+
+Summary of changes
+- Updated `tests/Fakes/FakeWPFunctions.php` so `applyFilters` is variadic and captures arguments consistently with the interface.
+
+How to verify
+- `composer run phpstan`
+
+Risks / follow-ups
+- `composer run phpstan` currently fails with “If condition is always true” in `src/Infrastructure/RateLimiting/RateLimiter.php:227`. This appears unrelated to this change and needs separate attention.
+file update:
+diff --git a/tests/Fakes/FakeWPFunctions.php b/tests/Fakes/FakeWPFunctions.php
+index 69faabc96184d5afae753fc02e7de34854e34693..8abbb4ddca7c5bf9f6d739051a759f6e5977a9ff
+--- a/tests/Fakes/FakeWPFunctions.php
++++ b/tests/Fakes/FakeWPFunctions.php
+@@ -65,16 +65,16 @@
+ 	 *
+ 	 * @param string $hook_name Filter name.
+ 	 * @param mixed  $value     Value to filter.
++	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value ) {
+-		$args = func_get_args();
+-		array_shift( $args ); // Remove $hook_name.
++	public function applyFilters( string $hook_name, $value, ...$args ) {
++		$captured_args = array_merge( array( $value ), $args );
+ 
+ 		$this->filters[] = array(
+ 			'hook'  => $hook_name,
+ 			'value' => $value,
+-			'args'  => $args,
++			'args'  => $captured_args,
+ 		);
+ 
+ 		// Return mocked value if set.
+
+tokens used
+27,815
