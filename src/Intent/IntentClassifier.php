@@ -4,8 +4,8 @@
  *
  * @package AgentWP
  *
- * @deprecated 2.0.0 Use AgentWP\Intent\Classifier\ScorerRegistry instead.
- *             This class will be removed in version 3.0.0.
+ * @deprecated 0.2.0 Use AgentWP\Intent\Classifier\ScorerRegistry instead.
+ *             Planned removal: 1.0.0. Resolve IntentClassifierInterface from the DI container.
  *             See docs/adr/0003-intent-classification-strategy.md for migration details.
  */
 
@@ -16,9 +16,10 @@ use AgentWP\Contracts\IntentClassifierInterface;
 /**
  * Legacy rule-based intent classifier.
  *
- * @deprecated 2.0.0 Use ScorerRegistry as the canonical intent classification mechanism.
- *             Direct instantiation of this class is deprecated. Instead, resolve
- *             IntentClassifierInterface from the DI container which returns ScorerRegistry.
+ * @deprecated 0.2.0 Use ScorerRegistry as the canonical intent classification mechanism.
+ *             Planned removal: 1.0.0. Direct instantiation of this class is deprecated.
+ *             Instead, resolve IntentClassifierInterface from the DI container which returns
+ *             ScorerRegistry.
  *
  * Migration example:
  * ```php
@@ -50,9 +51,10 @@ class IntentClassifier implements IntentClassifierInterface {
 			self::$deprecation_triggered = true;
 
 			$message = sprintf(
-				'%s is deprecated since version 2.0.0. Use %s instead. ' .
+				'%s is deprecated since version 0.2.0. Use %s instead. ' .
+				'Planned removal: 1.0.0. ' .
 				'Resolve IntentClassifierInterface from the DI container for the canonical implementation. ' .
-				'This class will be removed in version 3.0.0. See docs/adr/0003-intent-classification-strategy.md.',
+				'See docs/adr/0003-intent-classification-strategy.md.',
 				__CLASS__,
 				\AgentWP\Intent\Classifier\ScorerRegistry::class
 			);
@@ -61,7 +63,7 @@ class IntentClassifier implements IntentClassifierInterface {
 				_doing_it_wrong(
 					__CLASS__,
 					esc_html( $message ),
-					'2.0.0'
+					'0.2.0'
 				);
 			} elseif ( function_exists( 'trigger_error' ) ) {
 				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_trigger_error
@@ -73,7 +75,8 @@ class IntentClassifier implements IntentClassifierInterface {
 	/**
 	 * {@inheritDoc}
 	 *
-	 * @deprecated 2.0.0 Use ScorerRegistry::classify() instead.
+	 * @deprecated 0.2.0 Use ScorerRegistry::classify() instead.
+	 *             Planned removal: 1.0.0.
 	 */
 	public function classify( string $input, array $context = array() ): string {
 		if ( isset( $context['intent'] ) ) {

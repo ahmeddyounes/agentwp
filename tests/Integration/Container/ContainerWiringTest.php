@@ -59,7 +59,6 @@ use AgentWP\Intent\Handlers\OrderStatusHandler;
 use AgentWP\Intent\Handlers\ProductStockHandler;
 use AgentWP\Intent\Classifier\ScorerRegistry;
 use AgentWP\Intent\Intent;
-use AgentWP\Intent\IntentClassifier;
 use AgentWP\Intent\ToolRegistry;
 use AgentWP\Plugin\RestRouteRegistrar;
 use AgentWP\Plugin\SettingsManager;

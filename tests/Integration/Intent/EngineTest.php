@@ -13,7 +13,7 @@ use AgentWP\Intent\Handler;
 use AgentWP\Intent\HandlerRegistry;
 use AgentWP\Intent\Handlers\FallbackHandler;
 use AgentWP\Intent\Intent;
-use AgentWP\Intent\IntentClassifier;
+use AgentWP\Contracts\IntentClassifierInterface;
 use AgentWP\Tests\Fakes\FakeMemoryStore;
 use AgentWP\Tests\TestCase;
 
@@ -34,7 +34,7 @@ class EngineTest extends TestCase {
 			}
 		};
 
-		$classifier = new class() extends IntentClassifier {
+		$classifier = new class() implements IntentClassifierInterface {
 			public function classify( string $input, array $context = array() ): string {
 				unset( $input, $context );
 				return Intent::ORDER_STATUS;
@@ -72,7 +72,7 @@ class EngineTest extends TestCase {
 	}
 
 	public function test_engine_uses_fallback_for_unknown_intent(): void {
-		$classifier = new class() extends IntentClassifier {
+		$classifier = new class() implements IntentClassifierInterface {
 			public function classify( string $input, array $context = array() ): string {
 				unset( $input, $context );
 				return 'unknown_intent';
@@ -127,7 +127,7 @@ class EngineTest extends TestCase {
 			}
 		};
 
-		$classifier = new class() extends IntentClassifier {
+		$classifier = new class() implements IntentClassifierInterface {
 			public function classify( string $input, array $context = array() ): string {
 				return Intent::ORDER_STATUS;
 			}

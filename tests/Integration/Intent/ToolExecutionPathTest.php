@@ -15,7 +15,7 @@ use AgentWP\Intent\HandlerRegistry;
 use AgentWP\Intent\Handlers\AbstractAgenticHandler;
 use AgentWP\Intent\Handlers\FallbackHandler;
 use AgentWP\Intent\Intent;
-use AgentWP\Intent\IntentClassifier;
+use AgentWP\Contracts\IntentClassifierInterface;
 use AgentWP\Tests\Fakes\FakeAIClientFactory;
 use AgentWP\Tests\Fakes\FakeMemoryStore;
 use AgentWP\Tests\Fakes\FakeToolRegistry;
@@ -131,7 +131,7 @@ class ToolExecutionPathTest extends TestCase {
 			}
 		};
 
-		$classifier = new class() extends IntentClassifier {
+		$classifier = new class() implements IntentClassifierInterface {
 			public function classify( string $input, array $context = array() ): string {
 				unset( $input, $context );
 				return Intent::ORDER_STATUS;
@@ -277,7 +277,7 @@ class ToolExecutionPathTest extends TestCase {
 			}
 		};
 
-		$classifier = new class() extends IntentClassifier {
+		$classifier = new class() implements IntentClassifierInterface {
 			public function classify( string $input, array $context = array() ): string {
 				unset( $input, $context );
 				return Intent::ORDER_STATUS;

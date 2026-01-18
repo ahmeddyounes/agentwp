@@ -15,7 +15,7 @@ use AgentWP\Intent\Handler;
 use AgentWP\Intent\HandlerRegistry;
 use AgentWP\Intent\Handlers\FallbackHandler;
 use AgentWP\Intent\Intent;
-use AgentWP\Intent\IntentClassifier;
+use AgentWP\Contracts\IntentClassifierInterface;
 use AgentWP\Tests\Fakes\FakeMemoryStore;
 use AgentWP\Tests\Fakes\FakeWPFunctions;
 use AgentWP\Tests\TestCase;
@@ -218,10 +218,10 @@ class EngineHooksTest extends TestCase {
 	 * Create a stub intent classifier that returns a fixed intent.
 	 *
 	 * @param string $intent Intent to return.
-	 * @return IntentClassifier
+	 * @return IntentClassifierInterface
 	 */
-	private function createStubClassifier( string $intent ): IntentClassifier {
-		return new class( $intent ) extends IntentClassifier {
+	private function createStubClassifier( string $intent ): IntentClassifierInterface {
+		return new class( $intent ) implements IntentClassifierInterface {
 			private string $fixedIntent;
 
 			public function __construct( string $intent ) {
