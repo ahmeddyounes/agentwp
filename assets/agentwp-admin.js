@@ -812,7 +812,7 @@
 	}
 
 	function boot() {
-		var root = document.getElementById('agentwp-admin-root');
+		var root = document.getElementById('agentwp-root') || document.getElementById('agentwp-admin-root');
 		if (!root || root.dataset.agentwpInitialized) {
 			return;
 		}

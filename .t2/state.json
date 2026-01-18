@@ -1,8 +1,11 @@
 {
-  "completed_task_ids": [],
+  "completed_task_ids": [
+    "P01-01"
+  ],
   "claude_sessions": {
-    "P01-01": "30b745b7-7af1-479a-9b13-52971979a8de"
+    "P01-01": "30b745b7-7af1-479a-9b13-52971979a8de",
+    "P01-02": "af20f878-f05d-4e44-aee3-bac84213edf7"
   },
   "gemini_sessions": {},
-  "updated_at": "2026-01-18T07:43:09.621284Z"
+  "updated_at": "2026-01-18T07:45:10.392349Z"
 }

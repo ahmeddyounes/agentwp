@@ -95,7 +95,7 @@ final class AdminMenuManager {
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'AgentWP', 'agentwp' ) . '</h1>';
 		echo '<p>' . esc_html__( 'AgentWP admin UI will load here.', 'agentwp' ) . '</p>';
-		echo '<div id="agentwp-admin-root" class="agentwp-admin"></div>';
+		echo '<div id="agentwp-root" class="agentwp-admin"></div>';
 		echo '</div>';
 	}
 
