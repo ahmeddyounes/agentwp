@@ -8,7 +8,9 @@
 namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\AnalyticsServiceInterface;
+use AgentWP\DTO\AnalyticsQueryDTO;
 use AgentWP\DTO\ServiceResult;
 use WP_REST_Response;
 use WP_REST_Server;
@@ -29,14 +31,6 @@ class AnalyticsController extends RestController {
 					'methods'             => WP_REST_Server::READABLE,
 					'callback'            => array( $this, 'get_analytics' ),
 					'permission_callback' => array( $this, 'permissions_check' ),
-					'args'                => array(
-						'period' => array(
-							'default'           => '7d',
-							'validate_callback' => function ( $param ) {
-								return in_array( $param, array( '7d', '30d', '90d' ), true );
-							},
-						),
-					),
 				),
 			)
 		);
@@ -49,7 +43,18 @@ class AnalyticsController extends RestController {
 	 * @return WP_REST_Response
 	 */
 	public function get_analytics( $request ) {
-		$period = $request->get_param( 'period' );
+		$dto = new AnalyticsQueryDTO( $request );
+
+		if ( ! $dto->isValid() ) {
+			$error = $dto->getError();
+			return $this->response_error(
+				AgentWPConfig::ERROR_CODE_INVALID_REQUEST,
+				$error ? $error->get_error_message() : __( 'Invalid request.', 'agentwp' ),
+				400
+			);
+		}
+
+		$period = $dto->getPeriod();
 
 		$service = $this->resolveRequired( AnalyticsServiceInterface::class, 'Analytics service' );
 		if ( $service instanceof WP_REST_Response ) {

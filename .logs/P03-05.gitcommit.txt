@@ -1,0 +1,29 @@
+[main 3908bfc] P03-05: implement
+ 31 files changed, 2467 insertions(+), 63 deletions(-)
+ create mode 100644 .logs/P03-04.gitcommit.txt
+ create mode 100644 .logs/P03-05.claude.impl.last.md
+ create mode 100644 .logs/P03-05.claude.impl.raw.txt
+ create mode 100644 .plans/P03-05.md
+ create mode 100644 .t2/handoff/P03-05.md
+ create mode 100644 src/DTO/AddressDTO.php
+ create mode 100644 src/DTO/AnalyticsCategoryBreakdownDTO.php
+ create mode 100644 src/DTO/AnalyticsChartDTO.php
+ create mode 100644 src/DTO/AnalyticsMetricsDTO.php
+ create mode 100644 src/DTO/CustomerFavoriteDTO.php
+ create mode 100644 src/DTO/CustomerHealthThresholdsDTO.php
+ create mode 100644 src/DTO/CustomerLtvProjectionDTO.php
+ create mode 100644 src/DTO/CustomerMetricsDTO.php
+ create mode 100644 src/DTO/CustomerProfileDTO.php
+ create mode 100644 src/DTO/CustomerSummaryDTO.php
+ create mode 100644 src/DTO/OrderItemDTO.php
+ create mode 100644 src/DTO/OrderQuerySummaryDTO.php
+ create mode 100644 src/DTO/OrderSearchItemDTO.php
+ create mode 100644 src/DTO/OrderSearchResultsDTO.php
+ create mode 100644 src/DTO/OrderSummaryDTO.php
+ create mode 100644 src/DTO/SearchResultItemDTO.php
+ create mode 100644 src/DTO/SearchResultsDTO.php
+ create mode 100644 src/DTO/UsageBreakdownItemDTO.php
+ create mode 100644 src/DTO/UsageDailyTrendDTO.php
+ create mode 100644 src/DTO/UsageSummaryDTO.php
+
+→ No staged files match any configured task.

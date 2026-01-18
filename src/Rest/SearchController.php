@@ -10,6 +10,7 @@ namespace AgentWP\Rest;
 use AgentWP\API\RestController;
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\SearchServiceInterface;
+use AgentWP\DTO\SearchQueryDTO;
 use WP_REST_Server;
 
 class SearchController extends RestController {
@@ -39,24 +40,19 @@ class SearchController extends RestController {
 	 * @return \WP_REST_Response
 	 */
 	public function search( $request ) {
-		$validation = $this->validate_request( $request, $this->get_search_schema(), 'query' );
-		if ( is_wp_error( $validation ) ) {
-			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_REQUEST, $validation->get_error_message(), 400 );
+		$dto = new SearchQueryDTO( $request );
+
+		if ( ! $dto->isValid() ) {
+			$error = $dto->getError();
+			return $this->response_error(
+				AgentWPConfig::ERROR_CODE_INVALID_REQUEST,
+				$error ? $error->get_error_message() : __( 'Invalid request.', 'agentwp' ),
+				400
+			);
 		}
 
-		$params = $request->get_query_params();
-		$query  = isset( $params['q'] ) ? sanitize_text_field( (string) $params['q'] ) : '';
-		$types  = array();
-
-		if ( isset( $params['types'] ) ) {
-			if ( is_array( $params['types'] ) ) {
-				$types = $params['types'];
-			} else {
-				$types = explode( ',', (string) $params['types'] );
-			}
-		}
-
-		$types = array_map( 'trim', $types );
+		$query = $dto->getQuery();
+		$types = $dto->getTypes();
 
 		$searchService = $this->resolveRequired( SearchServiceInterface::class, 'Search service' );
 		if ( $searchService instanceof \WP_REST_Response ) {
@@ -70,27 +66,6 @@ class SearchController extends RestController {
 				'query'   => $query,
 				'results' => $results,
 			)
-		);
-	}
-
-	/**
-	 * Schema for search query params.
-	 *
-	 * @return array
-	 */
-	private function get_search_schema() {
-		return array(
-			'type'       => 'object',
-			'properties' => array(
-				'q'     => array(
-					'type'      => 'string',
-					'minLength' => 1,
-				),
-				'types' => array(
-					'type' => array( 'string', 'array' ),
-				),
-			),
-			'required'   => array( 'q' ),
 		);
 	}
 }
