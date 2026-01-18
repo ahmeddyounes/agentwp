@@ -317,6 +317,84 @@ class BoundariesTest extends TestCase {
 	// -------------------------------------------------------------------------
 
 	/**
+	 * Canonical directory for REST controllers (relative to src).
+	 */
+	private const CONTROLLER_DIRECTORIES = array( 'Rest' );
+
+	/**
+	 * Test that all controller files are in the canonical location.
+	 *
+	 * This test scans the entire src directory for classes that look like
+	 * controllers but are located outside the canonical src/Rest directory.
+	 * Controllers outside the canonical location will not be properly scanned
+	 * by the other boundary tests.
+	 */
+	public function test_all_controllers_are_in_canonical_location(): void {
+		$srcPath     = $this->srcPath;
+		$allPhpFiles = self::getPhpFilesRecursive( $srcPath );
+
+		$violations = array();
+
+		foreach ( $allPhpFiles as $filePath ) {
+			// Check if this file looks like a controller.
+			if ( ! $this->looksLikeController( $filePath ) ) {
+				continue;
+			}
+
+			// Check if it's in one of the canonical directories.
+			$isInCanonicalDir = false;
+			foreach ( self::CONTROLLER_DIRECTORIES as $dir ) {
+				$canonicalPath = $srcPath . '/' . $dir . '/';
+				if ( str_starts_with( $filePath, $canonicalPath ) ) {
+					$isInCanonicalDir = true;
+					break;
+				}
+			}
+
+			if ( ! $isInCanonicalDir ) {
+				$relativePath = str_replace( $srcPath . '/', '', $filePath );
+				$violations[] = $relativePath;
+			}
+		}
+
+		$this->assertEmpty(
+			$violations,
+			sprintf(
+				"Controllers found outside canonical location (src/Rest):\n- %s\n\nAll REST controllers must be located in src/Rest/.",
+				implode( "\n- ", $violations )
+			)
+		);
+	}
+
+	/**
+	 * Check if a file looks like a controller based on filename and content.
+	 *
+	 * @param string $filePath File path.
+	 * @return bool Whether the file appears to be a controller.
+	 */
+	private function looksLikeController( string $filePath ): bool {
+		$fileName = basename( $filePath );
+
+		// Check filename pattern.
+		if ( str_ends_with( $fileName, 'Controller.php' ) ) {
+			return true;
+		}
+
+		// Also check file content for classes extending WP_REST_Controller or RestController.
+		$code = file_get_contents( $filePath );
+		if ( false === $code ) {
+			return false;
+		}
+
+		// Quick regex check before parsing.
+		if ( preg_match( '/extends\s+(WP_REST_Controller|RestController)\b/', $code ) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
 	 * Test that REST controllers extend the base RestController.
 	 *
 	 * All REST controllers must extend RestController to get the resolve()
@@ -340,19 +418,26 @@ class BoundariesTest extends TestCase {
 		$classes = $this->nodeFinder->findInstanceOf( $ast, Node\Stmt\Class_::class );
 
 		foreach ( $classes as $class ) {
+			// Skip classes without extends.
 			if ( ! $class->extends ) {
-				continue;
+				$this->fail(
+					sprintf(
+						'REST controller %s must extend RestController (no parent class found)',
+						$class->name ? $class->name->toString() : 'anonymous'
+					)
+				);
 			}
 
 			$extendsName = $class->extends->toString();
 
-			// Controllers should extend RestController.
+			// Controllers must extend RestController (the project's base class).
+			// We check for 'RestController' at the end to allow fully qualified names.
 			$this->assertTrue(
-				str_ends_with( $extendsName, 'RestController' ) ||
-				str_ends_with( $extendsName, 'WP_REST_Controller' ),
+				'RestController' === $extendsName ||
+				str_ends_with( $extendsName, '\\RestController' ),
 				sprintf(
-					'REST controller %s must extend RestController to use container resolution (found: %s)',
-					$class->name->toString(),
+					'REST controller %s must extend AgentWP\\Rest\\RestController to use container resolution (found: extends %s)',
+					$class->name ? $class->name->toString() : 'anonymous',
 					$extendsName
 				)
 			);
@@ -437,16 +522,40 @@ class BoundariesTest extends TestCase {
 	/**
 	 * Data provider for REST controller files.
 	 *
+	 * Scans all canonical controller directories and returns controller files
+	 * (excluding base classes like RestController.php).
+	 *
 	 * @return array<string, array{string}>
 	 */
 	public static function restControllerFilesProvider(): array {
-		$srcPath = dirname( __DIR__, 3 ) . '/src/Rest';
-		$files   = self::getPhpFilesRecursive( $srcPath );
+		$srcPath = dirname( __DIR__, 3 ) . '/src';
 		$data    = array();
 
-		foreach ( $files as $file ) {
-			$name          = basename( $file );
-			$data[ $name ] = array( $file );
+		// Scan all canonical controller directories.
+		foreach ( self::CONTROLLER_DIRECTORIES as $dir ) {
+			$controllerPath = $srcPath . '/' . $dir;
+			if ( ! is_dir( $controllerPath ) ) {
+				continue;
+			}
+
+			$files = self::getPhpFilesRecursive( $controllerPath );
+
+			foreach ( $files as $file ) {
+				$fileName = basename( $file );
+
+				// Skip base controller class.
+				if ( 'RestController.php' === $fileName ) {
+					continue;
+				}
+
+				// Only include files that look like controllers.
+				if ( ! str_ends_with( $fileName, 'Controller.php' ) ) {
+					continue;
+				}
+
+				$relativePath        = str_replace( $srcPath . '/', '', $file );
+				$data[ $relativePath ] = array( $file );
+			}
 		}
 
 		return $data;

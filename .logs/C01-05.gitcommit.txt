@@ -1,11 +1,6 @@
-[main ba58891] C01-05: implement
- 9 files changed, 452 insertions(+), 3 deletions(-)
- create mode 100644 .logs/C01-04.gitcommit.txt
- create mode 100644 .logs/C01-05.claude.after1.last.md
- create mode 100644 .logs/C01-05.claude.after1.raw.txt
- create mode 100644 .logs/C01-05.claude.impl.last.md
- create mode 100644 .logs/C01-05.claude.impl.raw.txt
- create mode 100644 .plans/C01-05.md
- create mode 100644 .t2/handoff/C01-05.md
+[main aba97d5] C01-05: implement
+ 12 files changed, 171 insertions(+), 92 deletions(-)
+ rename src/{API => Infrastructure/RateLimiting}/RateLimiter.php (94%)
+ rename tests/Unit/{API => Infrastructure/RateLimiting}/RateLimiterTest.php (97%)
 
 → No staged files match any configured task.
