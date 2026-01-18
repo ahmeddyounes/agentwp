@@ -1,42 +1,26 @@
-# Architecture Inventory: Stranded Subsystems
+# Architecture Inventory: Subsystem Integration Status
 
-**Date:** 2026-01-17
-**Status:** Active
+**Date:** 2026-01-17 (Updated: 2026-01-18)
+**Status:** Completed
 **Related:** `docs/ARCHITECTURE-IMPROVEMENT-PLAN.md`
 
-This document inventories currently unused or partially integrated subsystems in the AgentWP codebase, with explicit decisions and owner tasks for each.
+This document tracks subsystems that were previously identified as "stranded" - implemented but not integrated into the runtime wiring. All decisions have now been executed.
 
 ## Overview
 
-During the architecture audit, several subsystems were identified as "stranded" - implemented but not integrated into the runtime wiring. This document provides:
-
-1. A complete inventory of each subsystem
-2. An explicit decision: **INTEGRATE**, **DELETE**, or **DEFER**
-3. Owner task references for tracking
+During the architecture audit (2026-01-17), several subsystems were identified as needing integration or deletion. This document has been updated to reflect the current state after all decisions have been implemented.
 
 ---
 
-## Subsystem Inventory
+## Subsystem Status (Current)
 
 ### 1. AI Client Components
 
-**Location:** `src/AI/Client/`
-**Files:**
-- `ParsedResponse.php` - Immutable DTO for parsed responses
-- `StreamParser.php` - SSE streaming response parser
-- `RequestBuilder.php` - Chat completion payload builder
-- `ResponseParser.php` - Non-streaming response parser
-- `ToolNormalizer.php` - Function-to-tool format converter
-- `UsageEstimator.php` - Token usage estimator
+**Original Location:** `src/AI/Client/`
+**Original Decision:** DELETE
+**Current Status:** ✅ **COMPLETED** - Files deleted
 
-**Status:** DEFINED BUT UNUSED
-**Analysis:** These modular components duplicate functionality already present in the monolithic `OpenAIClient`. The `OpenAIClient` handles all HTTP requests, retry logic, response parsing, streaming, and tool normalization internally. These components have zero imports outside their own directory.
-
-**Decision:** DELETE
-**Rationale:** ADR 0004 explicitly decides to delete these components. The architectural improvement is achieved by refactoring `OpenAIClient` to use infrastructure abstractions (`HttpClientInterface`, `RetryExecutor`) rather than these intermediate components.
-
-**Owner Task:** Phase 1 of ADR 0004 - Delete Unused Components
-**Epic:** D - AI client unification
+The modular components (`ParsedResponse.php`, `StreamParser.php`, `RequestBuilder.php`, `ResponseParser.php`, `ToolNormalizer.php`, `UsageEstimator.php`) have been removed. The `OpenAIClient` now uses infrastructure abstractions (`HttpClientInterface`, `RetryExecutor`) as specified in ADR 0004.
 
 ---
 
@@ -49,23 +33,13 @@ During the architecture audit, several subsystems were identified as "stranded" 
 - `AbstractScorer.php` - Base scorer with word-boundary matching
 - `Scorers/*.php` - Individual scorer implementations (7 scorers)
 
-**Status:** DEFINED BUT UNUSED BY RUNTIME
-**Analysis:** A complete, well-designed pluggable classification system exists but is not wired. The `IntentClassifier` in `src/Intent/IntentClassifier.php` uses hardcoded inline scoring methods instead. The `ScorerRegistry` provides:
-- Word-boundary regex matching (more precise than substring)
-- DoS protection (MAX_INPUT_LENGTH)
-- Deterministic tie-breaking (alphabetical)
-- Testable in isolation (per-scorer tests)
+**Original Decision:** INTEGRATE
+**Current Status:** ✅ **COMPLETED** - Integrated in runtime
 
-**Decision:** INTEGRATE
-**Rationale:** ADR 0003 explicitly designates `ScorerRegistry` as the canonical intent classification mechanism. It provides superior extensibility, precision, and testability compared to the legacy `IntentClassifier`.
-
-**Owner Task:** Phase 3 of Architecture Improvement Plan - Intent engine modernization
-**Epic:** C - Intent wiring + handler registration
-
-**Migration Steps:**
-1. Update `IntentServiceProvider` to register `ScorerRegistry` as `IntentClassifierInterface`
-2. Add `agentwp_intent_scorers` filter for third-party extension
-3. Deprecate legacy `IntentClassifier` (maintain through v2.x, remove in v3.0)
+The `ScorerRegistry` is now registered as `IntentClassifierInterface` in `src/Providers/IntentServiceProvider.php:156-195`. The implementation includes:
+- All 7 default scorers (RefundScorer, StatusScorer, StockScorer, EmailScorer, AnalyticsScorer, CustomerScorer, SearchScorer)
+- `agentwp_intent_scorers` filter for third-party extension
+- Proper WPFunctions injection for testability
 
 ---
 
@@ -74,19 +48,13 @@ During the architecture audit, several subsystems were identified as "stranded" 
 **Location:** `src/API/RateLimiter.php`, `src/Contracts/RateLimiterInterface.php`
 **Related:** `tests/Fakes/FakeRateLimiter.php`
 
-**Status:** REGISTERED BUT NOT USED BY REST LAYER
-**Analysis:** A proper `RateLimiterInterface` service is registered in `RestServiceProvider` with atomic `checkAndIncrement()`, configurable limits, and a test double (`FakeRateLimiter`). However, `RestController::check_rate_limit()` uses static transient calls directly instead of the injected service.
+**Original Decision:** INTEGRATE
+**Current Status:** ✅ **COMPLETED** - Integrated in runtime
 
-**Decision:** INTEGRATE
-**Rationale:** ADR 0005 explicitly mandates the injected `RateLimiterInterface` as the single supported rate limiting mechanism. The static method will be deprecated and removed.
-
-**Owner Task:** Phase 5 of Architecture Improvement Plan - REST API layer polish
-**Epic:** E - REST consistency + docs
-
-**Migration Steps:**
-1. Replace static `check_rate_limit()` calls with container-resolved `RateLimiterInterface`
-2. Mark `RestController::check_rate_limit()` as deprecated
-3. Remove static method in next major version
+The `RateLimiterInterface` is now used by `RestController::check_rate_limit_via_service()` (line 147) which resolves the service from the container. The implementation includes:
+- Atomic `check()` and `increment()` methods
+- `getRetryAfter()` for Retry-After header support
+- `FakeRateLimiter` test double for testing
 
 ---
 
@@ -95,22 +63,19 @@ During the architecture audit, several subsystems were identified as "stranded" 
 **Location:** `src/Retry/`
 **Files:**
 - `RetryExecutor.php` - Generic retry infrastructure
-- `RetryPolicyInterface.php` - Policy contract
 - `ExponentialBackoffPolicy.php` - Backoff policy with OpenAI preset
+- `RetryExhaustedException.php` - Exception for exhausted retries
 
-**Status:** REGISTERED BUT UNUSED
-**Analysis:** `RetryExecutor` is registered in `InfrastructureServiceProvider` as a singleton. `ExponentialBackoffPolicy::forOpenAI()` provides ready-to-use configuration. However, `OpenAIClient` implements its own retry logic internally (lines 214-247) instead of using this infrastructure.
+**Contract Location:** `src/Contracts/RetryPolicyInterface.php`
 
-**Decision:** INTEGRATE
-**Rationale:** ADR 0004 mandates refactoring `OpenAIClient` to use `RetryExecutor` for consistency and testability. This eliminates duplicate retry implementations and enables unit testing without mocking WordPress HTTP globals.
+**Original Decision:** INTEGRATE
+**Current Status:** ✅ **COMPLETED** - Integrated in runtime
 
-**Owner Task:** Phase 4 of Architecture Improvement Plan - AI client refactor
-**Epic:** D - AI client unification
-
-**Migration Steps:**
-1. Add `RetryExecutor` as optional constructor dependency to `OpenAIClient`
-2. Replace internal `request_with_retry()` with `$this->retryExecutor->execute()`
-3. Remove redundant internal methods: `sleep_with_backoff()`, `is_retryable_status()`, `is_retryable_error()`
+The `OpenAIClient` now uses `RetryExecutor` internally (see `src/AI/OpenAIClient.php:100-130`). The implementation includes:
+- `buildRetryExecutor()` method that creates the executor with injected or default dependencies
+- Configuration via `AgentWPConfig` for retry settings
+- `onRetry` callback for logging retry attempts
+- `executeWithCheck()` for success-based retry evaluation
 
 ---
 
@@ -118,55 +83,24 @@ During the architecture audit, several subsystems were identified as "stranded" 
 
 **Location:** `src/DTO/ServiceResult.php`
 
-**Status:** DEFINED BUT UNUSED
-**Analysis:** A complete DTO with factory methods for service operation outcomes:
-- `success($data, $message)`
-- `failure($message, $code)`
-- `error($message, $code)`
-- `notFound($message)`
-- `forbidden($message)`
-- `validationError($message, $errors)`
-- `serverError($message)`
+**Original Decision:** DEFER (integrate incrementally)
+**Current Status:** ✅ **COMPLETED** - Widely adopted
 
-Zero imports in the codebase. Services currently return raw arrays or throw exceptions.
-
-**Decision:** INTEGRATE LATER (DEFER)
-**Rationale:** Standardizing service outputs is valuable but lower priority than core wiring fixes. Adopt incrementally during Phase 6 (Domain services refactor) as services are touched.
-
-**Owner Task:** Phase 6 of Architecture Improvement Plan - Domain services refactor
-**Epic:** F (implied) - Service output standardization
-
-**Migration Steps:**
-1. Start with new services using `ServiceResult`
-2. Migrate existing services during refactoring
-3. Update controllers to handle `ServiceResult` response pattern
+The `ServiceResult` DTO is now used extensively across the codebase (34+ files), including:
+- All domain services: `OrderRefundService`, `OrderStatusService`, `ProductStockService`, `CustomerService`, `AnalyticsService`, `EmailDraftService`
+- Service interfaces: `OrderSearchServiceInterface`, `CustomerServiceInterface`, `AnalyticsServiceInterface`, etc.
+- Pipeline services: `PipelineOrderSearchService`, `OrderQueryService`
+- Test fakes and unit tests
 
 ---
 
 ### 6. EmailContextBuilder
 
-**Location:** `src/Context/EmailContextBuilder.php`
+**Original Location:** `src/Context/EmailContextBuilder.php`
+**Original Decision:** DEFER
+**Current Status:** ✅ **COMPLETED** - Deleted
 
-**Status:** DEFINED BUT UNUSED
-**Analysis:** A comprehensive builder (~1000 lines) for constructing email drafting context with:
-- Order details, line items, totals
-- Customer information
-- Shipping and tracking data
-- Payment information
-- Issue detection (late shipment, partial refund, etc.)
-
-The simpler `ContextBuilder` class is used instead. `EmailContextBuilder` has zero imports in the codebase.
-
-**Decision:** INTEGRATE LATER (DEFER)
-**Rationale:** This builder provides rich context for AI-assisted email drafting. Integration depends on the email handler feature maturity. Keep for future integration when email drafting becomes a priority feature.
-
-**Owner Task:** Future feature work - Email drafting enhancement
-**Epic:** Not yet scheduled
-
-**Migration Steps:**
-1. Wire `EmailContextBuilder` in `CoreServiceProvider` or `IntentServiceProvider`
-2. Update email-related handlers to use the rich context
-3. Consider merging valuable extraction logic into `ContextBuilder` if overlap exists
+The `EmailContextBuilder` has been removed. The standard `ContextBuilder` is sufficient for current email drafting needs. If richer context is needed in the future, it can be rebuilt based on actual requirements.
 
 ---
 
@@ -174,49 +108,35 @@ The simpler `ContextBuilder` class is used instead. `EmailContextBuilder` has ze
 
 **Location:** `src/Services/OrderSearch/`
 **Files:**
+- `PipelineOrderSearchService.php` - Adapter implementing `OrderSearchServiceInterface`
 - `OrderQueryService.php` - Query execution with caching
 - `OrderFormatter.php` - Order result formatting
 - `ArgumentNormalizer.php` - Search argument normalization
 - `OrderSearchParser.php` - Natural language parsing
 - `DateRangeParser.php` - Date range extraction
 
-**Status:** DEFINED BUT UNUSED
-**Analysis:** A modular, testable order search pipeline exists but is not wired. The monolithic `OrderSearchService` (in `src/Services/OrderSearchService.php`) is registered in `ServicesServiceProvider` instead. The pipeline components use:
-- Repository interfaces (`OrderRepositoryInterface`)
-- DTOs (`OrderDTO`, `OrderQuery`)
-- Caching interfaces (`CacheInterface`, `TransientCacheInterface`)
+**Original Decision:** INTEGRATE
+**Current Status:** ✅ **COMPLETED** - Integrated in runtime
 
-**Decision:** INTEGRATE
-**Rationale:** The modular pipeline is more testable and follows the established DI patterns. It should replace the monolithic service.
-
-**Owner Task:** Phase 6 of Architecture Improvement Plan or dedicated Epic F
-**Epic:** F - Order search consolidation
-
-**Migration Steps:**
-1. Wire `OrderQueryService` (with dependencies) in `ServicesServiceProvider`
-2. Update `OrderSearchHandler` to use the new pipeline
-3. Deprecate and remove `src/Services/OrderSearchService.php`
-4. Add unit tests for pipeline components
+The pipeline is now wired in `src/Providers/ServicesServiceProvider.php:122-196`. The implementation includes:
+- Full DI wiring of all pipeline components
+- `PipelineOrderSearchService` registered as `OrderSearchServiceInterface`
+- Fallback stub when WooCommerce is unavailable
+- The old monolithic `OrderSearchService.php` has been deleted
 
 ---
 
 ## Summary Table
 
-| Subsystem | Location | Decision | Priority | Owner Epic |
-|-----------|----------|----------|----------|------------|
-| AI Client Components | `src/AI/Client/` | DELETE | High | D |
-| Scorer Registry | `src/Intent/Classifier/` | INTEGRATE | High | C |
-| Rate Limiter Service | `src/API/RateLimiter.php` | INTEGRATE | Medium | E |
-| Retry Executor | `src/Retry/` | INTEGRATE | Medium | D |
-| ServiceResult DTO | `src/DTO/ServiceResult.php` | DEFER | Low | F |
-| EmailContextBuilder | `src/Context/EmailContextBuilder.php` | DEFER | Low | Future |
-| OrderSearch Pipeline | `src/Services/OrderSearch/` | INTEGRATE | Medium | F |
-
-## Decision Legend
-
-- **DELETE**: Remove the code; it provides no value over existing implementations
-- **INTEGRATE**: Wire into runtime; replaces or supplements existing implementation
-- **DEFER**: Keep for future integration; no immediate action required
+| Subsystem | Original Decision | Current Status | Implementation Location |
+|-----------|------------------|----------------|------------------------|
+| AI Client Components | DELETE | ✅ Deleted | N/A |
+| Scorer Registry | INTEGRATE | ✅ Integrated | `IntentServiceProvider.php:156-195` |
+| Rate Limiter Service | INTEGRATE | ✅ Integrated | `RestController.php:147-173` |
+| Retry Executor | INTEGRATE | ✅ Integrated | `OpenAIClient.php:100-130` |
+| ServiceResult DTO | DEFER | ✅ Adopted | 34+ files |
+| EmailContextBuilder | DEFER | ✅ Deleted | N/A |
+| OrderSearch Pipeline | INTEGRATE | ✅ Integrated | `ServicesServiceProvider.php:122-196` |
 
 ## Related Documents
 
@@ -230,3 +150,4 @@ The simpler `ContextBuilder` class is used instead. `EmailContextBuilder` has ze
 | Date | Change |
 |------|--------|
 | 2026-01-17 | Initial inventory created |
+| 2026-01-18 | Updated to reflect completion of all integration/deletion decisions |
