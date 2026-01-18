@@ -216,11 +216,15 @@ export type Period = '7d' | '30d' | '90d';
 export interface AgentWPSettings {
   root?: string;
   nonce?: string;
+  apiNamespace?: string;
   restNamespace?: string;
   theme?: string;
   supportEmail?: string;
   version?: string;
   demoMode?: boolean;
+  historyLimit?: number;
+  favoritesLimit?: number;
+  agenticMaxTurns?: number;
   [key: string]: unknown;
 }
 

@@ -1,11 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { CommandEntry } from '../types';
-import {
-  COMMAND_HISTORY_KEY,
-  MAX_COMMAND_HISTORY,
-  MAX_COMMAND_FAVORITES,
-} from '../utils/constants';
+import { COMMAND_HISTORY_KEY, getFavoritesLimit, getHistoryLimit } from '../utils/constants';
 
 interface CommandUsage {
   [prompt: string]: number;
@@ -48,9 +44,12 @@ export const useCommandStore = create<CommandState & CommandActions>()(
           id: generateId(),
           timestamp: Date.now(),
         };
+        const historyLimit = getHistoryLimit();
 
         set((state) => ({
-          history: [newEntry, ...state.history].slice(0, MAX_COMMAND_HISTORY),
+          history: historyLimit
+            ? [newEntry, ...state.history].slice(0, historyLimit)
+            : [newEntry, ...state.history],
           lastEntry: newEntry,
         }));
       },
@@ -67,8 +66,11 @@ export const useCommandStore = create<CommandState & CommandActions>()(
           if (state.favorites.some((f) => f.id === entry.id)) {
             return state;
           }
+          const favoritesLimit = getFavoritesLimit();
           return {
-            favorites: [entry, ...state.favorites].slice(0, MAX_COMMAND_FAVORITES),
+            favorites: favoritesLimit
+              ? [entry, ...state.favorites].slice(0, favoritesLimit)
+              : [entry, ...state.favorites],
           };
         }),
 

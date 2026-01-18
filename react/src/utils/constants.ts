@@ -10,8 +10,27 @@ export const DEMO_TOUR_SEEN_KEY = 'agentwp-demo-tour-seen';
 
 // Limits
 export const MAX_DRAFT_HISTORY = 10;
-export const MAX_COMMAND_HISTORY = 50;
-export const MAX_COMMAND_FAVORITES = 50;
+
+const getRuntimeLimit = (value: unknown): number | null => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return Math.floor(value);
+};
+
+export const getHistoryLimit = (): number | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return getRuntimeLimit(window.agentwpSettings?.historyLimit);
+};
+
+export const getFavoritesLimit = (): number | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return getRuntimeLimit(window.agentwpSettings?.favoritesLimit);
+};
 
 // Timing
 export const DEMO_TOUR_START_DELAY_MS = 600;

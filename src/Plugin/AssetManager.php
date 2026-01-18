@@ -381,11 +381,15 @@ final class AssetManager {
 			'root'          => esc_url_raw( rest_url() ),
 			'nonce'         => wp_create_nonce( 'wp_rest' ),
 			'restNamespace' => AgentWPConfig::REST_NAMESPACE,
+			'apiNamespace'  => AgentWPConfig::REST_NAMESPACE,
 			'theme'         => $this->themeManager->getUserTheme(),
 			'supportEmail'  => sanitize_email( get_option( 'admin_email' ) ),
 			'version'       => $this->version,
 			'demoMode'      => $this->settings->isDemoMode(),
-			'assetsUrl'     => $this->pluginUrl . '/assets/build/',
+			'assetsUrl'       => $this->pluginUrl . '/assets/build/',
+			'historyLimit'    => (int) AgentWPConfig::get( 'history.limit', AgentWPConfig::HISTORY_LIMIT ),
+			'favoritesLimit'  => (int) AgentWPConfig::get( 'favorites.limit', AgentWPConfig::FAVORITES_LIMIT ),
+			'agenticMaxTurns' => (int) AgentWPConfig::get( 'agentic.max_turns', AgentWPConfig::AGENTIC_MAX_TURNS ),
 		);
 	}
 

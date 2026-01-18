@@ -127,9 +127,14 @@ Object.defineProperty(window, 'agentwpSettings', {
   value: {
     root: '/wp-json/',
     nonce: 'test-nonce',
+    apiNamespace: 'agentwp/v1',
+    restNamespace: 'agentwp/v1',
     theme: 'light',
     supportEmail: 'test@example.com',
     version: '1.0.0',
     demoMode: false,
+    historyLimit: 50,
+    favoritesLimit: 50,
+    agenticMaxTurns: 5,
   },
 });

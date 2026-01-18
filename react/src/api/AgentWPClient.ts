@@ -31,8 +31,6 @@ type UsagePeriod = 'day' | 'week' | 'month';
 // Theme type from theme update request
 type ThemeValue = 'light' | 'dark';
 
-const DEFAULT_API_NAMESPACE = 'agentwp/v1' as const;
-
 /**
  * Error codes used internally.
  */
@@ -120,20 +118,20 @@ export class AgentWPClient {
    * Get the REST API base URL.
    */
   getBaseUrl(): string {
-    const restNamespace =
-      typeof window !== 'undefined' ? window.agentwpSettings?.restNamespace : undefined;
-    const apiNamespace = restNamespace || DEFAULT_API_NAMESPACE;
-
     if (typeof window === 'undefined' || !window.agentwpSettings) {
-      return `/${apiNamespace}`;
+      return '/';
     }
-    const { root } = window.agentwpSettings;
+    const { root, apiNamespace, restNamespace } = window.agentwpSettings;
+    const namespace = (apiNamespace || restNamespace || '').replace(/^\/+/, '');
+    if (!namespace) {
+      return '/';
+    }
     if (!root) {
-      return `/${apiNamespace}`;
+      return `/${namespace}`;
     }
     // Ensure root ends with slash for proper URL joining.
     const normalizedRoot = root.endsWith('/') ? root : `${root}/`;
-    return `${normalizedRoot}${apiNamespace}`;
+    return `${normalizedRoot}${namespace}`;
   }
 
   /**
