@@ -108,4 +108,21 @@ final class AdminMenuManager {
 	public function setRenderCallback( callable $callback ): void {
 		$this->renderCallback = $callback;
 	}
+
+	/**
+	 * Output the React mount node.
+	 *
+	 * This renders the mount point for the Command Deck UI. It should be called
+	 * via admin_footer on screens where the UI should be accessible but isn't
+	 * the dedicated AgentWP page (e.g., WooCommerce screens).
+	 *
+	 * @return void
+	 */
+	public function outputMountNode(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return;
+		}
+
+		echo '<div id="agentwp-root" class="agentwp-admin"></div>';
+	}
 }

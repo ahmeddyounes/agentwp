@@ -88,6 +88,7 @@ final class AssetManager {
 	public function register(): void {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueueAdminAssets' ) );
 		add_action( 'admin_head', array( $this, 'outputThemeAttribute' ) );
+		add_action( 'admin_footer', array( $this, 'outputMountNode' ) );
 	}
 
 	/**
@@ -125,6 +126,35 @@ final class AssetManager {
 		}
 
 		$this->themeManager->outputThemeScript();
+	}
+
+	/**
+	 * Output the mount node on WooCommerce screens.
+	 *
+	 * The mount node is already rendered on the AgentWP page via renderDefaultPage(),
+	 * so this only outputs on WooCommerce screens where the Command Deck should be
+	 * accessible but isn't the dedicated AgentWP admin page.
+	 *
+	 * @return void
+	 */
+	public function outputMountNode(): void {
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+		if ( null === $screen ) {
+			return;
+		}
+
+		// Skip the AgentWP page - it already has the mount node via renderDefaultPage().
+		if ( $this->menuManager->isAgentWPScreen( $screen->id ) ) {
+			return;
+		}
+
+		// Only output on WooCommerce screens.
+		if ( ! $this->isWooCommerceScreen( $screen ) ) {
+			return;
+		}
+
+		$this->menuManager->outputMountNode();
 	}
 
 	/**
