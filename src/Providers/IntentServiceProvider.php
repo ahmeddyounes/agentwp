@@ -92,6 +92,36 @@ final class IntentServiceProvider extends ServiceProvider {
 	}
 
 	/**
+	 * Boot intent services.
+	 *
+	 * @return void
+	 */
+	public function boot(): void {
+		$this->fireToolRegistrationHook();
+	}
+
+	/**
+	 * Fire tool registration hook for third-party tools.
+	 *
+	 * @return void
+	 */
+	private function fireToolRegistrationHook(): void {
+		if ( ! $this->container->has( HooksInterface::class ) ) {
+			return;
+		}
+
+		if ( ! $this->container->has( ToolRegistryInterface::class ) || ! $this->container->has( ToolDispatcherInterface::class ) ) {
+			return;
+		}
+
+		$hooks      = $this->container->get( HooksInterface::class );
+		$registry   = $this->container->get( ToolRegistryInterface::class );
+		$dispatcher = $this->container->get( ToolDispatcherInterface::class );
+
+		$hooks->doAction( 'agentwp_register_tools', $registry, $dispatcher );
+	}
+
+	/**
 	 * Register memory store.
 	 *
 	 * Configuration is read from SettingsManager with safe defaults if unavailable.

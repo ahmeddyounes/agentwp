@@ -134,6 +134,33 @@ add_action( 'agentwp_register_intent_functions', function( $registry, $engine ) 
 
 ---
 
+### `agentwp_register_tools` (Action)
+
+Register tool schemas and executors without creating a full service provider.
+This exposes the `ToolRegistryInterface` and `ToolDispatcherInterface` so extensions can add
+schemas and executors in one place during boot.
+
+| Property | Value |
+|----------|-------|
+| **File** | `src/Providers/IntentServiceProvider.php:108` |
+| **When** | During `IntentServiceProvider` boot |
+
+**Parameters:**
+- `ToolRegistryInterface $registry` — Registry for tool schemas
+- `ToolDispatcherInterface $dispatcher` — Dispatcher for tool executors
+
+**Example:**
+```php
+add_action( 'agentwp_register_tools', function( $registry, $dispatcher ) {
+    $registry->register( new MyCustomSchema() );
+    $dispatcher->register( 'my_custom_tool', function( $args ) {
+        return array( 'success' => true, 'args' => $args );
+    } );
+}, 10, 2 );
+```
+
+---
+
 ### `agentwp_default_function_mapping` (Filter)
 
 Customize which function suggestions are associated with each intent.
@@ -169,7 +196,7 @@ Add custom intent scorers for classification.
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/Providers/IntentServiceProvider.php:180` |
+| **File** | `src/Providers/IntentServiceProvider.php:225` |
 | **When** | During scorer registry initialization |
 
 **Parameters:**
@@ -335,7 +362,7 @@ Customize the maximum number of memory entries stored.
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/Providers/IntentServiceProvider.php:110` |
+| **File** | `src/Providers/IntentServiceProvider.php:158` |
 | **Default** | 5 |
 | **Minimum** | 1 |
 
@@ -359,7 +386,7 @@ Customize the time-to-live for memory entries.
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/Providers/IntentServiceProvider.php:111` |
+| **File** | `src/Providers/IntentServiceProvider.php:159` |
 | **Default** | 1800 (30 minutes) |
 | **Minimum** | 60 |
 
@@ -600,7 +627,7 @@ add_filter( 'agentwp_intent_scorers', function( $scorers ) {
 ### Registering Custom AI Functions
 
 These hooks register **function suggestions** only. They do not create tool schemas or tool executors.
-To add a callable tool, create a schema in `src/AI/Functions`, an executor in `src/Intent/Tools`, register both in a service provider, and include the tool name in your handler's `getToolNames()`. `AbstractAgenticHandler` implements `ToolSuggestionProvider`, so suggestions are derived from your tool list by default.
+To add a callable tool, create a schema in `src/AI/Functions`, an executor in `src/Intent/Tools`, register both in a service provider (or via `agentwp_register_tools`), and include the tool name in your handler's `getToolNames()`. `AbstractAgenticHandler` implements `ToolSuggestionProvider`, so suggestions are derived from your tool list by default.
 
 ```php
 add_action( 'agentwp_register_intent_functions', function( $registry, $engine ) {
@@ -911,6 +938,7 @@ add_action( 'agentwp_register_providers', function( $container ) {
 | Action | `agentwp_boot_providers` | Plugin.php | Post-boot initialization |
 | Filter | `agentwp_intent_handlers` | Engine.php | Customize intent handlers |
 | Action | `agentwp_register_intent_functions` | Engine.php | Register function suggestions (legacy) |
+| Action | `agentwp_register_tools` | IntentServiceProvider.php | Register tool schemas and executors |
 | Filter | `agentwp_default_function_mapping` | Engine.php | Map tool suggestions to intents |
 | Filter | `agentwp_intent_scorers` | IntentServiceProvider.php | Add custom scorers |
 | Action | `agentwp_intent_classified` | ScorerRegistry.php | Post-classification hook |
