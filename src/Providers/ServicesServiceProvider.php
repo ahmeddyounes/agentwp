@@ -22,6 +22,7 @@ use AgentWP\Contracts\OrderSearchServiceInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
+use AgentWP\Contracts\SearchIndexInterface;
 use AgentWP\Contracts\SearchServiceInterface;
 use AgentWP\Contracts\TransientCacheInterface;
 use AgentWP\Contracts\WooCommerceConfigGatewayInterface;
@@ -35,6 +36,7 @@ use AgentWP\Contracts\WooCommerceUserGatewayInterface;
 use AgentWP\Infrastructure\WooCommerceOrderGateway;
 use AgentWP\Infrastructure\WooCommerceRefundGateway;
 use AgentWP\Infrastructure\WooCommerceStockGateway;
+use AgentWP\Infrastructure\SearchIndexAdapter;
 use AgentWP\Plugin\SettingsManager;
 use AgentWP\Services\AnalyticsService;
 use AgentWP\Services\CustomerService;
@@ -291,14 +293,21 @@ final class ServicesServiceProvider extends ServiceProvider {
 	}
 
 	/**
-	 * Register search service.
+	 * Register search index and search service.
 	 *
 	 * @return void
 	 */
 	private function registerSearchService(): void {
 		$this->container->singleton(
+			SearchIndexInterface::class,
+			fn() => new SearchIndexAdapter()
+		);
+
+		$this->container->singleton(
 			SearchServiceInterface::class,
-			fn() => new SearchService()
+			fn( $c ) => new SearchService(
+				$c->get( SearchIndexInterface::class )
+			)
 		);
 	}
 }

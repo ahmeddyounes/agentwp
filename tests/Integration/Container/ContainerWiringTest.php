@@ -33,6 +33,7 @@ use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
 use AgentWP\Contracts\RateLimiterInterface;
+use AgentWP\Contracts\SearchIndexInterface;
 use AgentWP\Contracts\RetryPolicyInterface;
 use AgentWP\Contracts\SessionHandlerInterface;
 use AgentWP\Contracts\SleeperInterface;
@@ -184,6 +185,7 @@ class ContainerWiringTest extends TestCase {
 			CustomerServiceInterface::class,
 			AnalyticsServiceInterface::class,
 			EmailDraftServiceInterface::class,
+			SearchIndexInterface::class,
 		);
 
 		foreach ( $expected_bindings as $binding ) {

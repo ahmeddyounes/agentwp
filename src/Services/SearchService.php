@@ -7,14 +7,30 @@
 
 namespace AgentWP\Services;
 
+use AgentWP\Contracts\SearchIndexInterface;
 use AgentWP\Contracts\SearchServiceInterface;
 use AgentWP\DTO\SearchResultsDTO;
-use AgentWP\Search\Index;
 
 /**
- * Search service that wraps the Index for DI-based access.
+ * Search service that wraps the search index for DI-based access.
  */
 final class SearchService implements SearchServiceInterface {
+
+	/**
+	 * Search index instance.
+	 *
+	 * @var SearchIndexInterface
+	 */
+	private SearchIndexInterface $searchIndex;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param SearchIndexInterface $searchIndex Search index instance.
+	 */
+	public function __construct( SearchIndexInterface $searchIndex ) {
+		$this->searchIndex = $searchIndex;
+	}
 
 	/**
 	 * Search indexed data.
@@ -25,7 +41,7 @@ final class SearchService implements SearchServiceInterface {
 	 * @return array<string, array> Search results grouped by type.
 	 */
 	public function search( string $query, array $types, int $limit = self::DEFAULT_LIMIT ): array {
-		$rawResults = Index::search( $query, $types, $limit );
+		$rawResults = $this->searchIndex->search( $query, $types, $limit );
 
 		// Validate structure via DTO (for internal consistency).
 		$resultsDTO = SearchResultsDTO::fromArray( $query, $rawResults );
@@ -43,7 +59,7 @@ final class SearchService implements SearchServiceInterface {
 	 * @return SearchResultsDTO Search results DTO.
 	 */
 	public function searchAsDTO( string $query, array $types, int $limit = self::DEFAULT_LIMIT ): SearchResultsDTO {
-		$rawResults = Index::search( $query, $types, $limit );
+		$rawResults = $this->searchIndex->search( $query, $types, $limit );
 
 		return SearchResultsDTO::fromArray( $query, $rawResults );
 	}
