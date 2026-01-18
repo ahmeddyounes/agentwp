@@ -7,12 +7,12 @@
 
 namespace AgentWP\Tests\Fakes;
 
-use AgentWP\Contracts\RateLimiterInterface;
+use AgentWP\Contracts\AtomicRateLimiterInterface;
 
 /**
  * In-memory rate limiter for testing.
  */
-final class FakeRateLimiter implements RateLimiterInterface {
+final class FakeRateLimiter implements AtomicRateLimiterInterface {
 
 	/**
 	 * Request counts per user.
@@ -93,6 +93,32 @@ final class FakeRateLimiter implements RateLimiterInterface {
 		}
 
 		$this->counts[ $userId ]++;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function checkAndIncrement( int $userId ): bool {
+		if ( ! $this->enabled ) {
+			return true;
+		}
+
+		$this->maybeResetWindow( $userId );
+
+		// Check if already at limit.
+		if ( ( $this->counts[ $userId ] ?? 0 ) >= $this->limit ) {
+			return false;
+		}
+
+		// Increment and allow.
+		if ( ! isset( $this->counts[ $userId ] ) ) {
+			$this->counts[ $userId ] = 0;
+			$this->starts[ $userId ] = $this->currentTime;
+		}
+
+		$this->counts[ $userId ]++;
+
+		return true;
 	}
 
 	/**
