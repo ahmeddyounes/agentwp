@@ -1,0 +1,17 @@
+# PHPStan rules to enforce module boundaries in src/Services.
+#
+# src/Services contains domain logic that should NOT depend on WordPress/WooCommerce
+# globals directly. Instead, Services should use injected interfaces from:
+#   - src/Infrastructure (gateways, caches, options)
+#   - src/Security/Policy (capability checks)
+#   - src/Contracts (interface definitions)
+#
+# This ensures Services are testable and decoupled from WordPress core.
+#
+# The rule class is autoloaded via composer.json: "AgentWP\\PHPStan\\": "phpstan/"
+
+services:
+    -
+        class: AgentWP\PHPStan\ForbiddenServicesGlobalsRule
+        tags:
+            - phpstan.rules.rule

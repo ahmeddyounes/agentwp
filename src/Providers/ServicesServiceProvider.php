@@ -113,12 +113,14 @@ final class ServicesServiceProvider extends ServiceProvider {
 	 * @return void
 	 */
 	private function registerOrderSearchService(): void {
-		// Register DateRangeParser.
+		// Register DateRangeParser with WordPress timezone from clock.
 		$this->container->singleton(
 			DateRangeParser::class,
-			fn( $c ) => DateRangeParser::withWordPressTimezone(
-				$c->get( ClockInterface::class )
-			)
+			function ( $c ) {
+				$clock    = $c->get( ClockInterface::class );
+				$timezone = $clock->now()->getTimezone();
+				return new DateRangeParser( $clock, $timezone );
+			}
 		);
 
 		// Register OrderSearchParser.

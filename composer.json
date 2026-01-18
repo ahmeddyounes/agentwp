@@ -24,7 +24,8 @@
   },
   "autoload-dev": {
     "psr-4": {
-      "AgentWP\\Tests\\": "tests/"
+      "AgentWP\\Tests\\": "tests/",
+      "AgentWP\\PHPStan\\": "phpstan/"
     }
   },
   "scripts": {

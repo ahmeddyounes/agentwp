@@ -287,46 +287,4 @@ final class DateRangeParser {
 	public function setTimezone( DateTimeZone $timezone ): void {
 		$this->timezone = $timezone;
 	}
-
-	/**
-	 * Create with WordPress timezone.
-	 *
-	 * @param ClockInterface $clock Clock instance.
-	 * @return self
-	 */
-	public static function withWordPressTimezone( ClockInterface $clock ): self {
-		$timezoneString = '';
-
-		// wp_timezone_string() handles both timezone_string and gmt_offset.
-		if ( function_exists( 'wp_timezone_string' ) ) {
-			$timezoneString = wp_timezone_string();
-		} elseif ( function_exists( 'get_option' ) ) {
-			// Manual fallback: check timezone_string first, then gmt_offset.
-			$timezoneString = (string) get_option( 'timezone_string' );
-
-			if ( '' === $timezoneString ) {
-				// Convert GMT offset to timezone identifier.
-				$offset = (float) get_option( 'gmt_offset', 0 );
-				if ( 0.0 !== $offset ) {
-					// Format as ±HH:MM for DateTimeZone.
-					$hours   = (int) $offset;
-					$minutes = (int) ( abs( $offset - $hours ) * 60 );
-					$sign    = $offset >= 0 ? '+' : '-';
-					$timezoneString = sprintf( '%s%02d:%02d', $sign, abs( $hours ), $minutes );
-				}
-			}
-		}
-
-		if ( '' === $timezoneString ) {
-			$timezoneString = 'UTC';
-		}
-
-		try {
-			$timezone = new DateTimeZone( $timezoneString );
-		} catch ( \Exception $e ) {
-			$timezone = new DateTimeZone( 'UTC' );
-		}
-
-		return new self( $clock, $timezone );
-	}
 }

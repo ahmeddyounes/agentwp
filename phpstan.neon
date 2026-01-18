@@ -1,5 +1,6 @@
 includes:
   - vendor/szepeviktor/phpstan-wordpress/extension.neon
+  - phpstan/services-boundaries.neon
 
 parameters:
   level: 6
