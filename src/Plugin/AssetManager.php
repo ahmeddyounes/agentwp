@@ -148,6 +148,205 @@ final class AssetManager {
 	 * @return void
 	 */
 	private function enqueueScript(): void {
+		$manifest = $this->getViteManifest();
+
+		if ( null !== $manifest ) {
+			$this->enqueueFromManifest( $manifest );
+		} else {
+			$this->enqueueLegacyScript();
+		}
+
+		wp_enqueue_style( 'wp-components' );
+
+		$localization = $this->getScriptLocalization();
+
+		// Use JSON_HEX_TAG to prevent XSS via </script> in JSON strings.
+		wp_add_inline_script(
+			'agentwp-admin',
+			'window.agentwpSettings = ' . wp_json_encode( $localization, JSON_HEX_TAG | JSON_HEX_AMP ),
+			'before'
+		);
+	}
+
+	/**
+	 * Get the Vite manifest if available.
+	 *
+	 * @return array|null Manifest data or null if not available.
+	 */
+	private function getViteManifest(): ?array {
+		$manifestPath = $this->pluginDir . '/assets/build/.vite/manifest.json';
+
+		if ( ! file_exists( $manifestPath ) ) {
+			return null;
+		}
+
+		global $wp_filesystem;
+
+		if ( ! function_exists( 'WP_Filesystem' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+		}
+
+		WP_Filesystem();
+
+		if ( ! $wp_filesystem instanceof \WP_Filesystem_Base ) {
+			return null;
+		}
+
+		$contents = $wp_filesystem->get_contents( $manifestPath );
+
+		if ( false === $contents ) {
+			return null;
+		}
+
+		$manifest = json_decode( $contents, true );
+
+		if ( ! is_array( $manifest ) ) {
+			return null;
+		}
+
+		return $manifest;
+	}
+
+	/**
+	 * Enqueue scripts and styles from Vite manifest.
+	 *
+	 * @param array $manifest Vite manifest data.
+	 * @return void
+	 */
+	private function enqueueFromManifest( array $manifest ): void {
+		$entryKey = 'index.html';
+
+		if ( ! isset( $manifest[ $entryKey ] ) ) {
+			$this->enqueueLegacyScript();
+			return;
+		}
+
+		$entry    = $manifest[ $entryKey ];
+		$buildUrl = $this->pluginUrl . '/assets/build';
+		$buildDir = $this->pluginDir . '/assets/build';
+
+		// Enqueue the entry JS file.
+		$entryFile    = $entry['file'];
+		$entryPath    = $buildDir . '/' . $entryFile;
+		$entryVersion = file_exists( $entryPath ) ? filemtime( $entryPath ) : false;
+
+		wp_enqueue_script(
+			'agentwp-admin',
+			$buildUrl . '/' . $entryFile,
+			array( 'wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n' ),
+			false !== $entryVersion ? (string) $entryVersion : $this->version,
+			true
+		);
+
+		// Add module type for ES module support.
+		add_filter(
+			'script_loader_tag',
+			function ( $tag, $handle ) {
+				if ( 'agentwp-admin' === $handle ) {
+					return str_replace( ' src', ' type="module" src', $tag );
+				}
+				return $tag;
+			},
+			10,
+			2
+		);
+
+		// Enqueue imported chunks.
+		if ( ! empty( $entry['imports'] ) ) {
+			foreach ( $entry['imports'] as $importKey ) {
+				if ( isset( $manifest[ $importKey ] ) ) {
+					$this->enqueueChunk( $manifest[ $importKey ], $manifest, $buildUrl, $buildDir );
+				}
+			}
+		}
+
+		// Enqueue CSS from entry.
+		if ( ! empty( $entry['css'] ) ) {
+			foreach ( $entry['css'] as $index => $cssFile ) {
+				$cssPath    = $buildDir . '/' . $cssFile;
+				$cssVersion = file_exists( $cssPath ) ? filemtime( $cssPath ) : false;
+
+				wp_enqueue_style(
+					'agentwp-admin-css-' . $index,
+					$buildUrl . '/' . $cssFile,
+					array(),
+					false !== $cssVersion ? (string) $cssVersion : $this->version
+				);
+			}
+		}
+	}
+
+	/**
+	 * Enqueue a chunk and its dependencies.
+	 *
+	 * @param array  $chunk    Chunk data from manifest.
+	 * @param array  $manifest Full manifest data.
+	 * @param string $buildUrl Base URL for build assets.
+	 * @param string $buildDir Base directory for build assets.
+	 * @return void
+	 */
+	private function enqueueChunk( array $chunk, array $manifest, string $buildUrl, string $buildDir ): void {
+		static $enqueuedChunks = array();
+
+		$chunkFile = $chunk['file'];
+
+		if ( isset( $enqueuedChunks[ $chunkFile ] ) ) {
+			return;
+		}
+
+		$enqueuedChunks[ $chunkFile ] = true;
+
+		// Recursively enqueue imports first.
+		if ( ! empty( $chunk['imports'] ) ) {
+			foreach ( $chunk['imports'] as $importKey ) {
+				if ( isset( $manifest[ $importKey ] ) ) {
+					$this->enqueueChunk( $manifest[ $importKey ], $manifest, $buildUrl, $buildDir );
+				}
+			}
+		}
+
+		// Preload this chunk via modulepreload link.
+		$chunkPath    = $buildDir . '/' . $chunkFile;
+		$chunkVersion = file_exists( $chunkPath ) ? filemtime( $chunkPath ) : false;
+
+		$chunkUrl = $buildUrl . '/' . $chunkFile;
+		if ( false !== $chunkVersion ) {
+			$chunkUrl = add_query_arg( 'ver', $chunkVersion, $chunkUrl );
+		}
+
+		add_action(
+			'admin_head',
+			function () use ( $chunkUrl ) {
+				printf(
+					'<link rel="modulepreload" href="%s" />',
+					esc_url( $chunkUrl )
+				);
+			}
+		);
+
+		// Enqueue CSS from chunk.
+		if ( ! empty( $chunk['css'] ) ) {
+			foreach ( $chunk['css'] as $index => $cssFile ) {
+				$cssPath    = $buildDir . '/' . $cssFile;
+				$cssVersion = file_exists( $cssPath ) ? filemtime( $cssPath ) : false;
+				$handle     = 'agentwp-chunk-' . sanitize_title( basename( $chunkFile, '.js' ) ) . '-css-' . $index;
+
+				wp_enqueue_style(
+					$handle,
+					$buildUrl . '/' . $cssFile,
+					array(),
+					false !== $cssVersion ? (string) $cssVersion : $this->version
+				);
+			}
+		}
+	}
+
+	/**
+	 * Enqueue the legacy admin script (fallback when manifest unavailable).
+	 *
+	 * @return void
+	 */
+	private function enqueueLegacyScript(): void {
 		$scriptPath = $this->pluginDir . '/assets/agentwp-admin.js';
 
 		if ( ! file_exists( $scriptPath ) ) {
@@ -162,17 +361,6 @@ final class AssetManager {
 			array( 'wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n' ),
 			false !== $scriptVersion ? (string) $scriptVersion : $this->version,
 			true
-		);
-
-		wp_enqueue_style( 'wp-components' );
-
-		$localization = $this->getScriptLocalization();
-
-		// Use JSON_HEX_TAG to prevent XSS via </script> in JSON strings.
-		wp_add_inline_script(
-			'agentwp-admin',
-			'window.agentwpSettings = ' . wp_json_encode( $localization, JSON_HEX_TAG | JSON_HEX_AMP ),
-			'before'
 		);
 	}
 
