@@ -56,7 +56,8 @@ class ProductStockService implements ProductStockServiceInterface {
 				$product = $this->stockGateway->get_product( $product );
 			}
 
-			if ( ! $product instanceof \WC_Product ) {
+			// Gateway returns null for invalid products.
+			if ( null === $product ) {
 				continue;
 			}
 
