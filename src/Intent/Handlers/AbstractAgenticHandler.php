@@ -16,6 +16,7 @@ use AgentWP\Contracts\OpenAIClientInterface;
 use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\ToolDispatcher;
+use AgentWP\Intent\ToolSuggestionProvider;
 
 /**
  * Abstract handler that provides the agentic interaction loop.
@@ -25,7 +26,7 @@ use AgentWP\Intent\ToolDispatcher;
  * - getToolNames(): array
  * - registerToolExecutors(ToolDispatcherInterface $dispatcher): void
  */
-abstract class AbstractAgenticHandler extends BaseHandler {
+abstract class AbstractAgenticHandler extends BaseHandler implements ToolSuggestionProvider {
 
 	/**
 	 * Get maximum number of interaction turns before giving up.
@@ -99,6 +100,15 @@ abstract class AbstractAgenticHandler extends BaseHandler {
 	 * @return array<string> Array of tool names.
 	 */
 	abstract protected function getToolNames(): array;
+
+	/**
+	 * Get tool names to surface as suggestions for this handler.
+	 *
+	 * @return array<string>
+	 */
+	public function getSuggestedTools(): array {
+		return $this->getToolNames();
+	}
 
 	/**
 	 * Get the tools available to this handler from the registry.

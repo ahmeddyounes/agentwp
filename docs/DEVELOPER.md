@@ -368,7 +368,8 @@ array $handlers = apply_filters(
 ```
 
 ### `agentwp_default_function_mapping`
-Override the default intent-to-function mapping (function suggestions only).
+Override the default intent-to-tool suggestion mapping (function suggestions only).
+Defaults are derived from each handler's tool list via `ToolSuggestionProvider`.
 This does **not** register tool schemas or executors; it only affects `function_suggestions` in responses.
 
 Signature:
@@ -382,6 +383,7 @@ array $mapping = apply_filters(
 
 ### `agentwp_register_intent_functions`
 Register additional function suggestions after defaults are registered.
+Suggestions are filtered against the `ToolRegistry` when available, so register a tool schema if you want it to appear.
 This does **not** create tool schemas or executors; tool definitions live in `src/AI/Functions` and execution in `src/Intent/Tools`.
 
 Signature:
@@ -624,7 +626,7 @@ AgentWP follows the Phase 4 tooling decision: tools are defined as schema classe
 - [ ] Register the executor in `IntentServiceProvider::registerToolDispatcher()` or `registerToolExecutors()`.
 - [ ] Add the tool name in the handler's `getToolNames()` to expose the schema.
 - [ ] Cast/validate argument types in execution code (OpenAI returns primitives).
-- [ ] If you want the tool name to appear in response payloads, update `agentwp_register_intent_functions` / `agentwp_default_function_mapping`.
+- [ ] If you want the tool name to appear in response payloads, expose it via `ToolSuggestionProvider` (handled automatically by `AbstractAgenticHandler`) or override `agentwp_register_intent_functions` / `agentwp_default_function_mapping`.
 - [ ] If you introduce or modify hooks, update `docs/EXTENSIONS.md`.
 
 ## Extension guide: custom intent scorer

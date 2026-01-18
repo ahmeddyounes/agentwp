@@ -379,7 +379,8 @@ final class IntentServiceProvider extends ServiceProvider {
 					$this->container->get( MemoryStoreInterface::class ),
 					$this->container->get( HandlerRegistry::class ),
 					$this->container->get( FallbackHandler::class ),
-					$hooks
+					$hooks,
+					$this->container->get( ToolRegistryInterface::class )
 				);
 			}
 		);

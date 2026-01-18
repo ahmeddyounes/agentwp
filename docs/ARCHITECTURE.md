@@ -304,7 +304,7 @@ AgentWP uses OpenAI function calling (tools) to enable AI-driven workflows. The 
 - **Tool executor** — PHP classes in `src/Intent/Tools/*` implement `ExecutableToolInterface` and perform the actual business logic. These are registered with `ToolDispatcher`.
 - **Tool dispatch** — `ToolDispatcher` validates arguments against the registered schema and routes the tool call to the executor, returning a JSON-safe payload.
 - **Handler exposure** — `AbstractAgenticHandler::getToolNames()` controls which tool schemas are exposed to the model for a given intent. A tool is only callable if it is both registered with `ToolDispatcher` and listed in `getToolNames()`.
-- **Function registry (legacy)** — `FunctionRegistry` and the `agentwp_register_intent_functions`/`agentwp_default_function_mapping` hooks provide *function suggestions* in response payloads. They do not register tool schemas or executors.
+- **Function registry (legacy)** — `FunctionRegistry` and the `agentwp_register_intent_functions`/`agentwp_default_function_mapping` hooks provide *function suggestions* in response payloads. Defaults are derived from handler tool lists (`ToolSuggestionProvider`) and filtered against the `ToolRegistry` when available. They do not register tool schemas or executors.
 
 ```mermaid
 flowchart TB
@@ -396,8 +396,8 @@ flowchart TB
    ```
 
 6. **(Optional)** Update function suggestions if you want the tool name to appear in responses:
-   - `agentwp_register_intent_functions`
-   - `agentwp_default_function_mapping`
+   - Implement `ToolSuggestionProvider` (already included in `AbstractAgenticHandler`)
+   - Or override `agentwp_register_intent_functions` / `agentwp_default_function_mapping`
 
 See [ADR 0008: Tool Execution Architecture](adr/0008-tool-execution-architecture.md) for detailed rationale and design principles.
 

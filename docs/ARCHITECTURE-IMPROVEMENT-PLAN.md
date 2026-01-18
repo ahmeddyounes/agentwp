@@ -96,13 +96,13 @@ Deliverable: clear release history + predictable upgrades.
 
 Goal: reduce conceptual complexity and make extension points easier to use safely.
 
-- [ ] Document the canonical terminology:
+- [x] Document the canonical terminology:
   - “Tool schema” (OpenAI tool definition) lives in `src/AI/Functions/*` (or rename/move in a later step).
   - “Tool executor” lives in `src/Intent/Tools/*` and is dispatched by `ToolDispatcher`.
-- [ ] Reconcile `FunctionRegistry` vs `ToolRegistry`:
+- [x] Reconcile `FunctionRegistry` vs `ToolRegistry`:
   - Option A (minimal): keep `FunctionRegistry` for backward compatibility but document it as “legacy suggestions only”.
   - Option B (preferred long-term): replace `FunctionRegistry` with a `ToolSuggestionRegistry` or derive suggestions from `ToolRegistry` + handler tool lists.
-- [ ] Fix mapping drift:
+- [x] Fix mapping drift:
   - Ensure `Engine::register_default_functions()` mappings match the actual tools exposed by each handler (`getToolNames()`), or remove unused mappings if nothing consumes them.
 - [ ] Improve unknown-tool behavior:
   - Ensure errors returned by `ToolDispatcher::dispatch()` are surfaced in a consistent, user-safe way (and logged via `AuditLogger`/`LoggerInterface` without secrets).

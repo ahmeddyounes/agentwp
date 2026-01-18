@@ -12,6 +12,8 @@ use AgentWP\Contracts\ContextBuilderInterface;
 use AgentWP\Contracts\HooksInterface;
 use AgentWP\Contracts\IntentClassifierInterface;
 use AgentWP\Contracts\MemoryStoreInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Intent\ToolSuggestionProvider;
 
 class Engine {
 	/**
@@ -62,6 +64,7 @@ class Engine {
 	 * @param HandlerRegistry           $handler_registry  Handler registry.
 	 * @param Handler                   $fallback_handler  Fallback handler for unknown intents.
 	 * @param HooksInterface|null       $hooks             Hooks adapter (optional for backward compatibility).
+	 * @param ToolRegistryInterface|null $tool_registry    Tool registry (optional, used for suggestions).
 	 */
 	public function __construct(
 		array $handlers,
@@ -71,7 +74,8 @@ class Engine {
 		MemoryStoreInterface $memory,
 		HandlerRegistry $handler_registry,
 		Handler $fallback_handler,
-		?HooksInterface $hooks = null
+		?HooksInterface $hooks = null,
+		?ToolRegistryInterface $tool_registry = null
 	) {
 		$this->classifier        = $classifier;
 		$this->context_builder   = $context_builder;
@@ -86,6 +90,11 @@ class Engine {
 			: $handlers;
 
 		$this->register_handlers( is_array( $resolved_handlers ) ? $resolved_handlers : array() );
+		$this->function_registry->set_handler_registry( $this->handler_registry );
+		if ( $tool_registry ) {
+			$this->function_registry->set_tool_registry( $tool_registry );
+		}
+
 		$this->register_default_functions();
 
 		if ( $this->hooks ) {
@@ -245,15 +254,19 @@ class Engine {
 	 * @return void
 	 */
 	private function register_default_functions(): void {
-		$mapping = array(
-			Intent::ORDER_SEARCH    => array( 'search_orders', 'select_orders' ),
-			Intent::ORDER_REFUND    => array( 'prepare_refund', 'confirm_refund' ),
-			Intent::ORDER_STATUS    => array( 'prepare_status_update', 'prepare_bulk_status_update', 'bulk_update' ),
-			Intent::PRODUCT_STOCK   => array( 'prepare_stock_update', 'search_product' ),
-			Intent::EMAIL_DRAFT     => array( 'draft_email' ),
-			Intent::ANALYTICS_QUERY => array( 'get_sales_report' ),
-			Intent::CUSTOMER_LOOKUP => array( 'get_customer_profile' ),
-		);
+		$mapping = array();
+
+		foreach ( $this->handler_registry->intents() as $intent ) {
+			$handler = $this->handler_registry->get( $intent );
+			if ( ! $handler instanceof ToolSuggestionProvider ) {
+				continue;
+			}
+
+			$tools = $handler->getSuggestedTools();
+			if ( ! empty( $tools ) ) {
+				$mapping[ $intent ] = $tools;
+			}
+		}
 
 		if ( $this->hooks ) {
 			$mapping = $this->hooks->applyFilters( 'agentwp_default_function_mapping', $mapping, $this );
