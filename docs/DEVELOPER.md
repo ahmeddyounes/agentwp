@@ -247,7 +247,10 @@ composer run phpstan
 Note: PHPStan needs more memory than the default PHP CLI limit; `composer run phpstan` sets `memory_limit=1G`.
 
 ## Hook and filter reference
-AgentWP exposes a few filters to help you customize behavior.
+
+> **Complete reference:** See [EXTENSIONS.md](EXTENSIONS.md) for the full list of supported actions, filters, and extension points with detailed signatures and examples.
+
+AgentWP exposes filters to help you customize behavior. Key hooks are summarized below.
 
 ### `agentwp_refund_notify_customer`
 Control whether refund emails are sent.
@@ -895,6 +898,7 @@ The generated types are deterministic and should be regenerated when the OpenAPI
 
 | Document | Purpose |
 |----------|---------|
+| [EXTENSIONS.md](EXTENSIONS.md) | **Complete reference** for all supported actions, filters, and extension points |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Technical architecture with boot flow diagrams and service layer details |
 | [ARCHITECTURE-IMPROVEMENT-PLAN.md](ARCHITECTURE-IMPROVEMENT-PLAN.md) | Completed architecture improvement roadmap |
 | [CHANGELOG.md](CHANGELOG.md) | Version history and migration guide for breaking changes |
