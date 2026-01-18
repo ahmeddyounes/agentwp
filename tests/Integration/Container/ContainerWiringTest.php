@@ -25,6 +25,7 @@ use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\EmailDraftServiceInterface;
 use AgentWP\Contracts\HttpClientInterface;
 use AgentWP\Contracts\IntentClassifierInterface;
+use AgentWP\Contracts\LoggerInterface;
 use AgentWP\Contracts\MemoryStoreInterface;
 use AgentWP\Contracts\OptionsInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
@@ -42,6 +43,7 @@ use AgentWP\Contracts\TransientCacheInterface;
 use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\Infrastructure\SearchIndexAdapter;
 use AgentWP\Infrastructure\UsageTrackerAdapter;
+use AgentWP\Infrastructure\WooCommerceLogger;
 use AgentWP\Intent\ContextBuilder;
 use AgentWP\Intent\Engine;
 use AgentWP\Intent\FunctionRegistry;
@@ -157,6 +159,7 @@ class ContainerWiringTest extends TestCase {
 			DraftStorageInterface::class,
 			PolicyInterface::class,
 			UsageTrackerInterface::class,
+			LoggerInterface::class,
 		);
 
 		foreach ( $expected_bindings as $binding ) {
@@ -894,5 +897,57 @@ class ContainerWiringTest extends TestCase {
 				);
 			}
 		}
+	}
+
+	// -------------------------------------------------------------------------
+	// Logger Resolution Tests
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Test that LoggerInterface resolves to WooCommerceLogger.
+	 */
+	public function test_logger_interface_resolves_to_woocommerce_logger(): void {
+		$this->registerProvidersWithoutRest();
+
+		$logger = $this->container->get( LoggerInterface::class );
+
+		$this->assertInstanceOf(
+			WooCommerceLogger::class,
+			$logger,
+			'LoggerInterface should resolve to WooCommerceLogger'
+		);
+	}
+
+	/**
+	 * Test that LoggerInterface is a singleton.
+	 */
+	public function test_logger_is_singleton(): void {
+		$this->registerProvidersWithoutRest();
+
+		$logger1 = $this->container->get( LoggerInterface::class );
+		$logger2 = $this->container->get( LoggerInterface::class );
+
+		$this->assertSame(
+			$logger1,
+			$logger2,
+			'LoggerInterface should be a singleton'
+		);
+	}
+
+	/**
+	 * Test that controllers can resolve LoggerInterface.
+	 */
+	public function test_controllers_can_resolve_logger(): void {
+		$this->registerProvidersWithoutRest();
+
+		$this->assertTrue(
+			$this->container->has( LoggerInterface::class ),
+			'Container should have LoggerInterface binding'
+		);
+
+		$logger = $this->container->get( LoggerInterface::class );
+
+		$this->assertNotNull( $logger, 'LoggerInterface should not resolve to null' );
+		$this->assertInstanceOf( LoggerInterface::class, $logger );
 	}
 }

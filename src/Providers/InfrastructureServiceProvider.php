@@ -25,6 +25,7 @@ use AgentWP\Contracts\TransientCacheInterface;
 use AgentWP\Contracts\OptionsInterface;
 use AgentWP\Contracts\OpenAIKeyValidatorInterface;
 use AgentWP\Contracts\UsageTrackerInterface;
+use AgentWP\Contracts\LoggerInterface;
 use AgentWP\Contracts\WooCommerceConfigGatewayInterface;
 use AgentWP\Contracts\WooCommercePriceFormatterInterface;
 use AgentWP\Contracts\WooCommerceProductCategoryGatewayInterface;
@@ -48,6 +49,7 @@ use AgentWP\Infrastructure\WordPressTransientCache;
 use AgentWP\Infrastructure\WPFunctions;
 use AgentWP\Infrastructure\OpenAIKeyValidator;
 use AgentWP\Infrastructure\UsageTrackerAdapter;
+use AgentWP\Infrastructure\WooCommerceLogger;
 use AgentWP\Demo\DemoAwareKeyValidator;
 use AgentWP\Retry\ExponentialBackoffPolicy;
 use AgentWP\Retry\RetryExecutor;
@@ -79,6 +81,7 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->registerOpenAIKeyValidator();
 		$this->registerPolicy();
 		$this->registerUsageTracker();
+		$this->registerLogger();
 	}
 
 	/**
@@ -353,6 +356,21 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			UsageTrackerInterface::class,
 			fn() => new UsageTrackerAdapter()
+		);
+	}
+
+	/**
+	 * Register logger.
+	 *
+	 * Uses WooCommerce logger when available, with error_log fallback.
+	 * All messages are sanitized to prevent leaking secrets.
+	 *
+	 * @return void
+	 */
+	private function registerLogger(): void {
+		$this->container->singleton(
+			LoggerInterface::class,
+			fn() => new WooCommerceLogger( 'agentwp' )
 		);
 	}
 }

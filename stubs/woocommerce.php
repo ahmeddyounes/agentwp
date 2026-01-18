@@ -171,9 +171,21 @@ class WC_Order_Refund extends WC_Abstract_Order {
 }
 
 class WC_Logger {
+	public function emergency( string $message, array $context = array() ): void {}
+
+	public function alert( string $message, array $context = array() ): void {}
+
+	public function critical( string $message, array $context = array() ): void {}
+
 	public function error( string $message, array $context = array() ): void {}
 
 	public function warning( string $message, array $context = array() ): void {}
+
+	public function notice( string $message, array $context = array() ): void {}
+
+	public function info( string $message, array $context = array() ): void {}
+
+	public function debug( string $message, array $context = array() ): void {}
 }
 
 class WC_Payment_Gateway {
