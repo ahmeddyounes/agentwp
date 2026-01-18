@@ -155,7 +155,7 @@ The following ADRs document key architectural decisions:
 - **[ADR 0005: REST Rate Limiting](adr/0005-rest-rate-limiting.md)** — Injected `RateLimiterInterface` for testable rate limiting
 - **[ADR 0006: Search Index Architecture](adr/0006-search-index-architecture.md)** — Static class design for MySQL fulltext search index
 - **[ADR 0007: Request DTO Validation](adr/0007-request-dto-validation.md)** — DTO-based request validation
-- **[ADR 0008: Tool Execution Architecture](adr/0008-tool-execution-architecture.md)** — Schema classes + handler executors for OpenAI function calling
+- **[ADR 0008: Tool Execution Architecture](adr/0008-tool-execution-architecture.md)** — Schema classes, tool executors, and dispatcher flow for OpenAI function calling
 
 For the improvement roadmap, see [ARCHITECTURE-IMPROVEMENT-PLAN.md](ARCHITECTURE-IMPROVEMENT-PLAN.md).
 
@@ -298,6 +298,14 @@ This abstraction enables:
 
 AgentWP uses OpenAI function calling (tools) to enable AI-driven workflows. The architecture separates tool schemas from execution logic.
 
+### Terminology (tools vs functions)
+
+- **Tool schema** — PHP classes in `src/AI/Functions/*` implement `FunctionSchema` and define the tool name, description, and JSON schema sent to OpenAI. These are stored in `ToolRegistry`.
+- **Tool executor** — PHP classes in `src/Intent/Tools/*` implement `ExecutableToolInterface` and perform the actual business logic. These are registered with `ToolDispatcher`.
+- **Tool dispatch** — `ToolDispatcher` validates arguments against the registered schema and routes the tool call to the executor, returning a JSON-safe payload.
+- **Handler exposure** — `AbstractAgenticHandler::getToolNames()` controls which tool schemas are exposed to the model for a given intent. A tool is only callable if it is both registered with `ToolDispatcher` and listed in `getToolNames()`.
+- **Function registry (legacy)** — `FunctionRegistry` and the `agentwp_register_intent_functions`/`agentwp_default_function_mapping` hooks provide *function suggestions* in response payloads. They do not register tool schemas or executors.
+
 ```mermaid
 flowchart TB
     subgraph Schema["Tool Schemas (src/AI/Functions/)"]
@@ -308,6 +316,16 @@ flowchart TB
 
     subgraph Registry["Tool Registry"]
         TR[ToolRegistry]
+    end
+
+    subgraph Dispatch["Tool Dispatch"]
+        TD[ToolDispatcher]
+    end
+
+    subgraph Executors["Tool Executors (src/Intent/Tools/)"]
+        ST[SearchOrdersTool]
+        PT[PrepareRefundTool]
+        CT[ConfirmRefundTool]
     end
 
     subgraph Handlers["Intent Handlers"]
@@ -323,6 +341,8 @@ flowchart TB
     TR --> Handlers
     Handlers --> OAI
     OAI -->|tool_calls| Handlers
+    Handlers --> TD
+    TD --> Executors
 ```
 
 ### Key Components
@@ -332,7 +352,9 @@ flowchart TB
 | `FunctionSchema` | `src/Contracts/FunctionSchema.php` | Interface for tool schema |
 | `AbstractFunction` | `src/AI/Functions/AbstractFunction.php` | Base class with OpenAI format |
 | `ToolRegistry` | `src/Intent/ToolRegistry.php` | O(1) schema lookup |
-| `ToolExecutorInterface` | `src/Contracts/ToolExecutorInterface.php` | Execution contract |
+| `ExecutableToolInterface` | `src/Contracts/ExecutableToolInterface.php` | Contract for tool executors |
+| `ToolDispatcher` | `src/Intent/ToolDispatcher.php` | Validates args and dispatches execution |
+| Tool executors | `src/Intent/Tools/*` | Concrete tool execution classes |
 | `AbstractAgenticHandler` | `src/Intent/Handlers/AbstractAgenticHandler.php` | Agentic loop base |
 
 ### Adding a New Tool
@@ -350,21 +372,32 @@ flowchart TB
    $registry->register(new MyTool());
    ```
 
-3. **Declare in handler** via `getToolNames()`:
+3. **Create an executor** in `src/Intent/Tools/`:
+   ```php
+   class MyToolExecutor implements ExecutableToolInterface {
+       public function __construct(private MyService $service) {}
+       public function getName(): string { return 'my_tool'; }
+       public function execute(array $args): array {
+           return $this->service->doSomething($args);
+       }
+   }
+   ```
+
+4. **Register executor** with `ToolDispatcher` (typically in `IntentServiceProvider::registerToolDispatcher()` or in your handler's `registerToolExecutors()`):
+   ```php
+   $dispatcher->registerTool( new MyToolExecutor( $service ) );
+   ```
+
+5. **Declare in handler** via `getToolNames()` to expose the schema to the model:
    ```php
    protected function getToolNames(): array {
        return ['my_tool'];
    }
    ```
 
-4. **Implement execution** in `execute_tool()`:
-   ```php
-   public function execute_tool(string $name, array $args) {
-       return match ($name) {
-           'my_tool' => $this->service->doSomething($args),
-       };
-   }
-   ```
+6. **(Optional)** Update function suggestions if you want the tool name to appear in responses:
+   - `agentwp_register_intent_functions`
+   - `agentwp_default_function_mapping`
 
 See [ADR 0008: Tool Execution Architecture](adr/0008-tool-execution-architecture.md) for detailed rationale and design principles.
 
@@ -921,4 +954,4 @@ flowchart TD
 | [ADR 0005](adr/0005-rest-rate-limiting.md) | Injected `RateLimiterInterface` for rate limiting |
 | [ADR 0006](adr/0006-search-index-architecture.md) | Static search index design |
 | [ADR 0007](adr/0007-request-dto-validation.md) | DTO-based request validation |
-| [ADR 0008](adr/0008-tool-execution-architecture.md) | Schema classes + handler executors for tools |
+| [ADR 0008](adr/0008-tool-execution-architecture.md) | Schema classes + tool executors for tools |

@@ -6,6 +6,7 @@ This document is the **single source of truth** for all supported actions, filte
 
 ## Table of Contents
 
+- [Tools vs Functions Terminology](#tools-vs-functions-terminology)
 - [Core Plugin Hooks](#core-plugin-hooks)
 - [Intent System Hooks](#intent-system-hooks)
 - [Intent Classification Hooks](#intent-classification-hooks)
@@ -22,6 +23,19 @@ This document is the **single source of truth** for all supported actions, filte
   - [Custom REST Controller](#registering-a-custom-rest-controller)
   - [Configuration Overrides](#overriding-configuration)
   - [Custom Error Logging](#custom-error-logging)
+
+---
+
+## Tools vs Functions Terminology
+
+AgentWP uses OpenAI “tools” (function calling) internally, but some hooks still refer to “functions” for historical reasons:
+
+- **Tool schemas** live in `src/AI/Functions/*` and implement `FunctionSchema`. They define the JSON schema sent to OpenAI and are stored in `ToolRegistry`.
+- **Tool executors** live in `src/Intent/Tools/*` and implement `ExecutableToolInterface`. They perform the actual work and are registered with `ToolDispatcher`.
+- **Tool dispatch** is handled by `ToolDispatcher`, which validates arguments and routes tool calls to executors.
+- **Function registry (legacy)** powers `function_suggestions` in response payloads via `FunctionRegistry`. It does **not** register tool schemas or executors.
+
+If you are adding a new tool, you must provide **both** the schema and the executor, register them via a service provider, and ensure the handler exposes the tool via `getToolNames()`. The “function” hooks below only affect suggestions and intent-to-function mapping.
 
 ---
 
@@ -98,7 +112,8 @@ add_filter( 'agentwp_intent_handlers', function( $handlers, $engine ) {
 
 ### `agentwp_register_intent_functions` (Action)
 
-Register custom AI functions that can be called by intent handlers.
+Register custom function suggestions (legacy) that are surfaced in response payloads.
+This does **not** register tool schemas or executors. To add executable tools, register a tool schema in `ToolRegistry`, a tool executor in `ToolDispatcher`, and expose it via `getToolNames()`.
 
 | Property | Value |
 |----------|-------|
@@ -120,7 +135,8 @@ add_action( 'agentwp_register_intent_functions', function( $registry, $engine ) 
 
 ### `agentwp_default_function_mapping` (Filter)
 
-Customize which AI functions are associated with each intent.
+Customize which function suggestions are associated with each intent.
+This mapping does **not** affect tool execution; it only populates `function_suggestions` in responses.
 
 | Property | Value |
 |----------|-------|
@@ -560,6 +576,9 @@ add_filter( 'agentwp_intent_scorers', function( $scorers ) {
 ---
 
 ### Registering Custom AI Functions
+
+These hooks register **function suggestions** only. They do not create tool schemas or tool executors.
+To add a callable tool, create a schema in `src/AI/Functions`, an executor in `src/Intent/Tools`, register both in a service provider, and include the tool name in your handler's `getToolNames()`.
 
 ```php
 add_action( 'agentwp_register_intent_functions', function( $registry, $engine ) {

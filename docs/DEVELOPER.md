@@ -368,7 +368,8 @@ array $handlers = apply_filters(
 ```
 
 ### `agentwp_default_function_mapping`
-Override the default intent-to-function mapping.
+Override the default intent-to-function mapping (function suggestions only).
+This does **not** register tool schemas or executors; it only affects `function_suggestions` in responses.
 
 Signature:
 ```
@@ -380,7 +381,8 @@ array $mapping = apply_filters(
 ```
 
 ### `agentwp_register_intent_functions`
-Register additional AI functions after defaults are registered.
+Register additional function suggestions after defaults are registered.
+This does **not** create tool schemas or executors; tool definitions live in `src/AI/Functions` and execution in `src/Intent/Tools`.
 
 Signature:
 ```
@@ -431,7 +433,8 @@ AgentWP uses an attribute-based handler registration pattern with dependency inj
 ### Contributor checklist (intent handler)
 
 - [ ] Create a handler in `src/Intent/Handlers` and annotate it with `#[HandlesIntent(...)]` (ADR 0002).
-- [ ] Extend `AbstractAgenticHandler` or `BaseHandler` and implement `handle()` / `execute_tool()` as appropriate.
+- [ ] Extend `AbstractAgenticHandler` or `BaseHandler` and implement `handle()` as appropriate.
+- [ ] For agentic handlers, implement `getSystemPrompt()`, `getToolNames()`, and `registerToolExecutors()` (ToolDispatcher).
 - [ ] Register the handler in a service provider and tag it with `intent.handler`.
 - [ ] If the handler uses tools, follow the tool checklist below (Phase 4 decision).
 - [ ] If you introduce or modify hooks, update `docs/EXTENSIONS.md`.
@@ -452,9 +455,11 @@ Extend `AbstractAgenticHandler` for AI-powered handlers that use the agentic loo
 namespace MyPlugin\AgentWP;
 
 use AgentWP\Contracts\AIClientFactoryInterface;
+use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Handlers\AbstractAgenticHandler;
+use MyPlugin\AgentWP\Tools\DraftDelayEmailTool;
 
 #[HandlesIntent( 'shipment_delay' )]
 class ShipmentDelayHandler extends AbstractAgenticHandler {
@@ -464,10 +469,15 @@ class ShipmentDelayHandler extends AbstractAgenticHandler {
 	public function __construct(
 		ShipmentServiceInterface $service,
 		AIClientFactoryInterface $clientFactory,
-		ToolRegistryInterface $toolRegistry
+		ToolRegistryInterface $toolRegistry,
+		ToolDispatcherInterface $toolDispatcher
 	) {
-		parent::__construct( 'shipment_delay', $clientFactory, $toolRegistry );
+		parent::__construct( 'shipment_delay', $clientFactory, $toolRegistry, $toolDispatcher );
 		$this->service = $service;
+	}
+
+	protected function registerToolExecutors( ToolDispatcherInterface $dispatcher ): void {
+		$dispatcher->registerTool( new DraftDelayEmailTool( $this->service ) );
 	}
 
 	protected function getSystemPrompt(): string {
@@ -482,12 +492,7 @@ class ShipmentDelayHandler extends AbstractAgenticHandler {
 		return 'Draft a shipment delay notification';
 	}
 
-	public function execute_tool( string $name, array $arguments ) {
-		if ( 'draft_delay_email' === $name ) {
-			return $this->service->draftDelayEmail( $arguments );
-		}
-		return array( 'error' => "Unknown tool: {$name}" );
-	}
+	// Execution lives in DraftDelayEmailTool (src/Intent/Tools/).
 }
 ```
 
@@ -602,14 +607,24 @@ Draft a shipment delay email for order 1234
 
 ## Adding a new tool (Phase 4 decision)
 
-AgentWP follows the Phase 4 tooling decision: tools are defined as schema classes and executed by handlers (see ADR 0008).
+AgentWP follows the Phase 4 tooling decision: tools are defined as schema classes and executed via `ToolDispatcher` + tool executors (see ADR 0008).
+
+### Terminology
+
+- **Tool schema**: `src/AI/Functions/*` classes implementing `FunctionSchema` (JSON schema sent to OpenAI).
+- **Tool executor**: `src/Intent/Tools/*` classes implementing `ExecutableToolInterface` (business logic).
+- **Tool dispatch**: `ToolDispatcher` validates arguments and routes tool calls to executors.
+- **Handler exposure**: `getToolNames()` selects which schemas the model can call for a given handler.
 
 ### Contributor checklist (tool)
 
 - [ ] Create a schema class in `src/AI/Functions` extending `AbstractFunction` (name, description, parameters).
 - [ ] Register the schema in `IntentServiceProvider::registerToolRegistry()`.
-- [ ] Add the tool name in the handler's `getToolNames()` and implement execution in `execute_tool()`.
+- [ ] Create an executor in `src/Intent/Tools` implementing `ExecutableToolInterface`.
+- [ ] Register the executor in `IntentServiceProvider::registerToolDispatcher()` or `registerToolExecutors()`.
+- [ ] Add the tool name in the handler's `getToolNames()` to expose the schema.
 - [ ] Cast/validate argument types in execution code (OpenAI returns primitives).
+- [ ] If you want the tool name to appear in response payloads, update `agentwp_register_intent_functions` / `agentwp_default_function_mapping`.
 - [ ] If you introduce or modify hooks, update `docs/EXTENSIONS.md`.
 
 ## Extension guide: custom intent scorer
