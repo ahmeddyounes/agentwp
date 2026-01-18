@@ -1,21 +1,6 @@
-[main fef4f7a] C01-02: implement
- 19 files changed, 1517 insertions(+), 39 deletions(-)
- create mode 100644 .logs/C01-01.claude.after1.last.md
- create mode 100644 .logs/C01-01.claude.after1.raw.txt
- create mode 100644 .logs/C01-01.claude.impl.last.md
- create mode 100644 .logs/C01-01.claude.impl.raw.txt
- create mode 100644 .logs/C01-02.claude.after1.last.md
- create mode 100644 .logs/C01-02.claude.after1.raw.txt
- create mode 100644 .logs/C01-02.claude.impl.last.md
- create mode 100644 .logs/C01-02.claude.impl.raw.txt
- create mode 100644 .plans/C01-01.md
- create mode 100644 .plans/C01-02.md
- create mode 100644 .t2/after_prompts/01.md
- create mode 100644 .t2/handoff/C01-01.md
- create mode 100644 .t2/handoff/C01-02.md
- create mode 100644 docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
- create mode 100644 docs/adr/0002-intent-handler-registration.md
- create mode 100644 docs/adr/0003-intent-classification-strategy.md
- create mode 100644 plan_tasks.csv
+[main a5d0d2f] C01-02: implement
+ 17 files changed, 190 insertions(+), 52 deletions(-)
+ create mode 100644 .logs/C01-01.gitcommit.txt
+ rename src/{API => Rest}/RestController.php (99%)
 
 → No staged files match any configured task.

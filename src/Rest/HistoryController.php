@@ -5,7 +5,7 @@
  * @package AgentWP
  */
 
-namespace AgentWP\API;
+namespace AgentWP\Rest;
 
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\DTO\HistoryRequestDTO;
