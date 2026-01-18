@@ -246,7 +246,7 @@ Remove `RestController::check_rate_limit()` and `RATE_LIMIT`/`RATE_WINDOW` const
 
 - ADR 0001: REST Controller Dependency Resolution
 - `src/Contracts/RateLimiterInterface.php` - Contract definition
-- `src/API/RateLimiter.php` - Production implementation
+- `src/Infrastructure/RateLimiting/RateLimiter.php` - Production implementation
 - `tests/Fakes/FakeRateLimiter.php` - Test double
 - `src/Providers/RestServiceProvider.php` - Container registration
-- `src/API/RestController.php` - Current static implementation (to be replaced)
+- `src/Rest/RestController.php` - Base controller with rate limit integration

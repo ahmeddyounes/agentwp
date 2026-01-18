@@ -7,7 +7,7 @@
 
 namespace AgentWP\Providers;
 
-use AgentWP\API\RateLimiter;
+use AgentWP\Infrastructure\RateLimiting\RateLimiter;
 use AgentWP\Rest\RestController;
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Container\ServiceProvider;

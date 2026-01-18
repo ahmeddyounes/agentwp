@@ -2,10 +2,10 @@
 /**
  * Rate limiter implementation.
  *
- * @package AgentWP\API
+ * @package AgentWP\Infrastructure\RateLimiting
  */
 
-namespace AgentWP\API;
+namespace AgentWP\Infrastructure\RateLimiting;
 
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\ClockInterface;
@@ -83,15 +83,6 @@ final class RateLimiter implements RateLimiterInterface {
 	 */
 	private string $prefix;
 
-	/**
-	 * Create a new RateLimiter.
-	 *
-	 * @param TransientCacheInterface $cache  Transient cache.
-	 * @param ClockInterface          $clock  Clock for time operations.
-	 * @param int                     $limit  Maximum requests per window.
-	 * @param int                     $window Window duration in seconds.
-	 * @param string                  $prefix Key prefix.
-	 */
 	/**
 	 * Create a new RateLimiter.
 	 *

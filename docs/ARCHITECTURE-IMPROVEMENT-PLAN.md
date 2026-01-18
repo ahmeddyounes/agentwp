@@ -101,8 +101,8 @@ Impact:
 ### 2) Rate limiting atomicity is not expressible in the contract
 
 Symptoms:
-- `src/API/RateLimiter.php` supports atomic `checkAndIncrement()`.
-- `src/Contracts/RateLimiterInterface.php` does not, so `src/API/RestController.php` can only do `check()` then `increment()` (race-prone).
+- `src/Infrastructure/RateLimiting/RateLimiter.php` supports atomic `checkAndIncrement()`.
+- `src/Contracts/RateLimiterInterface.php` does not, so `src/Rest/RestController.php` can only do `check()` then `increment()` (race-prone).
 
 Impact:
 - Under concurrency, requests can exceed limits more easily.
@@ -171,7 +171,7 @@ Tasks:
   - Move `src/API/ThemeController.php` → `src/Rest/ThemeController.php` (or `src/Rest/User/ThemeController.php`).
   - Move/rename `src/API/RestController.php` → `src/Rest/RestController.php` (or `src/Rest/BaseController.php`) and update namespaces/imports.
 - Keep non-controller REST plumbing outside the controllers folder (recommended):
-  - Rename `src/API/RateLimiter.php` → `src/Infrastructure/RateLimiting/RateLimiter.php` (or keep in `src/API/` but make the naming explicit).
+  - ✅ **DONE:** `src/Infrastructure/RateLimiting/RateLimiter.php` (moved from `src/API/`).
 - Update wiring:
   - `src/Plugin/RestRouteRegistrar.php#getDefaultControllers()` and tagging logic.
   - `src/Providers/RestServiceProvider.php` controller discovery.
@@ -189,9 +189,9 @@ Recommended approach (non-breaking):
 - Introduce `src/Contracts/AtomicRateLimiterInterface.php` extending `RateLimiterInterface`:
   - `checkAndIncrement(int $userId): bool`
 - Implement it in:
-  - `src/API/RateLimiter.php`
+  - `src/Infrastructure/RateLimiting/RateLimiter.php`
   - `tests/Fakes/FakeRateLimiter.php`
-- Update `src/API/RestController.php` to prefer atomic operation when available:
+- Update `src/Rest/RestController.php` to prefer atomic operation when available:
   - If resolved limiter implements `AtomicRateLimiterInterface`, use `checkAndIncrement()`.
   - Else, fall back to `check()` + `increment()` (maintains BC).
 

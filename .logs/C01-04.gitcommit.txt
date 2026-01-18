@@ -1,12 +1,5 @@
-[main d7cb22a] C01-04: implement
- 9 files changed, 486 insertions(+), 3 deletions(-)
- create mode 100644 .logs/C01-03.gitcommit.txt
- create mode 100644 .logs/C01-04.claude.after1.last.md
- create mode 100644 .logs/C01-04.claude.after1.raw.txt
- create mode 100644 .logs/C01-04.claude.impl.last.md
- create mode 100644 .logs/C01-04.claude.impl.raw.txt
- create mode 100644 .plans/C01-04.md
- create mode 100644 .t2/handoff/C01-04.md
- create mode 100644 docs/adr/0005-rest-rate-limiting.md
+[main d57cfa3] C01-04: implement
+ 8 files changed, 129 insertions(+), 40 deletions(-)
+ rename src/{API => Rest}/ThemeController.php (98%)
 
 → No staged files match any configured task.

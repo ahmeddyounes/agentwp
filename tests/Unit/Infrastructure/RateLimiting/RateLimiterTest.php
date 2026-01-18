@@ -2,12 +2,12 @@
 /**
  * RateLimiter unit tests.
  *
- * @package AgentWP\Tests\Unit\API
+ * @package AgentWP\Tests\Unit\Infrastructure\RateLimiting
  */
 
-namespace AgentWP\Tests\Unit\API;
+namespace AgentWP\Tests\Unit\Infrastructure\RateLimiting;
 
-use AgentWP\API\RateLimiter;
+use AgentWP\Infrastructure\RateLimiting\RateLimiter;
 use AgentWP\Tests\Fakes\FakeClock;
 use AgentWP\Tests\Fakes\FakeTransientCache;
 use AgentWP\Tests\TestCase;

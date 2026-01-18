@@ -45,7 +45,7 @@ The `ScorerRegistry` is now registered as `IntentClassifierInterface` in `src/Pr
 
 ### 3. Rate Limiter Service
 
-**Location:** `src/API/RateLimiter.php`, `src/Contracts/RateLimiterInterface.php`
+**Location:** `src/Infrastructure/RateLimiting/RateLimiter.php`, `src/Contracts/RateLimiterInterface.php`
 **Related:** `tests/Fakes/FakeRateLimiter.php`
 
 **Original Decision:** INTEGRATE
