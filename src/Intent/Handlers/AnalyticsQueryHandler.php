@@ -9,6 +9,7 @@ namespace AgentWP\Intent\Handlers;
 
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\AnalyticsServiceInterface;
+use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Intent;
@@ -27,17 +28,44 @@ class AnalyticsQueryHandler extends AbstractAgenticHandler {
 	/**
 	 * Initialize analytics intent handler.
 	 *
-	 * @param AnalyticsServiceInterface $service       Analytics service.
-	 * @param AIClientFactoryInterface  $clientFactory AI client factory.
-	 * @param ToolRegistryInterface     $toolRegistry  Tool registry.
+	 * @param AnalyticsServiceInterface    $service        Analytics service.
+	 * @param AIClientFactoryInterface     $clientFactory  AI client factory.
+	 * @param ToolRegistryInterface        $toolRegistry   Tool registry.
+	 * @param ToolDispatcherInterface|null $toolDispatcher Tool dispatcher (optional).
 	 */
 	public function __construct(
 		AnalyticsServiceInterface $service,
 		AIClientFactoryInterface $clientFactory,
-		ToolRegistryInterface $toolRegistry
+		ToolRegistryInterface $toolRegistry,
+		?ToolDispatcherInterface $toolDispatcher = null
 	) {
-		parent::__construct( Intent::ANALYTICS_QUERY, $clientFactory, $toolRegistry );
 		$this->service = $service;
+		parent::__construct( Intent::ANALYTICS_QUERY, $clientFactory, $toolRegistry, $toolDispatcher );
+	}
+
+	/**
+	 * Register tool executors with the dispatcher.
+	 *
+	 * @param ToolDispatcherInterface $dispatcher The tool dispatcher.
+	 * @return void
+	 */
+	protected function registerToolExecutors( ToolDispatcherInterface $dispatcher ): void {
+		$dispatcher->register(
+			'get_sales_report',
+			function ( array $args ): array {
+				$period     = isset( $args['period'] ) ? (string) $args['period'] : 'today';
+				$start_date = isset( $args['start_date'] ) ? (string) $args['start_date'] : null;
+				$end_date   = isset( $args['end_date'] ) ? (string) $args['end_date'] : null;
+
+				$result = $this->service->get_report_by_period( $period, $start_date, $end_date );
+
+				if ( $result->isFailure() ) {
+					return array( 'error' => $result->message );
+				}
+
+				return $result->data;
+			}
+		);
 	}
 
 	/**
@@ -65,30 +93,5 @@ class AnalyticsQueryHandler extends AbstractAgenticHandler {
 	 */
 	protected function getDefaultInput(): string {
 		return 'Show sales analytics';
-	}
-
-	/**
-	 * Execute a named tool with arguments.
-	 *
-	 * @param string $name      Tool name.
-	 * @param array  $arguments Tool arguments.
-	 * @return mixed Tool execution result.
-	 */
-	public function execute_tool( string $name, array $arguments ) {
-		if ( 'get_sales_report' === $name ) {
-			$period     = isset( $arguments['period'] ) ? (string) $arguments['period'] : 'today';
-			$start_date = isset( $arguments['start_date'] ) ? (string) $arguments['start_date'] : null;
-			$end_date   = isset( $arguments['end_date'] ) ? (string) $arguments['end_date'] : null;
-
-			$result = $this->service->get_report_by_period( $period, $start_date, $end_date );
-
-			if ( $result->isFailure() ) {
-				return array( 'error' => $result->message );
-			}
-
-			return $result->data;
-		}
-
-		return array( 'error' => "Unknown tool: {$name}" );
 	}
 }

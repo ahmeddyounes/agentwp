@@ -9,6 +9,7 @@ namespace AgentWP\Intent\Handlers;
 
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\EmailDraftServiceInterface;
+use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Intent;
@@ -27,17 +28,35 @@ class EmailDraftHandler extends AbstractAgenticHandler {
 	/**
 	 * Initialize email draft intent handler.
 	 *
-	 * @param EmailDraftServiceInterface $service       Email draft service.
-	 * @param AIClientFactoryInterface   $clientFactory AI client factory.
-	 * @param ToolRegistryInterface      $toolRegistry  Tool registry.
+	 * @param EmailDraftServiceInterface   $service        Email draft service.
+	 * @param AIClientFactoryInterface     $clientFactory  AI client factory.
+	 * @param ToolRegistryInterface        $toolRegistry   Tool registry.
+	 * @param ToolDispatcherInterface|null $toolDispatcher Tool dispatcher (optional).
 	 */
 	public function __construct(
 		EmailDraftServiceInterface $service,
 		AIClientFactoryInterface $clientFactory,
-		ToolRegistryInterface $toolRegistry
+		ToolRegistryInterface $toolRegistry,
+		?ToolDispatcherInterface $toolDispatcher = null
 	) {
-		parent::__construct( Intent::EMAIL_DRAFT, $clientFactory, $toolRegistry );
 		$this->service = $service;
+		parent::__construct( Intent::EMAIL_DRAFT, $clientFactory, $toolRegistry, $toolDispatcher );
+	}
+
+	/**
+	 * Register tool executors with the dispatcher.
+	 *
+	 * @param ToolDispatcherInterface $dispatcher The tool dispatcher.
+	 * @return void
+	 */
+	protected function registerToolExecutors( ToolDispatcherInterface $dispatcher ): void {
+		$dispatcher->register(
+			'draft_email',
+			function ( array $args ): array {
+				$order_id = isset( $args['order_id'] ) ? (int) $args['order_id'] : 0;
+				return $this->service->get_order_context( $order_id )->toLegacyArray();
+			}
+		);
 	}
 
 	/**
@@ -65,21 +84,5 @@ class EmailDraftHandler extends AbstractAgenticHandler {
 	 */
 	protected function getDefaultInput(): string {
 		return 'Draft an email';
-	}
-
-	/**
-	 * Execute a named tool with arguments.
-	 *
-	 * @param string $name      Tool name.
-	 * @param array  $arguments Tool arguments.
-	 * @return array Tool execution result.
-	 */
-	public function execute_tool( string $name, array $arguments ) {
-		if ( 'draft_email' === $name ) {
-			$order_id = isset( $arguments['order_id'] ) ? (int) $arguments['order_id'] : 0;
-			return $this->service->get_order_context( $order_id )->toLegacyArray();
-		}
-
-		return array( 'error' => "Unknown tool: {$name}" );
 	}
 }

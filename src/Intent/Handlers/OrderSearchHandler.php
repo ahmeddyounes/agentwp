@@ -9,6 +9,7 @@ namespace AgentWP\Intent\Handlers;
 
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\OrderSearchServiceInterface;
+use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Intent;
@@ -27,17 +28,64 @@ class OrderSearchHandler extends AbstractAgenticHandler {
 	/**
 	 * Initialize order search intent handler.
 	 *
-	 * @param OrderSearchServiceInterface $service       Search service.
-	 * @param AIClientFactoryInterface    $clientFactory AI client factory.
-	 * @param ToolRegistryInterface       $toolRegistry  Tool registry.
+	 * @param OrderSearchServiceInterface  $service        Search service.
+	 * @param AIClientFactoryInterface     $clientFactory  AI client factory.
+	 * @param ToolRegistryInterface        $toolRegistry   Tool registry.
+	 * @param ToolDispatcherInterface|null $toolDispatcher Tool dispatcher (optional).
 	 */
 	public function __construct(
 		OrderSearchServiceInterface $service,
 		AIClientFactoryInterface $clientFactory,
-		ToolRegistryInterface $toolRegistry
+		ToolRegistryInterface $toolRegistry,
+		?ToolDispatcherInterface $toolDispatcher = null
 	) {
-		parent::__construct( Intent::ORDER_SEARCH, $clientFactory, $toolRegistry );
 		$this->service = $service;
+		parent::__construct( Intent::ORDER_SEARCH, $clientFactory, $toolRegistry, $toolDispatcher );
+	}
+
+	/**
+	 * Register tool executors with the dispatcher.
+	 *
+	 * @param ToolDispatcherInterface $dispatcher The tool dispatcher.
+	 * @return void
+	 */
+	protected function registerToolExecutors( ToolDispatcherInterface $dispatcher ): void {
+		$dispatcher->register(
+			'search_orders',
+			function ( array $args ): array {
+				// Map arguments to service format with explicit type casting.
+				$search_args = array(
+					'query'    => isset( $args['query'] ) ? (string) $args['query'] : '',
+					'status'   => isset( $args['status'] ) ? (string) $args['status'] : '',
+					'limit'    => isset( $args['limit'] ) ? (int) $args['limit'] : 10,
+					'email'    => isset( $args['email'] ) ? (string) $args['email'] : '',
+					'order_id' => isset( $args['order_id'] ) ? (int) $args['order_id'] : 0,
+				);
+
+				if ( isset( $args['date_range'] ) && is_array( $args['date_range'] ) ) {
+					$search_args['date_range'] = $args['date_range'];
+				}
+
+				$result = $this->service->handle( $search_args );
+
+				// Return structured result for AI consumption.
+				if ( $result->isFailure() ) {
+					return array(
+						'success' => false,
+						'error'   => $result->message,
+						'code'    => $result->code,
+					);
+				}
+
+				return array(
+					'success' => true,
+					'orders'  => $result->get( 'orders', array() ),
+					'count'   => $result->get( 'count', 0 ),
+					'cached'  => $result->get( 'cached', false ),
+					'query'   => $result->get( 'query', array() ),
+				);
+			}
+		);
 	}
 
 	/**
@@ -65,55 +113,5 @@ class OrderSearchHandler extends AbstractAgenticHandler {
 	 */
 	protected function getDefaultInput(): string {
 		return 'Find orders';
-	}
-
-	/**
-	 * Execute a named tool with arguments.
-	 *
-	 * @param string $name      Tool name.
-	 * @param array  $arguments Tool arguments.
-	 * @return array Tool execution result.
-	 */
-	public function execute_tool( string $name, array $arguments ): array {
-		if ( 'search_orders' === $name ) {
-			// Map arguments to service format with explicit type casting.
-			$search_args = array(
-				'query'    => isset( $arguments['query'] ) ? (string) $arguments['query'] : '',
-				'status'   => isset( $arguments['status'] ) ? (string) $arguments['status'] : '',
-				'limit'    => isset( $arguments['limit'] ) ? (int) $arguments['limit'] : 10,
-				'email'    => isset( $arguments['email'] ) ? (string) $arguments['email'] : '',
-				'order_id' => isset( $arguments['order_id'] ) ? (int) $arguments['order_id'] : 0,
-			);
-
-			if ( isset( $arguments['date_range'] ) && is_array( $arguments['date_range'] ) ) {
-				$search_args['date_range'] = $arguments['date_range'];
-			}
-
-			$result = $this->service->handle( $search_args );
-
-			// Return structured result for AI consumption.
-			// On failure, include error info. On success, include search results.
-			if ( $result->isFailure() ) {
-				return array(
-					'success' => false,
-					'error'   => $result->message,
-					'code'    => $result->code,
-				);
-			}
-
-			return array(
-				'success' => true,
-				'orders'  => $result->get( 'orders', array() ),
-				'count'   => $result->get( 'count', 0 ),
-				'cached'  => $result->get( 'cached', false ),
-				'query'   => $result->get( 'query', array() ),
-			);
-		}
-
-		return array(
-			'success' => false,
-			'error'   => "Unknown tool: {$name}",
-			'code'    => 'unknown_tool',
-		);
 	}
 }

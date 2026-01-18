@@ -1,9 +1,9 @@
-[main a9d574c] C04-02: implement
- 9 files changed, 284 insertions(+), 8 deletions(-)
- create mode 100644 .logs/C04-01.gitcommit.txt
- create mode 100644 .logs/C04-02.claude.impl.last.md
- create mode 100644 .logs/C04-02.claude.impl.raw.txt
- create mode 100644 .plans/C04-02.md
- create mode 100644 .t2/handoff/C04-02.md
+[main 04d535a] C04-02: implement
+ 13 files changed, 1190 insertions(+), 64 deletions(-)
+ create mode 100644 src/Validation/ToolArgumentValidationResult.php
+ create mode 100644 src/Validation/ToolArgumentValidator.php
+ create mode 100644 tests/Support/rest-validation-functions.php
+ create mode 100644 tests/Unit/Validation/ToolArgumentValidationIntegrationTest.php
+ create mode 100644 tests/Unit/Validation/ToolArgumentValidatorTest.php
 
 → No staged files match any configured task.

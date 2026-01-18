@@ -13,19 +13,19 @@ use AgentWP\AI\Response;
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
-use AgentWP\Contracts\ToolExecutorInterface;
+use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
-use AgentWP\Validation\ToolArgumentValidator;
+use AgentWP\Intent\ToolDispatcher;
 
 /**
  * Abstract handler that provides the agentic interaction loop.
  *
  * Subclasses only need to implement:
  * - getSystemPrompt(): string
- * - getTools(): array
- * - execute_tool(string $name, array $args): mixed
+ * - getToolNames(): array
+ * - registerToolExecutors(ToolDispatcherInterface $dispatcher): void
  */
-abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecutorInterface {
+abstract class AbstractAgenticHandler extends BaseHandler {
 
 	/**
 	 * Get maximum number of interaction turns before giving up.
@@ -49,29 +49,42 @@ abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecuto
 	protected ToolRegistryInterface $toolRegistry;
 
 	/**
-	 * @var ToolArgumentValidator
+	 * @var ToolDispatcherInterface
 	 */
-	protected ToolArgumentValidator $argumentValidator;
+	protected ToolDispatcherInterface $toolDispatcher;
 
 	/**
 	 * Initialize the handler.
 	 *
-	 * @param string                   $intent             Intent identifier.
-	 * @param AIClientFactoryInterface $clientFactory      AI client factory.
-	 * @param ToolRegistryInterface    $toolRegistry       Tool registry.
-	 * @param ToolArgumentValidator    $argumentValidator  Tool argument validator (optional).
+	 * @param string                       $intent         Intent identifier.
+	 * @param AIClientFactoryInterface     $clientFactory  AI client factory.
+	 * @param ToolRegistryInterface        $toolRegistry   Tool registry.
+	 * @param ToolDispatcherInterface|null $toolDispatcher Tool dispatcher (optional, created if not provided).
 	 */
 	public function __construct(
 		string $intent,
 		AIClientFactoryInterface $clientFactory,
 		ToolRegistryInterface $toolRegistry,
-		?ToolArgumentValidator $argumentValidator = null
+		?ToolDispatcherInterface $toolDispatcher = null
 	) {
 		parent::__construct( $intent );
-		$this->clientFactory     = $clientFactory;
-		$this->toolRegistry      = $toolRegistry;
-		$this->argumentValidator = $argumentValidator ?? new ToolArgumentValidator();
+		$this->clientFactory  = $clientFactory;
+		$this->toolRegistry   = $toolRegistry;
+		$this->toolDispatcher = $toolDispatcher ?? new ToolDispatcher( $toolRegistry );
+
+		// Let subclass register its tool executors.
+		$this->registerToolExecutors( $this->toolDispatcher );
 	}
+
+	/**
+	 * Register tool executors with the dispatcher.
+	 *
+	 * Subclasses must implement this to register their tool executors.
+	 *
+	 * @param ToolDispatcherInterface $dispatcher The tool dispatcher.
+	 * @return void
+	 */
+	abstract protected function registerToolExecutors( ToolDispatcherInterface $dispatcher ): void;
 
 	/**
 	 * Get the system prompt for this handler.
@@ -209,7 +222,7 @@ abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecuto
 				return $this->build_response( $context, $content );
 			}
 
-			// Execute each tool call and add results to messages.
+			// Execute each tool call via the dispatcher.
 			$messages = $this->executeToolCalls( $messages, $tool_calls );
 		}
 
@@ -222,9 +235,7 @@ abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecuto
 	/**
 	 * Execute tool calls and add results to messages.
 	 *
-	 * Validates tool arguments against their JSON schemas before execution.
-	 * Invalid arguments return an error result to the AI without reaching
-	 * the domain services.
+	 * Delegates to the ToolDispatcher for validation and execution.
 	 *
 	 * @param array $messages Current messages.
 	 * @param array $tool_calls Tool calls from AI response.
@@ -242,13 +253,8 @@ abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecuto
 				$args = array();
 			}
 
-			// Validate arguments against schema before execution.
-			$validation_result = $this->validateToolArguments( $name, $args );
-			if ( null !== $validation_result ) {
-				$result = $validation_result;
-			} else {
-				$result = $this->execute_tool( $name, $args );
-			}
+			// Delegate to the tool dispatcher for validation and execution.
+			$result = $this->toolDispatcher->dispatch( $name, $args );
 
 			// Ensure JSON encoding succeeds.
 			$encoded_result = wp_json_encode( $result );
@@ -264,29 +270,5 @@ abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecuto
 		}
 
 		return $messages;
-	}
-
-	/**
-	 * Validate tool arguments against the tool's JSON schema.
-	 *
-	 * @param string $name Tool name.
-	 * @param array  $args Tool arguments.
-	 * @return array|null Error array if validation fails, null if valid.
-	 */
-	protected function validateToolArguments( string $name, array $args ): ?array {
-		$schema = $this->toolRegistry->get( $name );
-
-		// If tool not found in registry, skip validation (handler will return unknown tool error).
-		if ( null === $schema ) {
-			return null;
-		}
-
-		$result = $this->argumentValidator->validate( $schema, $args );
-
-		if ( ! $result->isValid ) {
-			return $result->toErrorArray();
-		}
-
-		return null;
 	}
 }

@@ -9,6 +9,7 @@ namespace AgentWP\Intent\Handlers;
 
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\CustomerServiceInterface;
+use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Intent;
@@ -27,17 +28,34 @@ class CustomerLookupHandler extends AbstractAgenticHandler {
 	/**
 	 * Initialize customer lookup intent handler.
 	 *
-	 * @param CustomerServiceInterface $service       Customer service.
-	 * @param AIClientFactoryInterface $clientFactory AI client factory.
-	 * @param ToolRegistryInterface    $toolRegistry  Tool registry.
+	 * @param CustomerServiceInterface     $service        Customer service.
+	 * @param AIClientFactoryInterface     $clientFactory  AI client factory.
+	 * @param ToolRegistryInterface        $toolRegistry   Tool registry.
+	 * @param ToolDispatcherInterface|null $toolDispatcher Tool dispatcher (optional).
 	 */
 	public function __construct(
 		CustomerServiceInterface $service,
 		AIClientFactoryInterface $clientFactory,
-		ToolRegistryInterface $toolRegistry
+		ToolRegistryInterface $toolRegistry,
+		?ToolDispatcherInterface $toolDispatcher = null
 	) {
-		parent::__construct( Intent::CUSTOMER_LOOKUP, $clientFactory, $toolRegistry );
 		$this->service = $service;
+		parent::__construct( Intent::CUSTOMER_LOOKUP, $clientFactory, $toolRegistry, $toolDispatcher );
+	}
+
+	/**
+	 * Register tool executors with the dispatcher.
+	 *
+	 * @param ToolDispatcherInterface $dispatcher The tool dispatcher.
+	 * @return void
+	 */
+	protected function registerToolExecutors( ToolDispatcherInterface $dispatcher ): void {
+		$dispatcher->register(
+			'get_customer_profile',
+			function ( array $args ): array {
+				return $this->service->handle( $args )->toLegacyArray();
+			}
+		);
 	}
 
 	/**
@@ -65,20 +83,5 @@ class CustomerLookupHandler extends AbstractAgenticHandler {
 	 */
 	protected function getDefaultInput(): string {
 		return 'Look up customer';
-	}
-
-	/**
-	 * Execute a named tool with arguments.
-	 *
-	 * @param string $name      Tool name.
-	 * @param array  $arguments Tool arguments.
-	 * @return array Tool execution result.
-	 */
-	public function execute_tool( string $name, array $arguments ) {
-		if ( 'get_customer_profile' === $name ) {
-			return $this->service->handle( $arguments )->toLegacyArray();
-		}
-
-		return array( 'error' => "Unknown tool: {$name}" );
 	}
 }
