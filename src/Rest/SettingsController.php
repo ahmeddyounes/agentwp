@@ -10,6 +10,7 @@ namespace AgentWP\Rest;
 use AgentWP\Rest\RestController;
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\AuditLoggerInterface;
+use AgentWP\Contracts\CurrentUserContextInterface;
 use AgentWP\Contracts\OpenAIKeyValidatorInterface;
 use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\DTO\ApiKeyRequestDTO;
@@ -323,6 +324,31 @@ class SettingsController extends RestController {
 			return;
 		}
 
-		$logger->logApiKeyUpdate( $action, get_current_user_id(), $key_last4 );
+		$logger->logApiKeyUpdate( $action, $this->getCurrentUserId(), $key_last4 );
+	}
+
+	/**
+	 * Get the current user context service from the container.
+	 *
+	 * @return CurrentUserContextInterface|null
+	 */
+	private function getCurrentUserContext(): ?CurrentUserContextInterface {
+		$context = $this->resolve( CurrentUserContextInterface::class );
+		return $context instanceof CurrentUserContextInterface ? $context : null;
+	}
+
+	/**
+	 * Get the current user ID from the injected context or fallback to WP global.
+	 *
+	 * @return int User ID.
+	 */
+	private function getCurrentUserId(): int {
+		$context = $this->getCurrentUserContext();
+		if ( $context !== null ) {
+			return $context->getUserId();
+		}
+
+		// Fallback for backwards compatibility.
+		return function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
 	}
 }

@@ -1,11 +1,6 @@
-[main 507ca24] C03-01: implement
- 12 files changed, 379 insertions(+), 17 deletions(-)
- create mode 100644 .logs/C02-09.gitcommit.txt
- create mode 100644 .logs/C03-01.claude.after1.last.md
- create mode 100644 .logs/C03-01.claude.after1.raw.txt
- create mode 100644 .logs/C03-01.claude.impl.last.md
- create mode 100644 .logs/C03-01.claude.impl.raw.txt
- create mode 100644 .plans/C03-01.md
- create mode 100644 .t2/handoff/C03-01.md
+[main cc5d977] C03-01: implement
+ 12 files changed, 513 insertions(+), 58 deletions(-)
+ create mode 100644 src/Contracts/HooksInterface.php
+ create mode 100644 tests/Unit/Intent/EngineHooksTest.php
 
 → No staged files match any configured task.

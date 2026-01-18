@@ -9,6 +9,7 @@ namespace AgentWP\Services;
 
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\AuditLoggerInterface;
+use AgentWP\Contracts\CurrentUserContextInterface;
 use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
@@ -33,6 +34,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	private PolicyInterface $policy;
 	private WooCommerceOrderGatewayInterface $orderGateway;
 	private ?AuditLoggerInterface $auditLogger;
+	private ?CurrentUserContextInterface $userContext;
 
 	/**
 	 * Constructor.
@@ -41,17 +43,20 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	 * @param PolicyInterface                  $policy       Policy for capability checks.
 	 * @param WooCommerceOrderGatewayInterface $orderGateway WooCommerce order gateway.
 	 * @param AuditLoggerInterface|null        $auditLogger  Audit logger (optional).
+	 * @param CurrentUserContextInterface|null $userContext  User context for audit logging (optional).
 	 */
 	public function __construct(
 		DraftManagerInterface $draftManager,
 		PolicyInterface $policy,
 		WooCommerceOrderGatewayInterface $orderGateway,
-		?AuditLoggerInterface $auditLogger = null
+		?AuditLoggerInterface $auditLogger = null,
+		?CurrentUserContextInterface $userContext = null
 	) {
 		$this->draftManager = $draftManager;
 		$this->policy       = $policy;
 		$this->orderGateway = $orderGateway;
 		$this->auditLogger  = $auditLogger;
+		$this->userContext  = $userContext;
 	}
 
 	/**
@@ -395,7 +400,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		$this->auditLogger->logDraftConfirmation(
 			self::DRAFT_TYPE,
 			$draft_id,
-			get_current_user_id(),
+			$this->getCurrentUserId(),
 			array(
 				'order_id'       => $order_id,
 				'current_status' => $current_status,
@@ -420,7 +425,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		$this->auditLogger->logDraftConfirmation(
 			self::DRAFT_TYPE,
 			$draft_id,
-			get_current_user_id(),
+			$this->getCurrentUserId(),
 			array(
 				'bulk'          => true,
 				'updated_count' => count( $updated_ids ),
@@ -428,5 +433,19 @@ class OrderStatusService implements OrderStatusServiceInterface {
 				'new_status'    => $new_status,
 			)
 		);
+	}
+
+	/**
+	 * Get the current user ID from the injected context or fallback to WP global.
+	 *
+	 * @return int User ID.
+	 */
+	private function getCurrentUserId(): int {
+		if ( $this->userContext !== null ) {
+			return $this->userContext->getUserId();
+		}
+
+		// Fallback for backwards compatibility.
+		return function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
 	}
 }

@@ -12,6 +12,7 @@ use AgentWP\Contracts\AnalyticsServiceInterface;
 use AgentWP\Contracts\AuditLoggerInterface;
 use AgentWP\Contracts\CacheInterface;
 use AgentWP\Contracts\ClockInterface;
+use AgentWP\Contracts\CurrentUserContextInterface;
 use AgentWP\Contracts\CustomerServiceInterface;
 use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\DraftStorageInterface;
@@ -226,7 +227,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 				$c->get( DraftManagerInterface::class ),
 				$c->get( PolicyInterface::class ),
 				$c->get( WooCommerceStockGatewayInterface::class ),
-				$c->has( AuditLoggerInterface::class ) ? $c->get( AuditLoggerInterface::class ) : null
+				$c->has( AuditLoggerInterface::class ) ? $c->get( AuditLoggerInterface::class ) : null,
+				$c->has( CurrentUserContextInterface::class ) ? $c->get( CurrentUserContextInterface::class ) : null
 			)
 		);
 	}
@@ -243,7 +245,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 				$c->get( DraftManagerInterface::class ),
 				$c->get( PolicyInterface::class ),
 				$c->get( WooCommerceOrderGatewayInterface::class ),
-				$c->has( AuditLoggerInterface::class ) ? $c->get( AuditLoggerInterface::class ) : null
+				$c->has( AuditLoggerInterface::class ) ? $c->get( AuditLoggerInterface::class ) : null,
+				$c->has( CurrentUserContextInterface::class ) ? $c->get( CurrentUserContextInterface::class ) : null
 			)
 		);
 	}
@@ -276,7 +279,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 				$c->get( DraftManagerInterface::class ),
 				$c->get( PolicyInterface::class ),
 				$c->get( WooCommerceRefundGatewayInterface::class ),
-				$c->has( AuditLoggerInterface::class ) ? $c->get( AuditLoggerInterface::class ) : null
+				$c->has( AuditLoggerInterface::class ) ? $c->get( AuditLoggerInterface::class ) : null,
+				$c->has( CurrentUserContextInterface::class ) ? $c->get( CurrentUserContextInterface::class ) : null
 			)
 		);
 	}

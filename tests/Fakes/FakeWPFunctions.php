@@ -8,14 +8,15 @@
 namespace AgentWP\Tests\Fakes;
 
 use AgentWP\Contracts\HooksInterface;
+use AgentWP\Contracts\WPUserFunctionsInterface;
 
 /**
  * Testable WordPress functions wrapper that captures hook calls.
  *
- * This class implements HooksInterface for use in unit tests.
+ * This class implements HooksInterface and WPUserFunctionsInterface for use in unit tests.
  * It captures all action and filter calls for assertions.
  */
-class FakeWPFunctions implements HooksInterface {
+class FakeWPFunctions implements HooksInterface, WPUserFunctionsInterface {
 
 	/**
 	 * Captured doAction calls.
@@ -37,6 +38,13 @@ class FakeWPFunctions implements HooksInterface {
 	 * @var array<string, mixed>
 	 */
 	private array $filterReturns = array();
+
+	/**
+	 * Mocked current user ID.
+	 *
+	 * @var int
+	 */
+	private int $currentUserId = 0;
 
 	/**
 	 * Do WordPress action.
@@ -158,5 +166,25 @@ class FakeWPFunctions implements HooksInterface {
 		$this->actions       = array();
 		$this->filters       = array();
 		$this->filterReturns = array();
+		$this->currentUserId = 0;
+	}
+
+	/**
+	 * Get the current user ID.
+	 *
+	 * @return int Current user ID, or 0 if not set.
+	 */
+	public function getCurrentUserId(): int {
+		return $this->currentUserId;
+	}
+
+	/**
+	 * Set the mocked current user ID.
+	 *
+	 * @param int $userId User ID to mock.
+	 * @return void
+	 */
+	public function setCurrentUserId( int $userId ): void {
+		$this->currentUserId = $userId;
 	}
 }

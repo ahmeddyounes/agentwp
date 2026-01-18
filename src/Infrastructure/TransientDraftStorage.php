@@ -7,6 +7,7 @@
 
 namespace AgentWP\Infrastructure;
 
+use AgentWP\Contracts\CurrentUserContextInterface;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Plugin;
 
@@ -19,6 +20,22 @@ class TransientDraftStorage implements DraftStorageInterface {
 	 * Default TTL in seconds (1 hour).
 	 */
 	private const DEFAULT_TTL = 3600;
+
+	/**
+	 * Current user context provider.
+	 *
+	 * @var CurrentUserContextInterface|null
+	 */
+	private ?CurrentUserContextInterface $userContext;
+
+	/**
+	 * Create a new TransientDraftStorage.
+	 *
+	 * @param CurrentUserContextInterface|null $userContext User context provider (optional for backwards compatibility).
+	 */
+	public function __construct( ?CurrentUserContextInterface $userContext = null ) {
+		$this->userContext = $userContext;
+	}
 
 	/**
 	 * Generate a unique draft ID.
@@ -96,7 +113,21 @@ class TransientDraftStorage implements DraftStorageInterface {
 	 * @return string Transient key.
 	 */
 	private function build_key( string $type, string $id ): string {
-		$user_id = get_current_user_id();
+		$user_id = $this->getCurrentUserId();
 		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
+	}
+
+	/**
+	 * Get the current user ID from the injected context or fallback to WP global.
+	 *
+	 * @return int User ID.
+	 */
+	private function getCurrentUserId(): int {
+		if ( $this->userContext !== null ) {
+			return $this->userContext->getUserId();
+		}
+
+		// Fallback for backwards compatibility.
+		return function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
 	}
 }

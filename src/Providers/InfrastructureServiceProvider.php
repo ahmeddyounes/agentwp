@@ -14,6 +14,7 @@ use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Demo\DemoCredentials;
 use AgentWP\Contracts\CacheInterface;
 use AgentWP\Contracts\ClockInterface;
+use AgentWP\Contracts\CurrentUserContextInterface;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Contracts\HttpClientInterface;
 use AgentWP\Contracts\OrderRepositoryInterface;
@@ -35,6 +36,7 @@ use AgentWP\Plugin\SettingsManager;
 use AgentWP\Security\ApiKeyStorage;
 use AgentWP\Security\Encryption;
 use AgentWP\Security\Policy\WooCommercePolicy;
+use AgentWP\Infrastructure\CurrentUserContext;
 use AgentWP\Infrastructure\PhpSessionHandler;
 use AgentWP\Infrastructure\RealSleeper;
 use AgentWP\Infrastructure\SystemClock;
@@ -78,6 +80,7 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->registerWooCommerceGateways();
 		$this->registerDemoCredentials();
 		$this->registerAIClientFactory();
+		$this->registerCurrentUserContext();
 		$this->registerDraftStorage();
 		$this->registerApiKeyStorage();
 		$this->registerOpenAIKeyValidator();
@@ -271,6 +274,23 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 	}
 
 	/**
+	 * Register current user context.
+	 *
+	 * Provides runtime user identity abstraction so services don't depend
+	 * directly on WordPress globals like get_current_user_id().
+	 *
+	 * @return void
+	 */
+	private function registerCurrentUserContext(): void {
+		$this->container->singleton(
+			CurrentUserContextInterface::class,
+			fn( $c ) => new CurrentUserContext(
+				$c->get( WPFunctions::class )
+			)
+		);
+	}
+
+	/**
 	 * Register draft storage.
 	 *
 	 * @return void
@@ -278,7 +298,9 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 	private function registerDraftStorage(): void {
 		$this->container->singleton(
 			DraftStorageInterface::class,
-			fn() => new TransientDraftStorage()
+			fn( $c ) => new TransientDraftStorage(
+				$c->get( CurrentUserContextInterface::class )
+			)
 		);
 	}
 

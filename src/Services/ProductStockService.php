@@ -8,6 +8,7 @@
 namespace AgentWP\Services;
 
 use AgentWP\Contracts\AuditLoggerInterface;
+use AgentWP\Contracts\CurrentUserContextInterface;
 use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
@@ -21,6 +22,7 @@ class ProductStockService implements ProductStockServiceInterface {
 	private PolicyInterface $policy;
 	private WooCommerceStockGatewayInterface $stockGateway;
 	private ?AuditLoggerInterface $auditLogger;
+	private ?CurrentUserContextInterface $userContext;
 
 	/**
 	 * Constructor.
@@ -29,17 +31,20 @@ class ProductStockService implements ProductStockServiceInterface {
 	 * @param PolicyInterface                  $policy       Policy for capability checks.
 	 * @param WooCommerceStockGatewayInterface $stockGateway WooCommerce stock gateway.
 	 * @param AuditLoggerInterface|null        $auditLogger  Audit logger (optional).
+	 * @param CurrentUserContextInterface|null $userContext  User context for audit logging (optional).
 	 */
 	public function __construct(
 		DraftManagerInterface $draftManager,
 		PolicyInterface $policy,
 		WooCommerceStockGatewayInterface $stockGateway,
-		?AuditLoggerInterface $auditLogger = null
+		?AuditLoggerInterface $auditLogger = null,
+		?CurrentUserContextInterface $userContext = null
 	) {
 		$this->draftManager = $draftManager;
 		$this->policy       = $policy;
 		$this->stockGateway = $stockGateway;
 		$this->auditLogger  = $auditLogger;
+		$this->userContext  = $userContext;
 	}
 
 	/**
@@ -211,7 +216,7 @@ class ProductStockService implements ProductStockServiceInterface {
 		$this->auditLogger->logDraftConfirmation(
 			self::DRAFT_TYPE,
 			$draft_id,
-			get_current_user_id(),
+			$this->getCurrentUserId(),
 			array(
 				'product_id'   => $product_id,
 				'product_name' => $product_name,
@@ -219,5 +224,19 @@ class ProductStockService implements ProductStockServiceInterface {
 				'new_stock'    => $new_stock,
 			)
 		);
+	}
+
+	/**
+	 * Get the current user ID from the injected context or fallback to WP global.
+	 *
+	 * @return int User ID.
+	 */
+	private function getCurrentUserId(): int {
+		if ( $this->userContext !== null ) {
+			return $this->userContext->getUserId();
+		}
+
+		// Fallback for backwards compatibility.
+		return function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
 	}
 }
