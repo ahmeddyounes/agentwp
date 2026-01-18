@@ -9,7 +9,7 @@ Quick reference to locate major subsystems:
 | `agentwp.php` | Plugin entrypoint: constants, autoloader, activation hooks |
 | `src/Plugin.php` | Singleton bootstrap, container creation, provider orchestration |
 | `src/Providers/` | Service providers (Core, Infrastructure, Services, Rest, Intent) |
-| `src/Rest/` | REST controllers (`IntentController`, `SettingsController`, etc.) |
+| `src/Rest/` | **Canonical location for REST controllers** (`AgentWP\Rest` namespace). All new controllers must be added here. |
 | `src/Intent/` | Intent engine, classifier, handlers (`src/Intent/Handlers/`) |
 | `src/Services/` | Domain services (refund, order status, stock, draft management) |
 | `src/Infrastructure/` | Gateways, adapters, WooCommerce wrappers, caching |

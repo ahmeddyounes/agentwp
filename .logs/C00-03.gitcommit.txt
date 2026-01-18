@@ -1,0 +1,10 @@
+[main e47590d] C00-03: implement
+ 9 files changed, 397 insertions(+), 4 deletions(-)
+ create mode 100644 .logs/C00-02.gitcommit.txt
+ create mode 100644 .logs/C00-03.claude.impl.last.md
+ create mode 100644 .logs/C00-03.claude.impl.raw.txt
+ create mode 100644 .plans/C00-03.md
+ create mode 100644 .t2/handoff/C00-03.md
+ create mode 100755 scripts/check-doc-links.php
+
+→ No staged files match any configured task.

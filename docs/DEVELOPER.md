@@ -6,7 +6,7 @@ This guide covers architecture, extension points, and local development workflow
 AgentWP is a WordPress plugin with a React admin UI and a PHP backend.
 
 Key pieces:
-- **REST API**: Controllers in `src/Rest` and `src/API` expose `/wp-json/agentwp/v1/*`.
+- **REST API**: Controllers in `src/Rest/` (namespace `AgentWP\Rest`) expose `/wp-json/agentwp/v1/*`. This is the canonical location for all REST controllers.
 - **Intent engine**: `AgentWP\Intent\Engine` classifies prompts and routes them to handlers.
 - **Handlers**: Classes in `src/Intent/Handlers` implement intent-specific responses.
 - **WooCommerce integrations**: Services in `src/Services` execute refunds, status updates, stock changes, and email drafts.
@@ -678,6 +678,100 @@ add_filter( 'agentwp_config_intent_weight_order_search', fn() => 1.5 );
 ```
 
 For custom intents, override `getWeight()` in your scorer or add your intent to `AbstractScorer::INTENT_WEIGHT_KEYS`.
+
+## Adding a new REST endpoint (core development)
+
+This section covers how to add new REST endpoints to the AgentWP plugin itself. For third-party extensions, see [Extension guide: custom REST controller](#extension-guide-custom-rest-controller) below.
+
+### Canonical location
+
+All REST controllers must be placed in:
+
+- **Directory**: `src/Rest/`
+- **Namespace**: `AgentWP\Rest`
+- **Base class**: Extend `AgentWP\API\RestController`
+
+> **Note:** Some legacy controllers exist in `src/API/` (e.g., `HistoryController`, `ThemeController`). New controllers should NOT be placed there. The `src/API/` directory contains only the shared base class (`RestController`) and legacy controllers that will be migrated to `src/Rest/` in a future release.
+
+### Step-by-step guide
+
+1. **Create the controller class** in `src/Rest/`:
+
+```php
+<?php
+namespace AgentWP\Rest;
+
+use AgentWP\API\RestController;
+use WP_REST_Server;
+
+class MyFeatureController extends RestController {
+
+    public function register_routes() {
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/my-feature',
+            array(
+                array(
+                    'methods'             => WP_REST_Server::READABLE,
+                    'callback'            => array( $this, 'get_feature' ),
+                    'permission_callback' => array( $this, 'permissions_check' ),
+                ),
+            )
+        );
+    }
+
+    public function get_feature( $request ) {
+        // Resolve services from container
+        $service = $this->resolve( MyServiceInterface::class );
+        if ( ! $service ) {
+            return $this->response_error( 'service_unavailable', 'Service unavailable.', 500 );
+        }
+
+        return $this->response_success( array( 'data' => $service->getData() ) );
+    }
+}
+```
+
+2. **Register the controller** in `src/Providers/RestServiceProvider.php`:
+
+```php
+// In the register() method, add to the controllers array:
+$this->container->singleton(
+    \AgentWP\Rest\MyFeatureController::class,
+    fn( $c ) => new \AgentWP\Rest\MyFeatureController()
+);
+$this->container->tag( \AgentWP\Rest\MyFeatureController::class, 'rest.controller' );
+```
+
+3. **Add the OpenAPI annotation** to the controller method for spec sync:
+
+```php
+/**
+ * Get feature data.
+ *
+ * @openapi GET /agentwp/v1/my-feature
+ *
+ * @param WP_REST_Request $request Request instance.
+ * @return WP_REST_Response
+ */
+public function get_feature( $request ) { ... }
+```
+
+4. **Update `docs/openapi.json`** with the endpoint definition and run validation:
+
+```bash
+composer run openapi:validate
+```
+
+### Controller conventions
+
+- Use `self::REST_NAMESPACE` (`agentwp/v1`) for route registration
+- Use `permissions_check()` for permission callback (requires `manage_woocommerce`)
+- Resolve dependencies via `$this->resolve()` or `$this->resolveRequired()`
+- Return responses via `$this->response_success()` or `$this->response_error()`
+- All controllers are rate-limited automatically (30 requests/60 seconds)
+
+---
 
 ## Extension guide: custom REST controller
 
