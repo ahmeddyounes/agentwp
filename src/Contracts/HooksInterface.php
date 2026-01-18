@@ -24,7 +24,7 @@ interface HooksInterface {
 	 * @param mixed  ...$args   Additional arguments passed to the filter.
 	 * @return mixed Filtered value.
 	 */
-	public function applyFilters( string $hook_name, $value );
+	public function applyFilters( string $hook_name, $value, ...$args );
 
 	/**
 	 * Execute a WordPress action.

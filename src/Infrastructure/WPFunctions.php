@@ -282,17 +282,15 @@ final class WPFunctions implements HooksInterface, WPUserFunctionsInterface {
 	 *
 	 * @param string $hook_name Filter name.
 	 * @param mixed  $value     Value to filter.
+	 * @param mixed  ...$args   Additional arguments passed to the filter.
 	 * @return mixed Filtered value.
 	 */
-	public function applyFilters( string $hook_name, $value ) {
+	public function applyFilters( string $hook_name, $value, ...$args ) {
 		if ( ! function_exists( 'apply_filters' ) ) {
 			return $value;
 		}
 
-		$args = func_get_args();
-		array_shift( $args ); // Remove $hook_name.
-
-		return call_user_func_array( 'apply_filters', array_merge( [ $hook_name ], $args ) );
+		return apply_filters( $hook_name, $value, ...$args );
 	}
 
 	/**

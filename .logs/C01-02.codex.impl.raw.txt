@@ -1,0 +1,367 @@
+Status: DONE
+
+Summary of changes
+- Made `HooksInterface::applyFilters()` variadic to match real usage and PHPDoc.
+- Updated `WPFunctions::applyFilters()` signature and implementation to forward variadic args directly to `apply_filters`.
+
+How to verify (exact commands)
+- Not provided (no format/lint/test commands in task spec).
+
+Risks / follow-ups
+- Low risk; behavior unchanged aside from signature alignment. If other implementations of `HooksInterface` exist outside this repo, they must be updated to the new variadic signature.
+
+OpenAI Codex v0.87.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019bd1bb-6d02-77d3-8eff-1e73e1032115
+--------
+user
+You are implementing task C01-02 in this git repository.
+
+1) Read the spec: .plans/C01-02.md
+2) Read handoff/context: .t2/handoff/C01-02.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+
+thinking
+**Preparing to read files using shell**
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 58ms:
+agentwp.php
+assets
+composer.json
+composer.lock
+docker
+docker-compose.demo.yml
+docker-compose.yml
+docs
+includes
+languages
+node_modules
+package-lock.json
+package.json
+phpcs.xml
+phpstan
+phpstan.neon
+phpunit.xml.dist
+plan_tasks.csv
+playwright.config.cjs
+react
+exec
+/bin/zsh -lc "sed -n '1,200p' .plans/C01-02.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 70ms:
+# C01-02 — Make HooksInterface::applyFilters variadic
+
+Update `src/Contracts/HooksInterface.php` so `applyFilters()` accepts variadic args (to match real usage in `src/Intent/Engine.php`) and fix the PHPDoc/signature mismatch. Target: PHPStan no longer reports HookInterface argument/param errors.
+exec
+/bin/zsh -lc "sed -n '1,200p' .t2/handoff/C01-02.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 69ms:
+# Handoff: C01-02
+
+Created: 2026-01-18T15:31:19.920890Z
+
+Spec: .plans/C01-02.md
+
+thinking
+**Reviewing applyFilters signature**
+
+I'm inspecting the HooksInterface to verify and update the applyFilters method signature to be variadic, aligning it with its PHPDoc and usage.
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Contracts/HooksInterface.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 74ms:
+<?php
+/**
+ * WordPress hooks interface.
+ *
+ * @package AgentWP\Contracts
+ */
+
+namespace AgentWP\Contracts;
+
+/**
+ * Contract for WordPress filter and action hooks.
+ *
+ * This interface enables testability by abstracting WordPress's global
+ * apply_filters() and do_action() functions. Business logic should depend
+ * on this interface rather than calling WordPress functions directly.
+ */
+interface HooksInterface {
+
+	/**
+	 * Apply WordPress filters.
+
+thinking
+**Checking function signature for variadic parameters**
+
+I’m verifying that applyFilters is declared as a public function with a signature matching its usage in Engine, including the variadic ...$args parameter and possibly a return type.
+exec
+/bin/zsh -lc 'rg -n "applyFilters" src' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 79ms:
+src/Providers/IntentServiceProvider.php:129:				$limit = (int) $wp->applyFilters( 'agentwp_memory_limit', $limit );
+src/Providers/IntentServiceProvider.php:130:				$ttl   = (int) $wp->applyFilters( 'agentwp_memory_ttl', $ttl );
+src/Providers/IntentServiceProvider.php:199:				$scorers = $wp->applyFilters( 'agentwp_intent_scorers', $default_scorers );
+src/Infrastructure/WPFunctions.php:287:	public function applyFilters( string $hook_name, $value ) {
+src/Contracts/HooksInterface.php:27:	public function applyFilters( string $hook_name, $value );
+src/Intent/Engine.php:85:			? $this->hooks->applyFilters( 'agentwp_intent_handlers', $handlers, $this )
+src/Intent/Engine.php:259:			$mapping = $this->hooks->applyFilters( 'agentwp_default_function_mapping', $mapping, $this );
+
+thinking
+**Confirming filters function signature**
+exec
+/bin/zsh -lc "sed -n '250,330p' src/Infrastructure/WPFunctions.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 71ms:
+	 *
+	 * @param string $key     Cache key.
+	 * @param mixed  $value   Cache value.
+	 * @param string $group   Cache group.
+	 * @param int    $expire  Expiration in seconds.
+	 * @return bool True if set.
+	 */
+	public function setCache( string $key, $value, string $group = '', int $expire = 0 ): bool {
+		if ( ! function_exists( 'wp_cache_set' ) ) {
+			return false;
+		}
+
+		return wp_cache_set( $key, $value, $group, $expire ); // phpcs:ignore WordPressVIPMinimum.Performance.LowExpiryCacheTime.CacheTimeUndetermined -- Expiry is controlled by the caller; 0 means no expiration.
+	}
+
+	/**
+	 * Delete object cache value.
+	 *
+	 * @param string $key   Cache key.
+	 * @param string $group Cache group.
+
+thinking
+**Deciding to update method signatures for variadic consistency**
+
+The interface method needs a variadic signature to align with its real usage and PHPStan checks; to avoid mismatches, the implementation and related signatures should likely be updated too. Next, I'll verify other implementing classes to confirm consistency before applying changes.
+exec
+/bin/zsh -lc 'rg -n "implements HooksInterface" src' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 81ms:
+src/Infrastructure/WPFunctions.php:40:final class WPFunctions implements HooksInterface, WPUserFunctionsInterface {
+
+
+thinking
+**Updating interface and implementation for variadic args**
+
+Planning to add variadic ...$args to both interface and implementation for applyFilters, adjusting PHPDoc accordingly while keeping no explicit return type. The implementation will check for function existence and return the passed value if missing, simplifying argument passing using spread syntax for compatibility and clarity.
+thinking
+**Implementing applyFilters with variadic signature**
+
+Decided to implement applyFilters using variadic ...$args, returning $value if the function doesn't exist, and updating PHPDoc accordingly to reflect the new signature for clarity and compatibility.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Contracts/HooksInterface.php
+@@ -26,3 +26,3 @@
+ 	 */
+-	public function applyFilters( string $hook_name, $value );
++	public function applyFilters( string $hook_name, $value, ...$args );
+ 
+apply_patch(auto_approved=true) exited 0 in 32ms:
+Success. Updated the following files:
+M src/Contracts/HooksInterface.php
+file update:
+diff --git a/src/Contracts/HooksInterface.php b/src/Contracts/HooksInterface.php
+index 0ec55968995d5060d468bea3cdf994b3b2439d2c..84843f2805447387a8d9210d31a273f0bbf4ddef
+--- a/src/Contracts/HooksInterface.php
++++ b/src/Contracts/HooksInterface.php
+@@ -24,7 +24,7 @@
+ 	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value );
++	public function applyFilters( string $hook_name, $value, ...$args );
+ 
+ 	/**
+ 	 * Execute a WordPress action.
+
+file update:
+diff --git a/src/Contracts/HooksInterface.php b/src/Contracts/HooksInterface.php
+index 0ec55968995d5060d468bea3cdf994b3b2439d2c..84843f2805447387a8d9210d31a273f0bbf4ddef
+--- a/src/Contracts/HooksInterface.php
++++ b/src/Contracts/HooksInterface.php
+@@ -24,7 +24,7 @@
+ 	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value );
++	public function applyFilters( string $hook_name, $value, ...$args );
+ 
+ 	/**
+ 	 * Execute a WordPress action.
+
+
+thinking
+**Updating WordPress functions**
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Infrastructure/WPFunctions.php
+@@ -284,5 +284,6 @@
+ 	 * @param mixed  $value     Value to filter.
++	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value ) {
++	public function applyFilters( string $hook_name, $value, ...$args ) {
+ 		if ( ! function_exists( 'apply_filters' ) ) {
+@@ -291,6 +292,3 @@
+ 
+-		$args = func_get_args();
+-		array_shift( $args ); // Remove $hook_name.
+-
+-		return call_user_func_array( 'apply_filters', array_merge( [ $hook_name ], $args ) );
++		return apply_filters( $hook_name, $value, ...$args );
+ 	}
+apply_patch(auto_approved=true) exited 0 in 37ms:
+Success. Updated the following files:
+M src/Infrastructure/WPFunctions.php
+file update:
+diff --git a/src/Contracts/HooksInterface.php b/src/Contracts/HooksInterface.php
+index 0ec55968995d5060d468bea3cdf994b3b2439d2c..84843f2805447387a8d9210d31a273f0bbf4ddef
+--- a/src/Contracts/HooksInterface.php
++++ b/src/Contracts/HooksInterface.php
+@@ -24,7 +24,7 @@
+ 	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value );
++	public function applyFilters( string $hook_name, $value, ...$args );
+ 
+ 	/**
+ 	 * Execute a WordPress action.
+diff --git a/src/Infrastructure/WPFunctions.php b/src/Infrastructure/WPFunctions.php
+index 2c834e6dbae747e2b93d95d1a3ed37f25d5b2b5b..695570d6d164ae0df950257dea3eb3fc680b8ecc
+--- a/src/Infrastructure/WPFunctions.php
++++ b/src/Infrastructure/WPFunctions.php
+@@ -282,17 +282,15 @@
+ 	 *
+ 	 * @param string $hook_name Filter name.
+ 	 * @param mixed  $value     Value to filter.
++	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value ) {
++	public function applyFilters( string $hook_name, $value, ...$args ) {
+ 		if ( ! function_exists( 'apply_filters' ) ) {
+ 			return $value;
+ 		}
+ 
+-		$args = func_get_args();
+-		array_shift( $args ); // Remove $hook_name.
+-
+-		return call_user_func_array( 'apply_filters', array_merge( [ $hook_name ], $args ) );
++		return apply_filters( $hook_name, $value, ...$args );
+ 	}
+ 
+ 	/**
+
+file update:
+diff --git a/src/Contracts/HooksInterface.php b/src/Contracts/HooksInterface.php
+index 0ec55968995d5060d468bea3cdf994b3b2439d2c..84843f2805447387a8d9210d31a273f0bbf4ddef
+--- a/src/Contracts/HooksInterface.php
++++ b/src/Contracts/HooksInterface.php
+@@ -24,7 +24,7 @@
+ 	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value );
++	public function applyFilters( string $hook_name, $value, ...$args );
+ 
+ 	/**
+ 	 * Execute a WordPress action.
+diff --git a/src/Infrastructure/WPFunctions.php b/src/Infrastructure/WPFunctions.php
+index 2c834e6dbae747e2b93d95d1a3ed37f25d5b2b5b..695570d6d164ae0df950257dea3eb3fc680b8ecc
+--- a/src/Infrastructure/WPFunctions.php
++++ b/src/Infrastructure/WPFunctions.php
+@@ -282,17 +282,15 @@
+ 	 *
+ 	 * @param string $hook_name Filter name.
+ 	 * @param mixed  $value     Value to filter.
++	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value ) {
++	public function applyFilters( string $hook_name, $value, ...$args ) {
+ 		if ( ! function_exists( 'apply_filters' ) ) {
+ 			return $value;
+ 		}
+ 
+-		$args = func_get_args();
+-		array_shift( $args ); // Remove $hook_name.
+-
+-		return call_user_func_array( 'apply_filters', array_merge( [ $hook_name ], $args ) );
++		return apply_filters( $hook_name, $value, ...$args );
+ 	}
+ 
+ 	/**
+
+
+thinking
+**Providing final summary and instructions**
+
+Status: DONE. Summary of changes: Implemented requested code updates including interface PHPDoc improvements; no tests or formatting/lint commands were included. How to verify (exact commands): Not provided (no format/lint/test commands). Risk/follow-up: Recommend adding tests and verification commands to ensure correctness and maintainability.
+codex
+Status: DONE
+
+Summary of changes
+- Made `HooksInterface::applyFilters()` variadic to match real usage and PHPDoc.
+- Updated `WPFunctions::applyFilters()` signature and implementation to forward variadic args directly to `apply_filters`.
+
+How to verify (exact commands)
+- Not provided (no format/lint/test commands in task spec).
+
+Risks / follow-ups
+- Low risk; behavior unchanged aside from signature alignment. If other implementations of `HooksInterface` exist outside this repo, they must be updated to the new variadic signature.
+file update:
+diff --git a/src/Contracts/HooksInterface.php b/src/Contracts/HooksInterface.php
+index 0ec55968995d5060d468bea3cdf994b3b2439d2c..84843f2805447387a8d9210d31a273f0bbf4ddef
+--- a/src/Contracts/HooksInterface.php
++++ b/src/Contracts/HooksInterface.php
+@@ -24,7 +24,7 @@
+ 	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value );
++	public function applyFilters( string $hook_name, $value, ...$args );
+ 
+ 	/**
+ 	 * Execute a WordPress action.
+diff --git a/src/Infrastructure/WPFunctions.php b/src/Infrastructure/WPFunctions.php
+index 2c834e6dbae747e2b93d95d1a3ed37f25d5b2b5b..695570d6d164ae0df950257dea3eb3fc680b8ecc
+--- a/src/Infrastructure/WPFunctions.php
++++ b/src/Infrastructure/WPFunctions.php
+@@ -282,17 +282,15 @@
+ 	 *
+ 	 * @param string $hook_name Filter name.
+ 	 * @param mixed  $value     Value to filter.
++	 * @param mixed  ...$args   Additional arguments passed to the filter.
+ 	 * @return mixed Filtered value.
+ 	 */
+-	public function applyFilters( string $hook_name, $value ) {
++	public function applyFilters( string $hook_name, $value, ...$args ) {
+ 		if ( ! function_exists( 'apply_filters' ) ) {
+ 			return $value;
+ 		}
+ 
+-		$args = func_get_args();
+-		array_shift( $args ); // Remove $hook_name.
+-
+-		return call_user_func_array( 'apply_filters', array_merge( [ $hook_name ], $args ) );
++		return apply_filters( $hook_name, $value, ...$args );
+ 	}
+ 
+ 	/**
+
+tokens used
+8,969

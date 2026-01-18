@@ -1,0 +1,15 @@
+[main 0f1aba4] C01-01: implement
+ 14 files changed, 446 insertions(+), 84 deletions(-)
+ create mode 100644 .logs/C01-01.codex.impl.last.md
+ create mode 100644 .logs/C01-01.codex.impl.raw.txt
+ create mode 100644 .plans/C01-01.md
+ create mode 100644 .t2/handoff/C01-01.md
+ create mode 100644 assets/build/assets/App-Ba2wmQd6.js
+ delete mode 100644 assets/build/assets/App-DRVPowt0.js
+ rename assets/build/assets/{ChartCard-BZNnW5eV.js => ChartCard-BT_G5T7n.js} (97%)
+ rename assets/build/assets/{ErrorBoundary-D3MloVnV.js => ErrorBoundary-CP4M_jlp.js} (90%)
+ rename assets/build/assets/{index-B_Qu4uoW.js => index-C-MDGPZF.js} (93%)
+ create mode 100644 docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
+ create mode 100644 plan_tasks.csv
+
+→ No staged files match any configured task.
