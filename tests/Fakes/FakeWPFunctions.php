@@ -7,15 +7,15 @@
 
 namespace AgentWP\Tests\Fakes;
 
-use AgentWP\Infrastructure\WPFunctions;
+use AgentWP\Contracts\HooksInterface;
 
 /**
  * Testable WordPress functions wrapper that captures hook calls.
  *
- * This class extends WPFunctions but makes it non-final for testing.
+ * This class implements HooksInterface for use in unit tests.
  * It captures all action and filter calls for assertions.
  */
-class FakeWPFunctions {
+class FakeWPFunctions implements HooksInterface {
 
 	/**
 	 * Captured doAction calls.

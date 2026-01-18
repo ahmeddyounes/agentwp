@@ -7,6 +7,7 @@
 
 namespace AgentWP\Infrastructure;
 
+use AgentWP\Contracts\HooksInterface;
 use DateTimeZone;
 
 /**
@@ -35,7 +36,7 @@ use DateTimeZone;
  * $wpMock->method('getCurrentUser')->willReturn($fakeUser);
  * ```
  */
-final class WPFunctions {
+final class WPFunctions implements HooksInterface {
 
 	/**
 	 * Get the current WordPress user.

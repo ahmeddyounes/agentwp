@@ -25,6 +25,7 @@ use AgentWP\Contracts\AnalyticsServiceInterface;
 use AgentWP\Contracts\ContextBuilderInterface;
 use AgentWP\Contracts\CustomerServiceInterface;
 use AgentWP\Contracts\EmailDraftServiceInterface;
+use AgentWP\Contracts\HooksInterface;
 use AgentWP\Contracts\IntentClassifierInterface;
 use AgentWP\Contracts\MemoryStoreInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
@@ -292,6 +293,14 @@ final class IntentServiceProvider extends ServiceProvider {
 			Engine::class,
 			function () {
 				$handlers = $this->container->tagged( 'intent.handler' );
+
+				// Get hooks adapter - use WPFunctions if registered, fallback to new instance.
+				$hooks = $this->container->has( HooksInterface::class )
+					? $this->container->get( HooksInterface::class )
+					: ( $this->container->has( WPFunctions::class )
+						? $this->container->get( WPFunctions::class )
+						: new WPFunctions() );
+
 				return new Engine(
 					$handlers,
 					$this->container->get( FunctionRegistry::class ),
@@ -299,7 +308,8 @@ final class IntentServiceProvider extends ServiceProvider {
 					$this->container->get( IntentClassifierInterface::class ),
 					$this->container->get( MemoryStoreInterface::class ),
 					$this->container->get( HandlerRegistry::class ),
-					$this->container->get( FallbackHandler::class )
+					$this->container->get( FallbackHandler::class ),
+					$hooks
 				);
 			}
 		);

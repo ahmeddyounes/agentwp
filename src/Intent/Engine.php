@@ -9,6 +9,7 @@ namespace AgentWP\Intent;
 
 use AgentWP\AI\Response;
 use AgentWP\Contracts\ContextBuilderInterface;
+use AgentWP\Contracts\HooksInterface;
 use AgentWP\Contracts\IntentClassifierInterface;
 use AgentWP\Contracts\MemoryStoreInterface;
 
@@ -46,6 +47,13 @@ class Engine {
 	private $fallback_handler;
 
 	/**
+	 * WordPress hooks adapter for filters and actions.
+	 *
+	 * @var HooksInterface
+	 */
+	private $hooks;
+
+	/**
 	 * @param array                     $handlers          Handlers to register.
 	 * @param FunctionRegistry          $function_registry Function registry.
 	 * @param ContextBuilderInterface   $context_builder   Context builder.
@@ -53,6 +61,7 @@ class Engine {
 	 * @param MemoryStoreInterface      $memory            Memory store.
 	 * @param HandlerRegistry           $handler_registry  Handler registry.
 	 * @param Handler                   $fallback_handler  Fallback handler for unknown intents.
+	 * @param HooksInterface|null       $hooks             Hooks adapter (optional for backward compatibility).
 	 */
 	public function __construct(
 		array $handlers,
@@ -61,7 +70,8 @@ class Engine {
 		IntentClassifierInterface $classifier,
 		MemoryStoreInterface $memory,
 		HandlerRegistry $handler_registry,
-		Handler $fallback_handler
+		Handler $fallback_handler,
+		?HooksInterface $hooks = null
 	) {
 		$this->classifier        = $classifier;
 		$this->context_builder   = $context_builder;
@@ -69,17 +79,17 @@ class Engine {
 		$this->function_registry = $function_registry;
 		$this->handler_registry  = $handler_registry;
 		$this->fallback_handler  = $fallback_handler;
+		$this->hooks             = $hooks;
 
-		$resolved_handlers = $handlers;
-		if ( function_exists( 'apply_filters' ) ) {
-			$resolved_handlers = apply_filters( 'agentwp_intent_handlers', $resolved_handlers, $this );
-		}
+		$resolved_handlers = $this->hooks
+			? $this->hooks->applyFilters( 'agentwp_intent_handlers', $handlers, $this )
+			: $handlers;
 
 		$this->register_handlers( is_array( $resolved_handlers ) ? $resolved_handlers : array() );
 		$this->register_default_functions();
 
-		if ( function_exists( 'do_action' ) ) {
-			do_action( 'agentwp_register_intent_functions', $this->function_registry, $this );
+		if ( $this->hooks ) {
+			$this->hooks->doAction( 'agentwp_register_intent_functions', $this->function_registry, $this );
 		}
 	}
 
@@ -244,8 +254,9 @@ class Engine {
 			Intent::ANALYTICS_QUERY => array( 'get_sales_report' ),
 			Intent::CUSTOMER_LOOKUP => array( 'get_customer_profile' ),
 		);
-		if ( function_exists( 'apply_filters' ) ) {
-			$mapping = apply_filters( 'agentwp_default_function_mapping', $mapping, $this );
+
+		if ( $this->hooks ) {
+			$mapping = $this->hooks->applyFilters( 'agentwp_default_function_mapping', $mapping, $this );
 		}
 
 		foreach ( $mapping as $intent => $functions ) {
