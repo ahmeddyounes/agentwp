@@ -518,6 +518,26 @@ add_action( 'agentwp_register_providers', function( $container ) {
 
 ### Adding a Custom Intent Handler
 
+#### Tag Contract: `intent.handler`
+
+Intent handlers are discovered via the `intent.handler` container tag.
+
+**Discovery path:**
+- `IntentServiceProvider` calls `$container->tagged( 'intent.handler' )` when constructing `Engine` and the handler factory.
+- `Container::tagged()` resolves each tagged service via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
+- Tag your handler during `agentwp_register_providers` so it is available when the engine is created.
+- Handlers added via the `agentwp_intent_handlers` filter do not need to be tagged.
+
+**Constructor expectations:**
+- If you bind with `$container->bind( MyHandler::class, MyHandler::class )` or `singleton`, the container auto-wires constructor arguments by type-hint.
+- Only class-typed parameters are resolved automatically. Required scalar parameters are not supported unless they have defaults.
+- Union types are resolved only if one of the union types is already registered in the container.
+- Missing dependencies will throw and prevent engine initialization.
+
+**Handler expectations:**
+- Must implement `AgentWP\Intent\Handler`.
+- Must declare `#[HandlesIntent( ... )]` or it will be skipped during registration (warning in WP_DEBUG).
+
 ```php
 use AgentWP\Intent\Attributes\HandlesIntent;
 use AgentWP\Intent\Handlers\BaseHandler;
@@ -647,6 +667,23 @@ add_action( 'agentwp_log_error', function( $log_entry ) {
 ### Registering a Custom REST Controller
 
 Custom REST controllers can be registered via the `rest.controller` container tag. This allows your extension to add new API endpoints that integrate with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+
+#### Tag Contract: `rest.controller`
+
+REST controllers are discovered via the `rest.controller` container tag.
+
+**Discovery path:**
+- `RestServiceProvider` registers `RestRouteRegistrar::fromContainer( $container )`.
+- The registrar calls `$container->tagged( 'rest.controller' )` to retrieve controller instances.
+- Tagged controllers are preferred; if none are tagged, the registrar falls back to default controller classes.
+- On `rest_api_init`, each tagged controller's `register_routes()` method is called.
+
+**Constructor expectations:**
+- `Container::tagged()` resolves each tag via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
+- When you bind a class name as the resolver, the container auto-wires class-typed constructor arguments.
+- Required scalar parameters must have defaults; otherwise resolution fails.
+- If you add a constructor, call `parent::__construct()` to set the REST namespace.
+- Controllers should implement `register_routes()` (extending `RestController` is recommended for helpers).
 
 **Step 1: Create a controller class extending RestController:**
 

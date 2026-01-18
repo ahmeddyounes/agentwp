@@ -1,0 +1,1118 @@
+Status: DONE
+
+Summary of changes:
+- Documented tag discovery and container resolution rules for `intent.handler` and `rest.controller`, including constructor expectations and handler requirements in `docs/EXTENSIONS.md`.
+
+How to verify (exact commands):
+- No verification commands provided.
+
+Risks / follow-ups:
+- Low risk; documentation only. Consider revisiting these sections if container auto-wiring rules or tag discovery flow changes.
+
+OpenAI Codex v0.87.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019bd20b-e47b-7321-99ab-f309f8a1e2e2
+--------
+user
+You are implementing task C04-02 in this git repository.
+
+1) Read the spec: .plans/C04-02.md
+2) Read handoff/context: .t2/handoff/C04-02.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 57ms:
+agentwp.php
+assets
+composer.json
+composer.lock
+docker
+docker-compose.demo.yml
+docker-compose.yml
+docs
+includes
+languages
+node_modules
+package-lock.json
+package.json
+phpcs.xml
+phpstan
+phpstan.neon
+phpunit.xml.dist
+plan_tasks.csv
+playwright.config.cjs
+react
+exec
+/bin/zsh -lc "sed -n '1,200p' .plans/C04-02.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 67ms:
+# C04-02 — Document tagging contract
+
+Update `docs/EXTENSIONS.md` to document the tag contracts for `rest.controller` and `intent.handler` (constructor expectations, how container resolves them, how tags are discovered).
+exec
+/bin/zsh -lc "sed -n '1,200p' .t2/handoff/C04-02.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 70ms:
+# Handoff: C04-02
+
+Created: 2026-01-18T16:59:13.367535Z
+
+Spec: .plans/C04-02.md
+
+thinking
+**Opening extensions docs for update**
+exec
+/bin/zsh -lc "sed -n '1,200p' docs/EXTENSIONS.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 66ms:
+# AgentWP Extension Points
+
+This document is the **single source of truth** for all supported actions, filters, and extension points in AgentWP. Extension developers should reference this document when building integrations.
+
+> **Maintenance note:** When adding new hooks to the codebase, document them here with their file location, parameters, and purpose.
+
+## Table of Contents
+
+- [Tools vs Functions Terminology](#tools-vs-functions-terminology)
+- [Core Plugin Hooks](#core-plugin-hooks)
+- [Intent System Hooks](#intent-system-hooks)
+- [Intent Classification Hooks](#intent-classification-hooks)
+- [Error Handling Hooks](#error-handling-hooks)
+- [Configuration Hooks](#configuration-hooks)
+- [Customer Service Hooks](#customer-service-hooks)
+- [Encryption Hooks](#encryption-hooks)
+- [Notification Hooks](#notification-hooks)
+- [Extension Patterns](#extension-patterns)
+  - [Custom Service Provider](#registering-a-custom-service-provider)
+  - [Custom Intent Handler](#adding-a-custom-intent-handler)
+
+thinking
+**Locating extension pattern section**
+
+I'm looking for the section near the bottom that covers extension patterns like custom REST controllers to continue exploration there.
+exec
+/bin/zsh -lc 'rg -n "REST Controller|intent handler|rest.controller|intent.handler|tag" docs/EXTENSIONS.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 52ms:
+20:  - [Custom Intent Handler](#adding-a-custom-intent-handler)
+23:  - [Custom REST Controller](#registering-a-custom-rest-controller)
+88:### `agentwp_intent_handlers` (Filter)
+90:Modify the list of intent handlers before registration.
+105:add_filter( 'agentwp_intent_handlers', function( $handlers, $engine ) {
+505:    // Register a custom intent handler
+513:    $container->tag( MyIntentHandler::class, 'intent.handler' );
+540:add_filter( 'agentwp_intent_handlers', function( $handlers, $engine ) {
+647:### Registering a Custom REST Controller
+649:Custom REST controllers can be registered via the `rest.controller` container tag. This allows your extension to add new API endpoints that integrate with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+818:**Step 2: Register and tag the controller via service provider:**
+835:    $container->tag(
+837:        'rest.controller'
+845:2. The registrar retrieves all services tagged with `rest.controller`
+875:| Filter | `agentwp_intent_handlers` | Engine.php | Customize intent handlers |
+888:| Tag | `intent.handler` | IntentServiceProvider.php | Register intent handlers |
+889:| Tag | `rest.controller` | RestServiceProvider.php | Register REST controllers |
+
+thinking
+**Locating tag contract docs**
+
+I'm searching for existing documentation sections related to custom intent handlers or REST controllers to find relevant tag contract details.
+exec
+/bin/zsh -lc "sed -n '460,740p' docs/EXTENSIONS.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 68ms:
+    }
+    return $notify;
+}, 10, 4 );
+```
+
+---
+
+### `agentwp_status_notify_customer` (Filter)
+
+Control whether order status emails are sent.
+
+| Property | Value |
+|----------|-------|
+| **When** | Before sending status change notification |
+
+**Parameters:**
+- `bool $notify` — Whether to send notification
+- `WC_Order $order` — The order object
+- `string $new_status` — The new order status
+
+exec
+/bin/zsh -lc "sed -n '740,980p' docs/EXTENSIONS.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 60ms:
+                'service_unavailable',
+                __( 'Shipment service is not available.', 'my-plugin' ),
+                500
+            );
+        }
+
+        $shipment = $service->find( $id );
+        if ( ! $shipment ) {
+            return $this->response_error(
+                'not_found',
+                __( 'Shipment not found.', 'my-plugin' ),
+                404
+            );
+        }
+
+        return $this->response_success( array( 'shipment' => $shipment ) );
+    }
+
+    /**
+     * Update a shipment.
+
+thinking
+**Planning docs update for tag contracts**
+
+I'll read the relevant source code using tag searches to accurately document constructor expectations, container resolution, and tag discovery for rest.controller and intent.handler, targeting Extension Patterns and summary sections.
+exec
+/bin/zsh -lc "rg -n \"intent\\.handler|rest\\.controller\" src includes" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 80ms:
+src/Providers/IntentServiceProvider.php:365:				$handlers = $this->container->tagged( 'intent.handler' );
+src/Providers/IntentServiceProvider.php:419:		$this->container->tag( OrderSearchHandler::class, 'intent.handler' );
+src/Providers/IntentServiceProvider.php:440:		$this->container->tag( OrderRefundHandler::class, 'intent.handler' );
+src/Providers/IntentServiceProvider.php:461:		$this->container->tag( OrderStatusHandler::class, 'intent.handler' );
+src/Providers/IntentServiceProvider.php:482:		$this->container->tag( ProductStockHandler::class, 'intent.handler' );
+src/Providers/IntentServiceProvider.php:503:		$this->container->tag( EmailDraftHandler::class, 'intent.handler' );
+src/Providers/IntentServiceProvider.php:524:		$this->container->tag( AnalyticsQueryHandler::class, 'intent.handler' );
+src/Providers/IntentServiceProvider.php:545:		$this->container->tag( CustomerLookupHandler::class, 'intent.handler' );
+src/Providers/IntentServiceProvider.php:555:			'intent.handler_factory',
+src/Providers/IntentServiceProvider.php:558:					$handlers = $this->container->tagged( 'intent.handler' );
+src/Providers/RestServiceProvider.php:121:	 * Uses tag-based discovery via 'rest.controller' tag.
+src/Providers/RestServiceProvider.php:136:	 * Tags each controller with 'rest.controller' for discovery.
+src/Providers/RestServiceProvider.php:138:	 * by binding and tagging them with 'rest.controller'.
+src/Providers/RestServiceProvider.php:152:				$this->container->tag( $controllerClass, 'rest.controller' );
+src/Plugin/RestRouteRegistrar.php:187:	 * Discovers controllers via the 'rest.controller' tag.
+src/Plugin/RestRouteRegistrar.php:194:		$taggedControllers = $container->tagged( 'rest.controller' );
+exec
+/bin/zsh -lc "sed -n '320,520p' src/Providers/IntentServiceProvider.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 65ms:
+	 *
+	 * @return void
+	 */
+	private function registerHandlerRegistry(): void {
+		if ( ! class_exists( HandlerRegistry::class ) ) {
+			return;
+		}
+
+		$this->container->singleton(
+			HandlerRegistry::class,
+			fn() => new HandlerRegistry()
+		);
+	}
+
+	/**
+	 * Register fallback handler for unknown intents.
+	 *
+	 * @return void
+	 */
+	private function registerFallbackHandler(): void {
+exec
+/bin/zsh -lc "sed -n '520,720p' src/Providers/IntentServiceProvider.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 67ms:
+				$c->get( ToolRegistryInterface::class ),
+				$c->get( ToolDispatcherInterface::class )
+			)
+		);
+		$this->container->tag( AnalyticsQueryHandler::class, 'intent.handler' );
+	}
+
+	/**
+	 * Register customer lookup handler.
+	 *
+	 * @return void
+	 */
+	private function registerCustomerLookupHandler(): void {
+		if ( ! class_exists( CustomerLookupHandler::class ) ) {
+			return;
+		}
+
+		$this->container->singleton(
+			CustomerLookupHandler::class,
+			fn( $c ) => new CustomerLookupHandler(
+
+thinking
+**Investigating container tagging behavior**
+
+I'm checking if tagged returns resolved instances or class names by searching for its implementation in the container class, likely under src/Container. Next, I'll examine tagged usage to clarify its output.
+exec
+/bin/zsh -lc "rg -n \"function tagged\\(|tagged\\(\" -S src includes" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 70ms:
+src/Providers/IntentServiceProvider.php:365:				$handlers = $this->container->tagged( 'intent.handler' );
+src/Providers/IntentServiceProvider.php:558:					$handlers = $this->container->tagged( 'intent.handler' );
+src/Container/ContainerInterface.php:76:	public function tagged( string $tag ): array;
+src/Container/Container.php:172:	public function tagged( string $tag ): array {
+src/Plugin/RestRouteRegistrar.php:194:		$taggedControllers = $container->tagged( 'rest.controller' );
+exec
+/bin/zsh -lc "sed -n '1,260p' src/Container/Container.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 69ms:
+<?php
+/**
+ * Dependency injection container.
+ *
+ * @package AgentWP\Container
+ */
+
+namespace AgentWP\Container;
+
+/**
+ * Lightweight dependency injection container.
+ *
+ * Supports:
+ * - Transient and singleton bindings
+ * - Lazy resolution via callables
+ * - Service tagging for group retrieval
+ * - Instance registration
+ */
+class Container implements ContainerInterface {
+
+exec
+/bin/zsh -lc "sed -n '260,520p' src/Container/Container.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 70ms:
+				return new $class();
+			}
+
+			$parameters = $constructor->getParameters();
+
+			// No parameters, just instantiate.
+			if ( empty( $parameters ) ) {
+				return new $class();
+			}
+
+			$dependencies = $this->resolveDependencies( $parameters );
+
+			return $reflection->newInstanceArgs( $dependencies );
+		} finally {
+			unset( $this->resolving[ $class ] );
+		}
+	}
+
+	/**
+	 * Resolve constructor dependencies.
+
+thinking
+**Outlining document tag contract**
+
+Identified that the container resolves tags via autowiring or binding/resolver, with tag discovery through container-tagged methods, and that the RestServiceProvider and RestRouteRegistrar handle REST controller discovery; plan to document these findings.
+exec
+/bin/zsh -lc "sed -n '1,240p' src/Providers/RestServiceProvider.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 69ms:
+<?php
+/**
+ * REST service provider.
+ *
+ * @package AgentWP\Providers
+ */
+
+namespace AgentWP\Providers;
+
+use AgentWP\Infrastructure\RateLimiting\RateLimiter;
+use AgentWP\Rest\RestController;
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Container\ServiceProvider;
+use AgentWP\Error\Handler as ErrorHandler;
+use AgentWP\Contracts\ClockInterface;
+use AgentWP\Contracts\AtomicRateLimiterInterface;
+use AgentWP\Contracts\RateLimiterInterface;
+use AgentWP\Contracts\TransientCacheInterface;
+use AgentWP\Plugin\ResponseFormatter;
+use AgentWP\Plugin\RestRouteRegistrar;
+
+thinking
+**Identifying missing RestRouteRegistrar**
+exec
+/bin/zsh -lc "sed -n '1,260p' src/Plugin/RestRouteRegistrar.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 73ms:
+<?php
+/**
+ * REST route registrar.
+ *
+ * @package AgentWP\Plugin
+ */
+
+namespace AgentWP\Plugin;
+
+use AgentWP\Container\ContainerInterface;
+
+/**
+ * Registers REST API routes from controller classes.
+ */
+final class RestRouteRegistrar {
+
+	/**
+	 * Controller class names to register.
+	 *
+	 * @var string[]
+
+thinking
+**Reviewing handler base class and constructor requirements**
+
+I'm focusing on constructor expectations and tagging conventions for intent handlers, noting they must be container resolvable and implement canHandle. Next, I'll inspect the BaseHandler class and verify its constructor and tagging usage in the container.
+exec
+/bin/zsh -lc 'rg -n "class BaseHandler|Abstract.*Handler|canHandle" src/Intent' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 38ms:
+src/Intent/Handlers/AbstractAgenticHandler.php:29:abstract class AbstractAgenticHandler extends BaseHandler implements ToolSuggestionProvider {
+src/Intent/Handlers/SimpleHandler.php:22: * Contrast with AbstractAgenticHandler which provides AI-powered
+src/Intent/Handlers/SimpleHandler.php:71:	public function canHandleMultiple( array $intents ): bool {
+src/Intent/Handlers/SimpleHandler.php:73:			if ( ! $this->canHandle( $intent ) ) {
+src/Intent/Handlers/CustomerLookupHandler.php:22:class CustomerLookupHandler extends AbstractAgenticHandler {
+src/Intent/Handlers/OrderRefundHandler.php:22:class OrderRefundHandler extends AbstractAgenticHandler {
+src/Intent/Handlers/ProductStockHandler.php:23:class ProductStockHandler extends AbstractAgenticHandler {
+src/Intent/Handlers/BaseHandler.php:14:abstract class BaseHandler implements Handler {
+src/Intent/Handlers/BaseHandler.php:28:	public function canHandle( string $intent ): bool {
+src/Intent/Handlers/OrderSearchHandler.php:22:class OrderSearchHandler extends AbstractAgenticHandler {
+src/Intent/Handlers/EmailDraftHandler.php:22:class EmailDraftHandler extends AbstractAgenticHandler {
+src/Intent/Handlers/OrderStatusHandler.php:23:class OrderStatusHandler extends AbstractAgenticHandler {
+src/Intent/Handlers/AnalyticsQueryHandler.php:22:class AnalyticsQueryHandler extends AbstractAgenticHandler {
+src/Intent/FunctionRegistry.php:84:			if ( $handler->canHandle( $intent ) ) {
+src/Intent/Attributes/HandlesIntent.php:16: * class OrderSearchHandler extends AbstractAgenticHandler {
+src/Intent/Attributes/HandlesIntent.php:22: * class OrderManagementHandler extends AbstractAgenticHandler {
+src/Intent/Handler.php:17:	public function canHandle( string $intent ): bool;
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Intent/Handlers/BaseHandler.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 71ms:
+<?php
+/**
+ * Base handler for intent responses.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP\Intent\Handlers;
+
+use AgentWP\AI\Response;
+use AgentWP\Intent\Handler;
+use AgentWP\Intent\Intent;
+
+abstract class BaseHandler implements Handler {
+	protected string $intent;
+
+	/**
+	 * @param string $intent Intent identifier.
+	 */
+	public function __construct( string $intent ) {
+
+thinking
+**Questioning intent handler design**
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Intent/Handler.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 65ms:
+<?php
+/**
+ * Intent handler contract.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP\Intent;
+
+use AgentWP\AI\Response;
+
+interface Handler {
+	/**
+	 * @param string $intent Intent identifier.
+	 * @return bool
+	 */
+	public function canHandle( string $intent ): bool;
+
+	/**
+	 * @param array $context Enriched request context.
+
+
+thinking
+**Documenting container tagging contract**
+
+Clarified that handlers must be bound in the container before tagging, as tags rely on container->get which throws if bindings are missing; tagging alone doesn't ensure safe resolution without prior binding or singleton registration.
+thinking
+**Detailing tag contracts and constructor expectations**
+
+Identified that both intent handlers and rest controllers require container binding before tagging, with constructor dependencies resolved via autowiring or explicit DI; handler factories and route registrars rely on container->tagged to get instances, so documenting tag contracts and constructor rules is essential, suggesting a new or extended doc section for these extension patterns.
+exec
+/bin/zsh -lc 'rg -n "Tag|tag" docs/EXTENSIONS.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 71ms:
+512:    // Tag handler for discovery by Engine
+513:    $container->tag( MyIntentHandler::class, 'intent.handler' );
+649:Custom REST controllers can be registered via the `rest.controller` container tag. This allows your extension to add new API endpoints that integrate with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+818:**Step 2: Register and tag the controller via service provider:**
+834:    // Tag the controller for discovery
+835:    $container->tag(
+845:2. The registrar retrieves all services tagged with `rest.controller`
+888:| Tag | `intent.handler` | IntentServiceProvider.php | Register intent handlers |
+889:| Tag | `rest.controller` | RestServiceProvider.php | Register REST controllers |
+
+
+thinking
+**Drafting tag contract docs**
+
+I'm preparing detailed documentation for "intent.handler" and "rest.controller" tag contracts to add under extension patterns, explaining constructor expectations, container resolution, and tagging usage with examples reflecting current auto-wiring and binding rules.
+thinking
+**Refining intent.handler details**
+
+Added that handlers must implement the intent handler interface and clarified optional default parameters. Noted tag discovery happens at engine construction but container->tagged is called dynamically by the factory, highlighting distinction between static mapping and dynamic resolution.
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Intent/Engine.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 53ms:
+<?php
+/**
+ * Intent engine for routing requests.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP\Intent;
+
+use AgentWP\AI\Response;
+use AgentWP\Contracts\ContextBuilderInterface;
+use AgentWP\Contracts\HooksInterface;
+use AgentWP\Contracts\IntentClassifierInterface;
+use AgentWP\Contracts\MemoryStoreInterface;
+use AgentWP\Contracts\ToolDispatcherInterface;
+use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Intent\ToolSuggestionProvider;
+
+class Engine {
+	/**
+
+
+thinking
+**Planning intent handler attribute documentation**
+
+The engine requires handlers to have the HandlesIntent attribute for registration, so I'll update docs to clearly mention this requirement. I'll add a new subsection under "Adding a Custom Intent Handler" to explain the intent.handler tag contract and emphasize the attribute's necessity.
+thinking
+**Drafting detailed tag contract explanations**
+
+I'm outlining precise usage for the intent.handler and rest.controller tags, covering container binding, resolution, constructor constraints, and registration flow. Next, I'll verify the RestController constructor to confirm injection details for the rest.controller tag contract.
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Rest/RestController.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 66ms:
+<?php
+/**
+ * Base REST controller.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP\Rest;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Container\ContainerInterface;
+use AgentWP\Contracts\AtomicRateLimiterInterface;
+use AgentWP\Contracts\RateLimiterInterface;
+use AgentWP\Error\Handler as ErrorHandler;
+use AgentWP\Plugin;
+use WP_Error;
+use WP_REST_Controller;
+use WP_REST_Request;
+use WP_REST_Response;
+
+
+
+thinking
+**Outlining doc updates for tag contracts**
+
+I'm planning to add documentation for rest.controller and intent.handler tag contracts, detailing constructor expectations, container autowiring, and tag discovery timing; these updates will go under relevant sections in EXTENSIONS.md.
+thinking
+**Drafting detailed tag contract docs**
+
+I'm drafting comprehensive doc text for `intent.handler` and `rest.controller` tag contracts covering discovery timing, container resolution rules, constructor expectations, and handler requirements, planning to add a central "Tag Contracts" section in Extension Patterns before customizing handlers.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/docs/EXTENSIONS.md
+@@ -518,2 +518,23 @@
+ 
++### Tag Contract: `intent.handler`
++
++Intent handlers are discovered via the `intent.handler` container tag.
++
++**Discovery path:**
++- `IntentServiceProvider` calls `$container->tagged( 'intent.handler' )` when constructing `Engine` and the handler factory.
++- `Container::tagged()` resolves each tagged service via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- Tag your handler during `agentwp_register_providers` so it is available when the engine is created.
++
++**Constructor expectations:**
++- If you bind with `$container->bind( MyHandler::class, MyHandler::class )` or `singleton`, the container auto-wires constructor arguments by type-hint.
++- Only class-typed parameters are resolved automatically. Required scalar parameters are not supported unless they have defaults.
++- Union types are resolved only if one of the union types is already registered in the container.
++- Missing dependencies will throw and prevent engine initialization.
++
++**Handler expectations:**
++- Must implement `AgentWP\Intent\Handler`.
++- Must declare `#[HandlesIntent( ... )]` or it will be skipped during registration (warning in WP_DEBUG).
++
++---
++
+ ### Adding a Custom Intent Handler
+@@ -650,2 +671,19 @@
+ 
++### Tag Contract: `rest.controller`
++
++REST controllers are discovered via the `rest.controller` container tag.
++
++**Discovery path:**
++- `RestServiceProvider` registers `RestRouteRegistrar::fromContainer( $container )`.
++- The registrar calls `$container->tagged( 'rest.controller' )` to retrieve controller instances.
++- Tagged controllers are preferred; if none are tagged, the registrar falls back to default controller classes.
++- On `rest_api_init`, each tagged controller's `register_routes()` method is called.
++
++**Constructor expectations:**
++- `Container::tagged()` resolves each tag via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- When you bind a class name as the resolver, the container auto-wires class-typed constructor arguments.
++- Required scalar parameters must have defaults; otherwise resolution fails.
++- If you add a constructor, call `parent::__construct()` to set the REST namespace.
++- Controllers should implement `register_routes()` (extending `RestController` is recommended for helpers).
++
+ **Step 1: Create a controller class extending RestController:**
+apply_patch(auto_approved=true) exited 0 in 33ms:
+Success. Updated the following files:
+M docs/EXTENSIONS.md
+file update:
+diff --git a/docs/EXTENSIONS.md b/docs/EXTENSIONS.md
+index d243c350ea58b37bd43136d1f5bedfdadaa6b49c..e275fec4b8dd095086e9aed76f6256dce45a9101
+--- a/docs/EXTENSIONS.md
++++ b/docs/EXTENSIONS.md
+@@ -516,6 +516,27 @@
+ 
+ ---
+ 
++### Tag Contract: `intent.handler`
++
++Intent handlers are discovered via the `intent.handler` container tag.
++
++**Discovery path:**
++- `IntentServiceProvider` calls `$container->tagged( 'intent.handler' )` when constructing `Engine` and the handler factory.
++- `Container::tagged()` resolves each tagged service via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- Tag your handler during `agentwp_register_providers` so it is available when the engine is created.
++
++**Constructor expectations:**
++- If you bind with `$container->bind( MyHandler::class, MyHandler::class )` or `singleton`, the container auto-wires constructor arguments by type-hint.
++- Only class-typed parameters are resolved automatically. Required scalar parameters are not supported unless they have defaults.
++- Union types are resolved only if one of the union types is already registered in the container.
++- Missing dependencies will throw and prevent engine initialization.
++
++**Handler expectations:**
++- Must implement `AgentWP\Intent\Handler`.
++- Must declare `#[HandlesIntent( ... )]` or it will be skipped during registration (warning in WP_DEBUG).
++
++---
++
+ ### Adding a Custom Intent Handler
+ 
+ ```php
+@@ -648,6 +669,23 @@
+ 
+ Custom REST controllers can be registered via the `rest.controller` container tag. This allows your extension to add new API endpoints that integrate with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+ 
++### Tag Contract: `rest.controller`
++
++REST controllers are discovered via the `rest.controller` container tag.
++
++**Discovery path:**
++- `RestServiceProvider` registers `RestRouteRegistrar::fromContainer( $container )`.
++- The registrar calls `$container->tagged( 'rest.controller' )` to retrieve controller instances.
++- Tagged controllers are preferred; if none are tagged, the registrar falls back to default controller classes.
++- On `rest_api_init`, each tagged controller's `register_routes()` method is called.
++
++**Constructor expectations:**
++- `Container::tagged()` resolves each tag via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- When you bind a class name as the resolver, the container auto-wires class-typed constructor arguments.
++- Required scalar parameters must have defaults; otherwise resolution fails.
++- If you add a constructor, call `parent::__construct()` to set the REST namespace.
++- Controllers should implement `register_routes()` (extending `RestController` is recommended for helpers).
++
+ **Step 1: Create a controller class extending RestController:**
+ 
+ ```php
+
+file update:
+diff --git a/docs/EXTENSIONS.md b/docs/EXTENSIONS.md
+index d243c350ea58b37bd43136d1f5bedfdadaa6b49c..e275fec4b8dd095086e9aed76f6256dce45a9101
+--- a/docs/EXTENSIONS.md
++++ b/docs/EXTENSIONS.md
+@@ -516,6 +516,27 @@
+ 
+ ---
+ 
++### Tag Contract: `intent.handler`
++
++Intent handlers are discovered via the `intent.handler` container tag.
++
++**Discovery path:**
++- `IntentServiceProvider` calls `$container->tagged( 'intent.handler' )` when constructing `Engine` and the handler factory.
++- `Container::tagged()` resolves each tagged service via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- Tag your handler during `agentwp_register_providers` so it is available when the engine is created.
++
++**Constructor expectations:**
++- If you bind with `$container->bind( MyHandler::class, MyHandler::class )` or `singleton`, the container auto-wires constructor arguments by type-hint.
++- Only class-typed parameters are resolved automatically. Required scalar parameters are not supported unless they have defaults.
++- Union types are resolved only if one of the union types is already registered in the container.
++- Missing dependencies will throw and prevent engine initialization.
++
++**Handler expectations:**
++- Must implement `AgentWP\Intent\Handler`.
++- Must declare `#[HandlesIntent( ... )]` or it will be skipped during registration (warning in WP_DEBUG).
++
++---
++
+ ### Adding a Custom Intent Handler
+ 
+ ```php
+@@ -648,6 +669,23 @@
+ 
+ Custom REST controllers can be registered via the `rest.controller` container tag. This allows your extension to add new API endpoints that integrate with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+ 
++### Tag Contract: `rest.controller`
++
++REST controllers are discovered via the `rest.controller` container tag.
++
++**Discovery path:**
++- `RestServiceProvider` registers `RestRouteRegistrar::fromContainer( $container )`.
++- The registrar calls `$container->tagged( 'rest.controller' )` to retrieve controller instances.
++- Tagged controllers are preferred; if none are tagged, the registrar falls back to default controller classes.
++- On `rest_api_init`, each tagged controller's `register_routes()` method is called.
++
++**Constructor expectations:**
++- `Container::tagged()` resolves each tag via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- When you bind a class name as the resolver, the container auto-wires class-typed constructor arguments.
++- Required scalar parameters must have defaults; otherwise resolution fails.
++- If you add a constructor, call `parent::__construct()` to set the REST namespace.
++- Controllers should implement `register_routes()` (extending `RestController` is recommended for helpers).
++
+ **Step 1: Create a controller class extending RestController:**
+ 
+ ```php
+
+
+
+thinking
+**Reviewing and planning ToC update**
+
+I’m considering adjusting the new Tag Contract heading level and updating the table of contents to include the new Tag Contract sections for consistency and navigation clarity.
+thinking
+**Deciding on embedding Tag Contract subsections**
+
+I'm planning to embed Tag Contract details as subheadings within their respective sections using one level deeper headings to keep related steps grouped, minimizing separate TOC entries and preserving logical doc flow.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/docs/EXTENSIONS.md
+@@ -518,4 +518,6 @@
+ 
+-### Tag Contract: `intent.handler`
++### Adding a Custom Intent Handler
+ 
++#### Tag Contract: `intent.handler`
++
+ Intent handlers are discovered via the `intent.handler` container tag.
+@@ -536,6 +538,2 @@
+ - Must declare `#[HandlesIntent( ... )]` or it will be skipped during registration (warning in WP_DEBUG).
+-
+----
+-
+-### Adding a Custom Intent Handler
+ 
+@@ -671,3 +669,3 @@
+ 
+-### Tag Contract: `rest.controller`
++#### Tag Contract: `rest.controller`
+ 
+apply_patch(auto_approved=true) exited 0 in 36ms:
+Success. Updated the following files:
+M docs/EXTENSIONS.md
+file update:
+diff --git a/docs/EXTENSIONS.md b/docs/EXTENSIONS.md
+index d243c350ea58b37bd43136d1f5bedfdadaa6b49c..dc398f19d42ba91e5d7a6549e390f4815ff3f8d0
+--- a/docs/EXTENSIONS.md
++++ b/docs/EXTENSIONS.md
+@@ -518,6 +518,25 @@
+ 
+ ### Adding a Custom Intent Handler
+ 
++#### Tag Contract: `intent.handler`
++
++Intent handlers are discovered via the `intent.handler` container tag.
++
++**Discovery path:**
++- `IntentServiceProvider` calls `$container->tagged( 'intent.handler' )` when constructing `Engine` and the handler factory.
++- `Container::tagged()` resolves each tagged service via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- Tag your handler during `agentwp_register_providers` so it is available when the engine is created.
++
++**Constructor expectations:**
++- If you bind with `$container->bind( MyHandler::class, MyHandler::class )` or `singleton`, the container auto-wires constructor arguments by type-hint.
++- Only class-typed parameters are resolved automatically. Required scalar parameters are not supported unless they have defaults.
++- Union types are resolved only if one of the union types is already registered in the container.
++- Missing dependencies will throw and prevent engine initialization.
++
++**Handler expectations:**
++- Must implement `AgentWP\Intent\Handler`.
++- Must declare `#[HandlesIntent( ... )]` or it will be skipped during registration (warning in WP_DEBUG).
++
+ ```php
+ use AgentWP\Intent\Attributes\HandlesIntent;
+ use AgentWP\Intent\Handlers\BaseHandler;
+@@ -648,6 +667,23 @@
+ 
+ Custom REST controllers can be registered via the `rest.controller` container tag. This allows your extension to add new API endpoints that integrate with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+ 
++#### Tag Contract: `rest.controller`
++
++REST controllers are discovered via the `rest.controller` container tag.
++
++**Discovery path:**
++- `RestServiceProvider` registers `RestRouteRegistrar::fromContainer( $container )`.
++- The registrar calls `$container->tagged( 'rest.controller' )` to retrieve controller instances.
++- Tagged controllers are preferred; if none are tagged, the registrar falls back to default controller classes.
++- On `rest_api_init`, each tagged controller's `register_routes()` method is called.
++
++**Constructor expectations:**
++- `Container::tagged()` resolves each tag via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- When you bind a class name as the resolver, the container auto-wires class-typed constructor arguments.
++- Required scalar parameters must have defaults; otherwise resolution fails.
++- If you add a constructor, call `parent::__construct()` to set the REST namespace.
++- Controllers should implement `register_routes()` (extending `RestController` is recommended for helpers).
++
+ **Step 1: Create a controller class extending RestController:**
+ 
+ ```php
+
+file update:
+diff --git a/docs/EXTENSIONS.md b/docs/EXTENSIONS.md
+index d243c350ea58b37bd43136d1f5bedfdadaa6b49c..dc398f19d42ba91e5d7a6549e390f4815ff3f8d0
+--- a/docs/EXTENSIONS.md
++++ b/docs/EXTENSIONS.md
+@@ -518,6 +518,25 @@
+ 
+ ### Adding a Custom Intent Handler
+ 
++#### Tag Contract: `intent.handler`
++
++Intent handlers are discovered via the `intent.handler` container tag.
++
++**Discovery path:**
++- `IntentServiceProvider` calls `$container->tagged( 'intent.handler' )` when constructing `Engine` and the handler factory.
++- `Container::tagged()` resolves each tagged service via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- Tag your handler during `agentwp_register_providers` so it is available when the engine is created.
++
++**Constructor expectations:**
++- If you bind with `$container->bind( MyHandler::class, MyHandler::class )` or `singleton`, the container auto-wires constructor arguments by type-hint.
++- Only class-typed parameters are resolved automatically. Required scalar parameters are not supported unless they have defaults.
++- Union types are resolved only if one of the union types is already registered in the container.
++- Missing dependencies will throw and prevent engine initialization.
++
++**Handler expectations:**
++- Must implement `AgentWP\Intent\Handler`.
++- Must declare `#[HandlesIntent( ... )]` or it will be skipped during registration (warning in WP_DEBUG).
++
+ ```php
+ use AgentWP\Intent\Attributes\HandlesIntent;
+ use AgentWP\Intent\Handlers\BaseHandler;
+@@ -648,6 +667,23 @@
+ 
+ Custom REST controllers can be registered via the `rest.controller` container tag. This allows your extension to add new API endpoints that integrate with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+ 
++#### Tag Contract: `rest.controller`
++
++REST controllers are discovered via the `rest.controller` container tag.
++
++**Discovery path:**
++- `RestServiceProvider` registers `RestRouteRegistrar::fromContainer( $container )`.
++- The registrar calls `$container->tagged( 'rest.controller' )` to retrieve controller instances.
++- Tagged controllers are preferred; if none are tagged, the registrar falls back to default controller classes.
++- On `rest_api_init`, each tagged controller's `register_routes()` method is called.
++
++**Constructor expectations:**
++- `Container::tagged()` resolves each tag via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- When you bind a class name as the resolver, the container auto-wires class-typed constructor arguments.
++- Required scalar parameters must have defaults; otherwise resolution fails.
++- If you add a constructor, call `parent::__construct()` to set the REST namespace.
++- Controllers should implement `register_routes()` (extending `RestController` is recommended for helpers).
++
+ **Step 1: Create a controller class extending RestController:**
+ 
+ ```php
+
+
+thinking
+**Verifying section separators**
+
+I'm checking the presence and correctness of '---' separators around the "Adding a Custom Intent Handler" section to ensure clean formatting and consistent separation after adjusting nested contract tags.
+exec
+/bin/zsh -lc "sed -n '480,720p' docs/EXTENSIONS.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 61ms:
+**Returns:** Boolean
+
+**Example:**
+```php
+add_filter( 'agentwp_status_notify_customer', function( $notify, $order, $new_status ) {
+    // Only notify for completed orders
+    return 'completed' === $new_status;
+}, 10, 3 );
+```
+
+---
+
+## Extension Patterns
+
+### Registering a Custom Service Provider
+
+```php
+add_action( 'agentwp_register_providers', function( $container ) {
+    // Register your service
+    $container->singleton( MyService::class, function( $c ) {
+file update:
+diff --git a/docs/EXTENSIONS.md b/docs/EXTENSIONS.md
+index d243c350ea58b37bd43136d1f5bedfdadaa6b49c..dc398f19d42ba91e5d7a6549e390f4815ff3f8d0
+--- a/docs/EXTENSIONS.md
++++ b/docs/EXTENSIONS.md
+@@ -518,6 +518,25 @@
+ 
+ ### Adding a Custom Intent Handler
+ 
++#### Tag Contract: `intent.handler`
++
++Intent handlers are discovered via the `intent.handler` container tag.
++
++**Discovery path:**
++- `IntentServiceProvider` calls `$container->tagged( 'intent.handler' )` when constructing `Engine` and the handler factory.
++- `Container::tagged()` resolves each tagged service via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- Tag your handler during `agentwp_register_providers` so it is available when the engine is created.
++
++**Constructor expectations:**
++- If you bind with `$container->bind( MyHandler::class, MyHandler::class )` or `singleton`, the container auto-wires constructor arguments by type-hint.
++- Only class-typed parameters are resolved automatically. Required scalar parameters are not supported unless they have defaults.
++- Union types are resolved only if one of the union types is already registered in the container.
++- Missing dependencies will throw and prevent engine initialization.
++
++**Handler expectations:**
++- Must implement `AgentWP\Intent\Handler`.
++- Must declare `#[HandlesIntent( ... )]` or it will be skipped during registration (warning in WP_DEBUG).
++
+ ```php
+ use AgentWP\Intent\Attributes\HandlesIntent;
+ use AgentWP\Intent\Handlers\BaseHandler;
+@@ -648,6 +667,23 @@
+ 
+ Custom REST controllers can be registered via the `rest.controller` container tag. This allows your extension to add new API endpoints that integrate with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+ 
++#### Tag Contract: `rest.controller`
++
++REST controllers are discovered via the `rest.controller` container tag.
++
++**Discovery path:**
++- `RestServiceProvider` registers `RestRouteRegistrar::fromContainer( $container )`.
++- The registrar calls `$container->tagged( 'rest.controller' )` to retrieve controller instances.
++- Tagged controllers are preferred; if none are tagged, the registrar falls back to default controller classes.
++- On `rest_api_init`, each tagged controller's `register_routes()` method is called.
++
++**Constructor expectations:**
++- `Container::tagged()` resolves each tag via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- When you bind a class name as the resolver, the container auto-wires class-typed constructor arguments.
++- Required scalar parameters must have defaults; otherwise resolution fails.
++- If you add a constructor, call `parent::__construct()` to set the REST namespace.
++- Controllers should implement `register_routes()` (extending `RestController` is recommended for helpers).
++
+ **Step 1: Create a controller class extending RestController:**
+ 
+ ```php
+
+
+
+thinking
+**Clarifying tag contract versus filter usage**
+
+Considering adding a note in the Tag Contract or custom handler section to explain that the tag contract applies to container-tagged handlers, while using the filter to add handlers does not require tagging; this should prevent confusion about when tagging is necessary.
+thinking
+**Adding note on tag and filter usage in intent handler contract**
+
+Planning to add a brief note in the intent handler tag contract section explaining that the contract applies to container-tagged handlers, while handlers added via the filter don't require tagging; also confirming the engine merges both sources. This clarifies usage without altering rest controller notes.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/docs/EXTENSIONS.md
+@@ -528,2 +528,3 @@
+ - Tag your handler during `agentwp_register_providers` so it is available when the engine is created.
++- Handlers added via the `agentwp_intent_handlers` filter do not need to be tagged.
+ 
+apply_patch(auto_approved=true) exited 0 in 46ms:
+Success. Updated the following files:
+M docs/EXTENSIONS.md
+file update:
+diff --git a/docs/EXTENSIONS.md b/docs/EXTENSIONS.md
+index d243c350ea58b37bd43136d1f5bedfdadaa6b49c..87c6ba332bf870250f62507532f7ff050780e3fe
+--- a/docs/EXTENSIONS.md
++++ b/docs/EXTENSIONS.md
+@@ -518,6 +518,26 @@
+ 
+ ### Adding a Custom Intent Handler
+ 
++#### Tag Contract: `intent.handler`
++
++Intent handlers are discovered via the `intent.handler` container tag.
++
++**Discovery path:**
++- `IntentServiceProvider` calls `$container->tagged( 'intent.handler' )` when constructing `Engine` and the handler factory.
++- `Container::tagged()` resolves each tagged service via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- Tag your handler during `agentwp_register_providers` so it is available when the engine is created.
++- Handlers added via the `agentwp_intent_handlers` filter do not need to be tagged.
++
++**Constructor expectations:**
++- If you bind with `$container->bind( MyHandler::class, MyHandler::class )` or `singleton`, the container auto-wires constructor arguments by type-hint.
++- Only class-typed parameters are resolved automatically. Required scalar parameters are not supported unless they have defaults.
++- Union types are resolved only if one of the union types is already registered in the container.
++- Missing dependencies will throw and prevent engine initialization.
++
++**Handler expectations:**
++- Must implement `AgentWP\Intent\Handler`.
++- Must declare `#[HandlesIntent( ... )]` or it will be skipped during registration (warning in WP_DEBUG).
++
+ ```php
+ use AgentWP\Intent\Attributes\HandlesIntent;
+ use AgentWP\Intent\Handlers\BaseHandler;
+@@ -648,6 +668,23 @@
+ 
+ Custom REST controllers can be registered via the `rest.controller` container tag. This allows your extension to add new API endpoints that integrate with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+ 
++#### Tag Contract: `rest.controller`
++
++REST controllers are discovered via the `rest.controller` container tag.
++
++**Discovery path:**
++- `RestServiceProvider` registers `RestRouteRegistrar::fromContainer( $container )`.
++- The registrar calls `$container->tagged( 'rest.controller' )` to retrieve controller instances.
++- Tagged controllers are preferred; if none are tagged, the registrar falls back to default controller classes.
++- On `rest_api_init`, each tagged controller's `register_routes()` method is called.
++
++**Constructor expectations:**
++- `Container::tagged()` resolves each tag via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- When you bind a class name as the resolver, the container auto-wires class-typed constructor arguments.
++- Required scalar parameters must have defaults; otherwise resolution fails.
++- If you add a constructor, call `parent::__construct()` to set the REST namespace.
++- Controllers should implement `register_routes()` (extending `RestController` is recommended for helpers).
++
+ **Step 1: Create a controller class extending RestController:**
+ 
+ ```php
+
+file update:
+diff --git a/docs/EXTENSIONS.md b/docs/EXTENSIONS.md
+index d243c350ea58b37bd43136d1f5bedfdadaa6b49c..87c6ba332bf870250f62507532f7ff050780e3fe
+--- a/docs/EXTENSIONS.md
++++ b/docs/EXTENSIONS.md
+@@ -518,6 +518,26 @@
+ 
+ ### Adding a Custom Intent Handler
+ 
++#### Tag Contract: `intent.handler`
++
++Intent handlers are discovered via the `intent.handler` container tag.
++
++**Discovery path:**
++- `IntentServiceProvider` calls `$container->tagged( 'intent.handler' )` when constructing `Engine` and the handler factory.
++- `Container::tagged()` resolves each tagged service via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- Tag your handler during `agentwp_register_providers` so it is available when the engine is created.
++- Handlers added via the `agentwp_intent_handlers` filter do not need to be tagged.
++
++**Constructor expectations:**
++- If you bind with `$container->bind( MyHandler::class, MyHandler::class )` or `singleton`, the container auto-wires constructor arguments by type-hint.
++- Only class-typed parameters are resolved automatically. Required scalar parameters are not supported unless they have defaults.
++- Union types are resolved only if one of the union types is already registered in the container.
++- Missing dependencies will throw and prevent engine initialization.
++
++**Handler expectations:**
++- Must implement `AgentWP\Intent\Handler`.
++- Must declare `#[HandlesIntent( ... )]` or it will be skipped during registration (warning in WP_DEBUG).
++
+ ```php
+ use AgentWP\Intent\Attributes\HandlesIntent;
+ use AgentWP\Intent\Handlers\BaseHandler;
+@@ -648,6 +668,23 @@
+ 
+ Custom REST controllers can be registered via the `rest.controller` container tag. This allows your extension to add new API endpoints that integrate with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+ 
++#### Tag Contract: `rest.controller`
++
++REST controllers are discovered via the `rest.controller` container tag.
++
++**Discovery path:**
++- `RestServiceProvider` registers `RestRouteRegistrar::fromContainer( $container )`.
++- The registrar calls `$container->tagged( 'rest.controller' )` to retrieve controller instances.
++- Tagged controllers are preferred; if none are tagged, the registrar falls back to default controller classes.
++- On `rest_api_init`, each tagged controller's `register_routes()` method is called.
++
++**Constructor expectations:**
++- `Container::tagged()` resolves each tag via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- When you bind a class name as the resolver, the container auto-wires class-typed constructor arguments.
++- Required scalar parameters must have defaults; otherwise resolution fails.
++- If you add a constructor, call `parent::__construct()` to set the REST namespace.
++- Controllers should implement `register_routes()` (extending `RestController` is recommended for helpers).
++
+ **Step 1: Create a controller class extending RestController:**
+ 
+ ```php
+
+
+thinking
+**Finalizing change summary and verification**
+
+I'm preparing the final response with a concise summary of doc updates, noting no verification commands provided, and highlighting low risk since changes affect only documentation. The status will be marked DONE accordingly.
+codex
+Status: DONE
+
+Summary of changes:
+- Documented tag discovery and container resolution rules for `intent.handler` and `rest.controller`, including constructor expectations and handler requirements in `docs/EXTENSIONS.md`.
+
+How to verify (exact commands):
+- No verification commands provided.
+
+Risks / follow-ups:
+- Low risk; documentation only. Consider revisiting these sections if container auto-wiring rules or tag discovery flow changes.
+file update:
+diff --git a/docs/EXTENSIONS.md b/docs/EXTENSIONS.md
+index d243c350ea58b37bd43136d1f5bedfdadaa6b49c..87c6ba332bf870250f62507532f7ff050780e3fe
+--- a/docs/EXTENSIONS.md
++++ b/docs/EXTENSIONS.md
+@@ -518,6 +518,26 @@
+ 
+ ### Adding a Custom Intent Handler
+ 
++#### Tag Contract: `intent.handler`
++
++Intent handlers are discovered via the `intent.handler` container tag.
++
++**Discovery path:**
++- `IntentServiceProvider` calls `$container->tagged( 'intent.handler' )` when constructing `Engine` and the handler factory.
++- `Container::tagged()` resolves each tagged service via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- Tag your handler during `agentwp_register_providers` so it is available when the engine is created.
++- Handlers added via the `agentwp_intent_handlers` filter do not need to be tagged.
++
++**Constructor expectations:**
++- If you bind with `$container->bind( MyHandler::class, MyHandler::class )` or `singleton`, the container auto-wires constructor arguments by type-hint.
++- Only class-typed parameters are resolved automatically. Required scalar parameters are not supported unless they have defaults.
++- Union types are resolved only if one of the union types is already registered in the container.
++- Missing dependencies will throw and prevent engine initialization.
++
++**Handler expectations:**
++- Must implement `AgentWP\Intent\Handler`.
++- Must declare `#[HandlesIntent( ... )]` or it will be skipped during registration (warning in WP_DEBUG).
++
+ ```php
+ use AgentWP\Intent\Attributes\HandlesIntent;
+ use AgentWP\Intent\Handlers\BaseHandler;
+@@ -648,6 +668,23 @@
+ 
+ Custom REST controllers can be registered via the `rest.controller` container tag. This allows your extension to add new API endpoints that integrate with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+ 
++#### Tag Contract: `rest.controller`
++
++REST controllers are discovered via the `rest.controller` container tag.
++
++**Discovery path:**
++- `RestServiceProvider` registers `RestRouteRegistrar::fromContainer( $container )`.
++- The registrar calls `$container->tagged( 'rest.controller' )` to retrieve controller instances.
++- Tagged controllers are preferred; if none are tagged, the registrar falls back to default controller classes.
++- On `rest_api_init`, each tagged controller's `register_routes()` method is called.
++
++**Constructor expectations:**
++- `Container::tagged()` resolves each tag via `$container->get( $id )`, so the service must be bound or registered as an instance before tagging.
++- When you bind a class name as the resolver, the container auto-wires class-typed constructor arguments.
++- Required scalar parameters must have defaults; otherwise resolution fails.
++- If you add a constructor, call `parent::__construct()` to set the REST namespace.
++- Controllers should implement `register_routes()` (extending `RestController` is recommended for helpers).
++
+ **Step 1: Create a controller class extending RestController:**
+ 
+ ```php
+
+tokens used
+35,273
