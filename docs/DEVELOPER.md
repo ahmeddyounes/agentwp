@@ -635,6 +635,116 @@ add_filter( 'agentwp_config_intent_weight_order_search', fn() => 1.5 );
 
 For custom intents, override `getWeight()` in your scorer or add your intent to `AbstractScorer::INTENT_WEIGHT_KEYS`.
 
+## Extension guide: custom REST controller
+
+You can add custom REST API endpoints by registering a controller with the `rest.controller` container tag. This integrates your endpoints with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+
+### 1) Create a controller class
+
+Extend `RestController` to inherit permission checks, validation, and response helpers:
+
+```php
+namespace MyPlugin\AgentWP;
+
+use AgentWP\API\RestController;
+use WP_REST_Server;
+
+class ShipmentController extends RestController {
+
+	public function register_routes() {
+		register_rest_route(
+			$this->namespace,
+			'/shipments',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'get_shipments' ),
+					'permission_callback' => array( $this, 'permissions_check' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			$this->namespace,
+			'/shipments/(?P<id>\d+)',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'get_shipment' ),
+					'permission_callback' => array( $this, 'permissions_check' ),
+					'args'                => array(
+						'id' => array(
+							'required'          => true,
+							'type'              => 'integer',
+							'sanitize_callback' => 'absint',
+						),
+					),
+				),
+			)
+		);
+	}
+
+	public function get_shipments( $request ) {
+		$service = $this->resolve( ShipmentServiceInterface::class );
+		if ( ! $service ) {
+			return $this->response_error( 'service_unavailable', 'Shipment service unavailable.', 500 );
+		}
+
+		return $this->response_success( array( 'shipments' => $service->getAll() ) );
+	}
+
+	public function get_shipment( $request ) {
+		$id      = (int) $request->get_param( 'id' );
+		$service = $this->resolve( ShipmentServiceInterface::class );
+
+		if ( ! $service ) {
+			return $this->response_error( 'service_unavailable', 'Shipment service unavailable.', 500 );
+		}
+
+		$shipment = $service->find( $id );
+		if ( ! $shipment ) {
+			return $this->response_error( 'not_found', 'Shipment not found.', 404 );
+		}
+
+		return $this->response_success( array( 'shipment' => $shipment ) );
+	}
+}
+```
+
+### 2) Register and tag the controller
+
+Use the `agentwp_register_providers` action to register your controller with the `rest.controller` tag:
+
+```php
+add_action( 'agentwp_register_providers', function( $container ) {
+	// Register your service
+	$container->singleton(
+		\MyPlugin\AgentWP\ShipmentServiceInterface::class,
+		fn() => new \MyPlugin\AgentWP\ShipmentService()
+	);
+
+	// Register and tag the controller
+	$container->bind(
+		\MyPlugin\AgentWP\ShipmentController::class,
+		\MyPlugin\AgentWP\ShipmentController::class
+	);
+	$container->tag( \MyPlugin\AgentWP\ShipmentController::class, 'rest.controller' );
+}, 10, 1 );
+```
+
+### Available RestController helpers
+
+| Method | Purpose |
+|--------|---------|
+| `$this->resolve($id)` | Resolve a service from the container (returns null if unavailable) |
+| `$this->resolveRequired($id, $name)` | Resolve a required service (returns error response if unavailable) |
+| `$this->permissions_check($request)` | Built-in permission check requiring `manage_woocommerce` |
+| `$this->validate_request($request, $schema)` | Validate request payload against JSON schema |
+| `$this->response_success($data, $status)` | Build standardized success response |
+| `$this->response_error($code, $message, $status)` | Build standardized error response |
+
+For a complete example with update endpoints and validation, see [EXTENSIONS.md](EXTENSIONS.md#registering-a-custom-rest-controller).
+
 ## UI architecture
 
 The React-based UI in `react/src/` is the sole supported runtime for the AgentWP admin interface. The `AssetManager` loads the Vite build output from `assets/build/` by reading the manifest at `assets/build/.vite/manifest.json`.

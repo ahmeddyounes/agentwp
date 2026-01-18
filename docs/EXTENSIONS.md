@@ -15,6 +15,13 @@ This document is the **single source of truth** for all supported actions, filte
 - [Encryption Hooks](#encryption-hooks)
 - [Notification Hooks](#notification-hooks)
 - [Extension Patterns](#extension-patterns)
+  - [Custom Service Provider](#registering-a-custom-service-provider)
+  - [Custom Intent Handler](#adding-a-custom-intent-handler)
+  - [Custom Intent Scorer](#creating-a-custom-intent-scorer)
+  - [Custom AI Functions](#registering-custom-ai-functions)
+  - [Custom REST Controller](#registering-a-custom-rest-controller)
+  - [Configuration Overrides](#overriding-configuration)
+  - [Custom Error Logging](#custom-error-logging)
 
 ---
 
@@ -616,6 +623,228 @@ add_action( 'agentwp_log_error', function( $log_entry ) {
 
 ---
 
+### Registering a Custom REST Controller
+
+Custom REST controllers can be registered via the `rest.controller` container tag. This allows your extension to add new API endpoints that integrate with AgentWP's infrastructure (rate limiting, response formatting, error handling).
+
+**Step 1: Create a controller class extending RestController:**
+
+```php
+namespace MyPlugin\AgentWP;
+
+use AgentWP\API\RestController;
+use WP_REST_Server;
+
+class ShipmentController extends RestController {
+
+    /**
+     * Register routes.
+     *
+     * @return void
+     */
+    public function register_routes() {
+        register_rest_route(
+            $this->namespace,
+            '/shipments',
+            array(
+                array(
+                    'methods'             => WP_REST_Server::READABLE,
+                    'callback'            => array( $this, 'get_shipments' ),
+                    'permission_callback' => array( $this, 'permissions_check' ),
+                ),
+            )
+        );
+
+        register_rest_route(
+            $this->namespace,
+            '/shipments/(?P<id>\d+)',
+            array(
+                array(
+                    'methods'             => WP_REST_Server::READABLE,
+                    'callback'            => array( $this, 'get_shipment' ),
+                    'permission_callback' => array( $this, 'permissions_check' ),
+                    'args'                => array(
+                        'id' => array(
+                            'required'          => true,
+                            'type'              => 'integer',
+                            'sanitize_callback' => 'absint',
+                        ),
+                    ),
+                ),
+                array(
+                    'methods'             => WP_REST_Server::EDITABLE,
+                    'callback'            => array( $this, 'update_shipment' ),
+                    'permission_callback' => array( $this, 'permissions_check' ),
+                ),
+            )
+        );
+    }
+
+    /**
+     * Get all shipments.
+     *
+     * @param \WP_REST_Request $request Request instance.
+     * @return \WP_REST_Response
+     */
+    public function get_shipments( $request ) {
+        // Resolve service from container
+        $service = $this->resolve( ShipmentServiceInterface::class );
+        if ( ! $service ) {
+            return $this->response_error(
+                'service_unavailable',
+                __( 'Shipment service is not available.', 'my-plugin' ),
+                500
+            );
+        }
+
+        $shipments = $service->getAll();
+
+        return $this->response_success(
+            array( 'shipments' => $shipments )
+        );
+    }
+
+    /**
+     * Get a single shipment.
+     *
+     * @param \WP_REST_Request $request Request instance.
+     * @return \WP_REST_Response
+     */
+    public function get_shipment( $request ) {
+        $id = (int) $request->get_param( 'id' );
+
+        $service = $this->resolve( ShipmentServiceInterface::class );
+        if ( ! $service ) {
+            return $this->response_error(
+                'service_unavailable',
+                __( 'Shipment service is not available.', 'my-plugin' ),
+                500
+            );
+        }
+
+        $shipment = $service->find( $id );
+        if ( ! $shipment ) {
+            return $this->response_error(
+                'not_found',
+                __( 'Shipment not found.', 'my-plugin' ),
+                404
+            );
+        }
+
+        return $this->response_success( array( 'shipment' => $shipment ) );
+    }
+
+    /**
+     * Update a shipment.
+     *
+     * @param \WP_REST_Request $request Request instance.
+     * @return \WP_REST_Response
+     */
+    public function update_shipment( $request ) {
+        $validation = $this->validate_request( $request, $this->get_update_schema() );
+        if ( is_wp_error( $validation ) ) {
+            return $this->response_error(
+                'invalid_request',
+                $validation->get_error_message(),
+                400
+            );
+        }
+
+        $id      = (int) $request->get_param( 'id' );
+        $payload = $request->get_json_params();
+
+        $service = $this->resolve( ShipmentServiceInterface::class );
+        if ( ! $service ) {
+            return $this->response_error(
+                'service_unavailable',
+                __( 'Shipment service is not available.', 'my-plugin' ),
+                500
+            );
+        }
+
+        $result = $service->update( $id, $payload );
+
+        return $this->response_success(
+            array(
+                'updated'  => true,
+                'shipment' => $result,
+            )
+        );
+    }
+
+    /**
+     * Get update schema.
+     *
+     * @return array
+     */
+    private function get_update_schema(): array {
+        return array(
+            'type'       => 'object',
+            'properties' => array(
+                'status'   => array(
+                    'type' => 'string',
+                    'enum' => array( 'pending', 'shipped', 'delivered' ),
+                ),
+                'tracking' => array(
+                    'type' => 'string',
+                ),
+            ),
+        );
+    }
+}
+```
+
+**Step 2: Register and tag the controller via service provider:**
+
+```php
+add_action( 'agentwp_register_providers', function( $container ) {
+    // Register the service your controller depends on
+    $container->singleton(
+        \MyPlugin\AgentWP\ShipmentServiceInterface::class,
+        fn() => new \MyPlugin\AgentWP\ShipmentService()
+    );
+
+    // Register the controller
+    $container->bind(
+        \MyPlugin\AgentWP\ShipmentController::class,
+        \MyPlugin\AgentWP\ShipmentController::class
+    );
+
+    // Tag the controller for discovery
+    $container->tag(
+        \MyPlugin\AgentWP\ShipmentController::class,
+        'rest.controller'
+    );
+}, 10, 1 );
+```
+
+**How it works:**
+
+1. AgentWP's `RestServiceProvider` calls `RestRouteRegistrar::fromContainer()`
+2. The registrar retrieves all services tagged with `rest.controller`
+3. On `rest_api_init`, each controller's `register_routes()` method is called
+4. Your endpoints are now available at `/wp-json/agentwp/v1/shipments`
+
+**Available RestController helpers:**
+
+| Method | Description |
+|--------|-------------|
+| `$this->container()` | Get the DI container instance |
+| `$this->resolve($id)` | Resolve a service, returns null if unavailable |
+| `$this->resolveRequired($id, $name)` | Resolve a service, returns error response if unavailable |
+| `$this->permissions_check($request)` | Built-in permission check (requires `manage_woocommerce`) |
+| `$this->validate_request($request, $schema)` | Validate request against JSON schema |
+| `$this->response_success($data, $status)` | Build standardized success response |
+| `$this->response_error($code, $message, $status)` | Build standardized error response |
+
+**Endpoints created by the example:**
+
+- `GET /wp-json/agentwp/v1/shipments` — List all shipments
+- `GET /wp-json/agentwp/v1/shipments/{id}` — Get a single shipment
+- `POST /wp-json/agentwp/v1/shipments/{id}` — Update a shipment
+
+---
+
 ## Summary Reference
 
 | Hook Type | Hook Name | File | Purpose |
@@ -635,6 +864,8 @@ add_action( 'agentwp_log_error', function( $log_entry ) {
 | Filter | `agentwp_customer_health_thresholds` | CustomerService.php | Health score thresholds |
 | Filter | `agentwp_refund_notify_customer` | — | Refund notifications |
 | Filter | `agentwp_status_notify_customer` | — | Status notifications |
+| Tag | `intent.handler` | IntentServiceProvider.php | Register intent handlers |
+| Tag | `rest.controller` | RestServiceProvider.php | Register REST controllers |
 
 ---
 
