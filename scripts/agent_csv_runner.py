@@ -29,7 +29,7 @@ DEFAULTS: Dict[str, Any] = {
         "default": "codex",
         # New: ordered fallback chain. Example: ["gemini","claude"]
         "fallback_order": [],
-        "after_agent": "same",  # "same", "codex", "claude", "gemini"
+        "after_agent": "same",  # "same", "codex", "claude", "gemini", "copilot"
     },
     "codex": {
         "model": "",
@@ -61,6 +61,11 @@ DEFAULTS: Dict[str, Any] = {
         "allowed_tools": [],  # ["run_shell_command", ...] (names depend on CLI/tools)
         "allowed_mcp_server_names": [],
         "extensions": [],
+    },
+    "copilot": {
+        "model": "",  # optional model override (e.g., gpt-4.1, gpt-5-mini)
+        "allow_all_tools": True,  # --allow-all-tools flag
+        "allow_all_paths": False,  # --allow-all-paths flag
     },
 }
 
@@ -219,8 +224,22 @@ def ensure_cli_available(agent: str, repo: Path, *, strict: bool) -> bool:
                 return False
         return True
 
+    if agent == "copilot":
+        if not which_or_none("copilot"):
+            if strict:
+                raise SystemExit("copilot CLI not found in PATH.")
+            return False
+        rr = run(["copilot", "--version"], cwd=repo)
+        if rr.returncode != 0:
+            rr = run(["copilot", "--help"], cwd=repo)
+            if rr.returncode != 0:
+                if strict:
+                    raise SystemExit("Copilot CLI exists but failed to execute.")
+                return False
+        return True
+
     if strict:
-        raise SystemExit(f"Unknown agent '{agent}'. Use codex|claude|gemini.")
+        raise SystemExit(f"Unknown agent '{agent}'. Use codex|claude|gemini|copilot.")
     return False
 
 
@@ -284,6 +303,7 @@ class TaskSessions:
     codex_started: bool = False
     claude_session_id: Optional[str] = None
     gemini_session_id: Optional[str] = None
+    copilot_session_id: Optional[str] = None
 
 
 def normalize_gemini_model(name: str) -> str:
@@ -658,6 +678,62 @@ class AgentRunner:
         )
         return rr, session_id
 
+    # ---- Copilot CLI ----
+    def _copilot_args(self, prompt: str) -> List[str]:
+        """Build copilot CLI arguments.
+
+        Supported flags:
+        -p, --prompt [text] — One-off prompt in programmatic mode
+        --model [model-name] — Specifies AI model
+        --allow-all-tools — Grants permission for all shell commands
+        --allow-all-paths — Provides access to all local file paths
+        """
+        c = self.cfg.get("copilot", {})
+        args: List[str] = ["--prompt", prompt]
+
+        model = (c.get("model") or "").strip()
+        if model:
+            args += ["--model", model]
+
+        if bool(c.get("allow_all_tools", True)):
+            args += ["--allow-all-tools"]
+
+        if bool(c.get("allow_all_paths", False)):
+            args += ["--allow-all-paths"]
+
+        return args
+
+    def copilot_run(self, prompt: str, *, stage: str, task_id: str) -> Tuple[RunResult, Optional[str]]:
+        last_path = self.log_dir / f"{task_id}.copilot.{stage}.last.md"
+        raw_path = self.log_dir / f"{task_id}.copilot.{stage}.raw.txt"
+
+        cmd = ["copilot"] + self._copilot_args(prompt)
+
+        if self.verbose:
+            log(f"CMD: {' '.join(cmd)}", "CMD")
+
+        rr = run(cmd, cwd=self.repo)
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_path.write_text(rr.stdout + "\n" + rr.stderr, encoding="utf-8")
+
+        result_text = rr.stdout.strip()
+
+        last_path.parent.mkdir(parents=True, exist_ok=True)
+        last_path.write_text(result_text + "\n", encoding="utf-8")
+
+        append_handoff(
+            self.handoff_path,
+            header=f"{now_iso()} — copilot — {stage}",
+            body=(
+                f"Command:\n```\n{' '.join(cmd)}\n```\n\n"
+                f"Return code: {rr.returncode}\n\n"
+                f"Agent final message (file: {last_path.name}):\n\n"
+                f"{safe_read(last_path)}\n\n"
+                f"Repo snapshot:\n```\n{git_snapshot(self.repo)}\n```"
+            ),
+        )
+        return rr, None
+
 
 def build_impl_prompt(task_id: str, spec_rel: str, handoff_rel: str, commands: Dict[str, str]) -> str:
     return (
@@ -720,7 +796,7 @@ def run_verify(repo: Path, commands: Dict[str, str], *, verbose: bool) -> List[T
 def _parse_agent_list(s: str) -> List[str]:
     out: List[str] = []
     for p in [x.strip().lower() for x in s.split(",") if x.strip()]:
-        if p in {"codex", "claude", "gemini"} and p not in out:
+        if p in {"codex", "claude", "gemini", "copilot"} and p not in out:
             out.append(p)
     return out
 
@@ -732,7 +808,7 @@ def main() -> int:
     ap.add_argument("--series", default="T2", help="Used only when CSV has no id column, e.g. M02-T2.")
     ap.add_argument("--resume", action="store_true", help="Resume from state file; skip completed tasks.")
     ap.add_argument("--commit", action="store_true", help="Commit after each successful task.")
-    ap.add_argument("--agent", default="codex", choices=["codex", "claude", "gemini"], help="Primary agent (default codex).")
+    ap.add_argument("--agent", default="codex", choices=["codex", "claude", "gemini", "copilot"], help="Primary agent (default codex).")
     ap.add_argument(
         "--fallback-order",
         default="",
@@ -764,7 +840,7 @@ def main() -> int:
         fallback_order = _parse_agent_list(args.fallback_order)
     else:
         fallback_order = _as_list(cfg.get("agents", {}).get("fallback_order", []))
-        fallback_order = [x.lower() for x in fallback_order if str(x).lower() in {"codex", "claude", "gemini"}]
+        fallback_order = [x.lower() for x in fallback_order if str(x).lower() in {"codex", "claude", "gemini", "copilot"}]
 
     # Remove primary if present
     fallback_order = [a for a in fallback_order if a != primary_default]
@@ -785,6 +861,7 @@ def main() -> int:
 
     claude_sessions: Dict[str, str] = state.get("claude_sessions", {}) if isinstance(state.get("claude_sessions", {}), dict) else {}
     gemini_sessions: Dict[str, str] = state.get("gemini_sessions", {}) if isinstance(state.get("gemini_sessions", {}), dict) else {}
+    copilot_sessions: Dict[str, str] = state.get("copilot_sessions", {}) if isinstance(state.get("copilot_sessions", {}), dict) else {}
 
     commands = cfg.get("commands", {})
     retries = int(cfg.get("retries", 2))
@@ -832,7 +909,7 @@ def main() -> int:
 
         row_agent = (row.get(agent_col) or "").strip().lower() if agent_col else ""
         primary = primary_default
-        if row_agent in {"codex", "claude", "gemini"}:
+        if row_agent in {"codex", "claude", "gemini", "copilot"}:
             primary = row_agent
 
         title = (row.get(title_col) or "").strip() if title_col else ""
@@ -863,6 +940,7 @@ def main() -> int:
             codex_started=False,
             claude_session_id=claude_sessions.get(task_id),
             gemini_session_id=gemini_sessions.get(task_id),
+            copilot_session_id=copilot_sessions.get(task_id),
         )
         runner = AgentRunner(repo, cfg, log_dir, handoff_path, sessions, verbose=args.verbose)
 
@@ -885,6 +963,11 @@ def main() -> int:
                 if sid:
                     gemini_sessions[task_id] = sid
                 return rr
+            if agent == "copilot":
+                rr, sid = runner.copilot_run(prompt, stage=stage, task_id=task_id)
+                if sid:
+                    copilot_sessions[task_id] = sid
+                return rr
             raise SystemExit(f"Unknown agent '{agent}'")
 
         def agent_try_order(primary_agent: str) -> List[str]:
@@ -899,6 +982,7 @@ def main() -> int:
             state["completed_task_ids"] = sorted(done_ids)
             state["claude_sessions"] = claude_sessions
             state["gemini_sessions"] = gemini_sessions
+            state["copilot_sessions"] = copilot_sessions
             state["updated_at"] = now_iso()
             write_json(state_file, state)
 
@@ -980,7 +1064,7 @@ def main() -> int:
         after_agent = str(cfg.get("agents", {}).get("after_agent", "same") or "same").strip()
         if after_agent == "same":
             after_agent = impl_agent_used
-        if after_agent not in {"codex", "claude", "gemini"}:
+        if after_agent not in {"codex", "claude", "gemini", "copilot"}:
             after_agent = impl_agent_used
 
         for j, (fname, ptext) in enumerate(after_prompts, start=1):
