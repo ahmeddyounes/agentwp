@@ -159,6 +159,11 @@ final class AgentWPConfig {
 	public const USAGE_QUERY_MAX_ROWS  = 50000; // Max rows for usage queries
 
 	/**
+	 * REST API configuration.
+	 */
+	public const REST_NAMESPACE = 'agentwp/v1';
+
+	/**
 	 * History and favorites limits.
 	 */
 	public const HISTORY_LIMIT         = 50;    // Max history entries

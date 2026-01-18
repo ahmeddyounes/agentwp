@@ -216,6 +216,7 @@ export type Period = '7d' | '30d' | '90d';
 export interface AgentWPSettings {
   root?: string;
   nonce?: string;
+  restNamespace?: string;
   theme?: string;
   supportEmail?: string;
   version?: string;

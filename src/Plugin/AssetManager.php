@@ -7,6 +7,8 @@
 
 namespace AgentWP\Plugin;
 
+use AgentWP\Config\AgentWPConfig;
+
 /**
  * Manages script and style enqueuing.
  */
@@ -376,13 +378,14 @@ final class AssetManager {
 	 */
 	private function getScriptLocalization(): array {
 		return array(
-			'root'         => esc_url_raw( rest_url() ),
-			'nonce'        => wp_create_nonce( 'wp_rest' ),
-			'theme'        => $this->themeManager->getUserTheme(),
-			'supportEmail' => sanitize_email( get_option( 'admin_email' ) ),
-			'version'      => $this->version,
-			'demoMode'     => $this->settings->isDemoMode(),
-			'assetsUrl'    => $this->pluginUrl . '/assets/build/',
+			'root'          => esc_url_raw( rest_url() ),
+			'nonce'         => wp_create_nonce( 'wp_rest' ),
+			'restNamespace' => AgentWPConfig::REST_NAMESPACE,
+			'theme'         => $this->themeManager->getUserTheme(),
+			'supportEmail'  => sanitize_email( get_option( 'admin_email' ) ),
+			'version'       => $this->version,
+			'demoMode'      => $this->settings->isDemoMode(),
+			'assetsUrl'     => $this->pluginUrl . '/assets/build/',
 		);
 	}
 

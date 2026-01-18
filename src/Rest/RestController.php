@@ -19,7 +19,7 @@ use WP_REST_Request;
 use WP_REST_Response;
 
 abstract class RestController extends WP_REST_Controller {
-	const REST_NAMESPACE = 'agentwp/v1';
+	const REST_NAMESPACE = AgentWPConfig::REST_NAMESPACE;
 
 	/**
 	 * Initialize the REST namespace.

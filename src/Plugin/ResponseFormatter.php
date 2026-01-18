@@ -7,6 +7,7 @@
 
 namespace AgentWP\Plugin;
 
+use AgentWP\Config\AgentWPConfig;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -38,7 +39,7 @@ final class ResponseFormatter {
 	/**
 	 * REST namespace to match.
 	 */
-	public const REST_NAMESPACE = 'agentwp/v1';
+	public const REST_NAMESPACE = AgentWPConfig::REST_NAMESPACE;
 
 	/**
 	 * Error categorizer callback.
