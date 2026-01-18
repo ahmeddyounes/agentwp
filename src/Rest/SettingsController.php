@@ -9,6 +9,7 @@ namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
 use AgentWP\Config\AgentWPConfig;
+use AgentWP\Contracts\AuditLoggerInterface;
 use AgentWP\Contracts\OpenAIKeyValidatorInterface;
 use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\DTO\ApiKeyRequestDTO;
@@ -162,6 +163,7 @@ class SettingsController extends RestController {
 
 		if ( $dto->isEmpty() ) {
 			$storage->deletePrimary();
+			$this->auditApiKeyAction( 'deleted', '' );
 
 			return $this->response_success(
 				array(
@@ -189,10 +191,13 @@ class SettingsController extends RestController {
 			return $this->response_error( AgentWPConfig::ERROR_CODE_ENCRYPTION_FAILED, $result->get_error_message(), 500 );
 		}
 
+		$last4 = $storage->extractLast4( $api_key );
+		$this->auditApiKeyAction( 'stored', $last4 );
+
 		return $this->response_success(
 			array(
 				'stored' => true,
-				'last4'  => $storage->extractLast4( $api_key ),
+				'last4'  => $last4,
 			)
 		);
 	}
@@ -293,5 +298,31 @@ class SettingsController extends RestController {
 	private function getUsageTracker(): ?UsageTrackerInterface {
 		$tracker = $this->resolve( UsageTrackerInterface::class );
 		return $tracker instanceof UsageTrackerInterface ? $tracker : null;
+	}
+
+	/**
+	 * Get the audit logger service from the container.
+	 *
+	 * @return AuditLoggerInterface|null
+	 */
+	private function getAuditLogger(): ?AuditLoggerInterface {
+		$logger = $this->resolve( AuditLoggerInterface::class );
+		return $logger instanceof AuditLoggerInterface ? $logger : null;
+	}
+
+	/**
+	 * Log an API key audit event.
+	 *
+	 * @param string $action   Action performed: 'stored', 'deleted'.
+	 * @param string $key_last4 Last 4 characters of the key.
+	 * @return void
+	 */
+	private function auditApiKeyAction( string $action, string $key_last4 ): void {
+		$logger = $this->getAuditLogger();
+		if ( ! $logger ) {
+			return;
+		}
+
+		$logger->logApiKeyUpdate( $action, get_current_user_id(), $key_last4 );
 	}
 }

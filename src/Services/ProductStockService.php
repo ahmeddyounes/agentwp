@@ -7,6 +7,7 @@
 
 namespace AgentWP\Services;
 
+use AgentWP\Contracts\AuditLoggerInterface;
 use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
@@ -19,6 +20,7 @@ class ProductStockService implements ProductStockServiceInterface {
 	private DraftManagerInterface $draftManager;
 	private PolicyInterface $policy;
 	private WooCommerceStockGatewayInterface $stockGateway;
+	private ?AuditLoggerInterface $auditLogger;
 
 	/**
 	 * Constructor.
@@ -26,15 +28,18 @@ class ProductStockService implements ProductStockServiceInterface {
 	 * @param DraftManagerInterface            $draftManager Unified draft manager.
 	 * @param PolicyInterface                  $policy       Policy for capability checks.
 	 * @param WooCommerceStockGatewayInterface $stockGateway WooCommerce stock gateway.
+	 * @param AuditLoggerInterface|null        $auditLogger  Audit logger (optional).
 	 */
 	public function __construct(
 		DraftManagerInterface $draftManager,
 		PolicyInterface $policy,
-		WooCommerceStockGatewayInterface $stockGateway
+		WooCommerceStockGatewayInterface $stockGateway,
+		?AuditLoggerInterface $auditLogger = null
 	) {
 		$this->draftManager = $draftManager;
 		$this->policy       = $policy;
 		$this->stockGateway = $stockGateway;
+		$this->auditLogger  = $auditLogger;
 	}
 
 	/**
@@ -165,6 +170,7 @@ class ProductStockService implements ProductStockServiceInterface {
 		$payload    = $claimResult->get( 'payload' );
 		$product_id = $payload['product_id'];
 		$quantity   = $payload['quantity'];
+		$original   = $payload['original'] ?? null;
 
 		$product = $this->stockGateway->get_product( $product_id );
 		if ( ! $product ) {
@@ -176,11 +182,41 @@ class ProductStockService implements ProductStockServiceInterface {
 			return ServiceResult::operationFailed( 'Stock update unavailable.' );
 		}
 
+		$this->logConfirmation( $draft_id, $product_id, $product->get_name(), $original, $quantity );
+
 		return ServiceResult::success(
 			"Stock updated for {$product->get_name()}.",
 			array(
 				'product_id' => (int) $product_id,
 				'new_stock'  => (int) $quantity,
+			)
+		);
+	}
+
+	/**
+	 * Log a stock update confirmation.
+	 *
+	 * @param string   $draft_id     Draft ID.
+	 * @param int      $product_id   Product ID.
+	 * @param string   $product_name Product name.
+	 * @param int|null $old_stock    Original stock quantity.
+	 * @param int      $new_stock    New stock quantity.
+	 * @return void
+	 */
+	private function logConfirmation( string $draft_id, int $product_id, string $product_name, ?int $old_stock, int $new_stock ): void {
+		if ( ! $this->auditLogger ) {
+			return;
+		}
+
+		$this->auditLogger->logDraftConfirmation(
+			self::DRAFT_TYPE,
+			$draft_id,
+			get_current_user_id(),
+			array(
+				'product_id'   => $product_id,
+				'product_name' => $product_name,
+				'old_stock'    => $old_stock,
+				'new_stock'    => $new_stock,
 			)
 		);
 	}

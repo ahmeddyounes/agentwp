@@ -26,6 +26,7 @@ use AgentWP\Contracts\OptionsInterface;
 use AgentWP\Contracts\OpenAIKeyValidatorInterface;
 use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\Contracts\LoggerInterface;
+use AgentWP\Contracts\AuditLoggerInterface;
 use AgentWP\Contracts\WooCommerceConfigGatewayInterface;
 use AgentWP\Contracts\WooCommercePriceFormatterInterface;
 use AgentWP\Contracts\WooCommerceProductCategoryGatewayInterface;
@@ -50,6 +51,7 @@ use AgentWP\Infrastructure\WPFunctions;
 use AgentWP\Infrastructure\OpenAIKeyValidator;
 use AgentWP\Infrastructure\UsageTrackerAdapter;
 use AgentWP\Infrastructure\WooCommerceLogger;
+use AgentWP\Infrastructure\AuditLogger;
 use AgentWP\Demo\DemoAwareKeyValidator;
 use AgentWP\Retry\ExponentialBackoffPolicy;
 use AgentWP\Retry\RetryExecutor;
@@ -82,6 +84,7 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->registerPolicy();
 		$this->registerUsageTracker();
 		$this->registerLogger();
+		$this->registerAuditLogger();
 	}
 
 	/**
@@ -372,6 +375,24 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			LoggerInterface::class,
 			fn() => new WooCommerceLogger( 'agentwp' )
+		);
+	}
+
+	/**
+	 * Register audit logger.
+	 *
+	 * Provides structured audit logging for sensitive actions.
+	 * Uses the underlying LoggerInterface (WooCommerce logs).
+	 *
+	 * @return void
+	 */
+	private function registerAuditLogger(): void {
+		$this->container->singleton(
+			AuditLoggerInterface::class,
+			fn( $c ) => new AuditLogger(
+				$c->get( LoggerInterface::class ),
+				$c->get( ClockInterface::class )
+			)
 		);
 	}
 }

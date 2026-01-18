@@ -7,6 +7,7 @@
 
 namespace AgentWP\Services;
 
+use AgentWP\Contracts\AuditLoggerInterface;
 use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
@@ -19,20 +20,24 @@ class OrderRefundService implements OrderRefundServiceInterface {
 	private DraftManagerInterface $draftManager;
 	private PolicyInterface $policy;
 	private WooCommerceRefundGatewayInterface $refundGateway;
+	private ?AuditLoggerInterface $auditLogger;
 
 	/**
 	 * @param DraftManagerInterface             $draftManager  Unified draft manager.
 	 * @param PolicyInterface                   $policy        Policy for capability checks.
 	 * @param WooCommerceRefundGatewayInterface $refundGateway WooCommerce refund gateway.
+	 * @param AuditLoggerInterface|null         $auditLogger   Audit logger (optional).
 	 */
 	public function __construct(
 		DraftManagerInterface $draftManager,
 		PolicyInterface $policy,
-		WooCommerceRefundGatewayInterface $refundGateway
+		WooCommerceRefundGatewayInterface $refundGateway,
+		?AuditLoggerInterface $auditLogger = null
 	) {
 		$this->draftManager  = $draftManager;
 		$this->policy        = $policy;
 		$this->refundGateway = $refundGateway;
+		$this->auditLogger   = $auditLogger;
 	}
 
 	/**
@@ -168,13 +173,48 @@ class OrderRefundService implements OrderRefundServiceInterface {
 			}
 		}
 
+		$refund_id = $result->get_id();
+		$currency  = $payload['currency'] ?? '';
+
+		$this->logConfirmation( $draft_id, $order_id, $refund_id, $amount, $currency, $restock );
+
 		return ServiceResult::success(
-			"Refund #{$result->get_id()} processed successfully for Order #{$order_id}.",
+			"Refund #{$refund_id} processed successfully for Order #{$order_id}.",
 			array(
 				'confirmed'       => true,
 				'order_id'        => $order_id,
-				'refund_id'       => $result->get_id(),
+				'refund_id'       => $refund_id,
 				'restocked_items' => $restocked_items,
+			)
+		);
+	}
+
+	/**
+	 * Log a refund confirmation.
+	 *
+	 * @param string $draft_id  Draft ID.
+	 * @param int    $order_id  Order ID.
+	 * @param int    $refund_id Refund ID.
+	 * @param float  $amount    Refund amount.
+	 * @param string $currency  Currency code.
+	 * @param bool   $restocked Whether items were restocked.
+	 * @return void
+	 */
+	private function logConfirmation( string $draft_id, int $order_id, int $refund_id, float $amount, string $currency, bool $restocked ): void {
+		if ( ! $this->auditLogger ) {
+			return;
+		}
+
+		$this->auditLogger->logDraftConfirmation(
+			self::DRAFT_TYPE,
+			$draft_id,
+			get_current_user_id(),
+			array(
+				'order_id'  => $order_id,
+				'refund_id' => $refund_id,
+				'amount'    => $amount,
+				'currency'  => $currency,
+				'restocked' => $restocked,
 			)
 		);
 	}

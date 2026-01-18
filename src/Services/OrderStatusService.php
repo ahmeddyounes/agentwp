@@ -7,6 +7,7 @@
 
 namespace AgentWP\Services;
 
+use AgentWP\Contracts\AuditLoggerInterface;
 use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
@@ -20,6 +21,7 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	private DraftManagerInterface $draftManager;
 	private PolicyInterface $policy;
 	private WooCommerceOrderGatewayInterface $orderGateway;
+	private ?AuditLoggerInterface $auditLogger;
 
 	/**
 	 * Constructor.
@@ -27,15 +29,18 @@ class OrderStatusService implements OrderStatusServiceInterface {
 	 * @param DraftManagerInterface            $draftManager Unified draft manager.
 	 * @param PolicyInterface                  $policy       Policy for capability checks.
 	 * @param WooCommerceOrderGatewayInterface $orderGateway WooCommerce order gateway.
+	 * @param AuditLoggerInterface|null        $auditLogger  Audit logger (optional).
 	 */
 	public function __construct(
 		DraftManagerInterface $draftManager,
 		PolicyInterface $policy,
-		WooCommerceOrderGatewayInterface $orderGateway
+		WooCommerceOrderGatewayInterface $orderGateway,
+		?AuditLoggerInterface $auditLogger = null
 	) {
 		$this->draftManager = $draftManager;
 		$this->policy       = $policy;
 		$this->orderGateway = $orderGateway;
+		$this->auditLogger  = $auditLogger;
 	}
 
 	/**
@@ -224,14 +229,19 @@ class OrderStatusService implements OrderStatusServiceInterface {
 
 		// Handle Bulk
 		if ( isset( $payload['order_ids'] ) ) {
-			return $this->process_bulk_update( $payload );
+			$result = $this->process_bulk_update( $payload );
+			if ( $result->isSuccess() ) {
+				$this->logBulkConfirmation( $draft_id, $result->get( 'updated_ids' ), $result->get( 'new_status' ) );
+			}
+			return $result;
 		}
 
 		// Handle Single
-		$order_id = $payload['order_id'] ?? 0;
-		$new_status = $payload['new_status'] ?? '';
-		$note = $payload['note'] ?? '';
-		$notify = $payload['notify_customer'] ?? false;
+		$order_id       = $payload['order_id'] ?? 0;
+		$new_status     = $payload['new_status'] ?? '';
+		$current_status = $payload['current_status'] ?? '';
+		$note           = $payload['note'] ?? '';
+		$notify         = $payload['notify_customer'] ?? false;
 
 		$order = $this->orderGateway->get_order( $order_id );
 		if ( ! $order ) {
@@ -242,6 +252,8 @@ class OrderStatusService implements OrderStatusServiceInterface {
 		if ( ! $updated ) {
 			return ServiceResult::operationFailed( 'Update failed.' );
 		}
+
+		$this->logSingleConfirmation( $draft_id, $order_id, $current_status, $new_status );
 
 		return ServiceResult::success(
 			"Order #{$order_id} updated to {$new_status}.",
@@ -353,5 +365,57 @@ class OrderStatusService implements OrderStatusServiceInterface {
 
 	private function get_irreversible_warning( string $status ): string {
 		return in_array( $status, array( 'cancelled', 'refunded' ), true ) ? 'Irreversible.' : '';
+	}
+
+	/**
+	 * Log a single order status confirmation.
+	 *
+	 * @param string $draft_id       Draft ID.
+	 * @param int    $order_id       Order ID.
+	 * @param string $current_status Previous status.
+	 * @param string $new_status     New status.
+	 * @return void
+	 */
+	private function logSingleConfirmation( string $draft_id, int $order_id, string $current_status, string $new_status ): void {
+		if ( ! $this->auditLogger ) {
+			return;
+		}
+
+		$this->auditLogger->logDraftConfirmation(
+			self::DRAFT_TYPE,
+			$draft_id,
+			get_current_user_id(),
+			array(
+				'order_id'       => $order_id,
+				'current_status' => $current_status,
+				'new_status'     => $new_status,
+			)
+		);
+	}
+
+	/**
+	 * Log a bulk order status confirmation.
+	 *
+	 * @param string $draft_id    Draft ID.
+	 * @param array  $updated_ids Updated order IDs.
+	 * @param string $new_status  New status.
+	 * @return void
+	 */
+	private function logBulkConfirmation( string $draft_id, array $updated_ids, string $new_status ): void {
+		if ( ! $this->auditLogger ) {
+			return;
+		}
+
+		$this->auditLogger->logDraftConfirmation(
+			self::DRAFT_TYPE,
+			$draft_id,
+			get_current_user_id(),
+			array(
+				'bulk'          => true,
+				'updated_count' => count( $updated_ids ),
+				'updated_ids'   => $updated_ids,
+				'new_status'    => $new_status,
+			)
+		);
 	}
 }

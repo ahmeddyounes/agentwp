@@ -9,6 +9,7 @@ namespace AgentWP\Providers;
 
 use AgentWP\Container\ServiceProvider;
 use AgentWP\Contracts\AnalyticsServiceInterface;
+use AgentWP\Contracts\AuditLoggerInterface;
 use AgentWP\Contracts\CacheInterface;
 use AgentWP\Contracts\ClockInterface;
 use AgentWP\Contracts\CustomerServiceInterface;
@@ -224,7 +225,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 			fn( $c ) => new ProductStockService(
 				$c->get( DraftManagerInterface::class ),
 				$c->get( PolicyInterface::class ),
-				$c->get( WooCommerceStockGatewayInterface::class )
+				$c->get( WooCommerceStockGatewayInterface::class ),
+				$c->has( AuditLoggerInterface::class ) ? $c->get( AuditLoggerInterface::class ) : null
 			)
 		);
 	}
@@ -240,7 +242,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 			fn( $c ) => new OrderStatusService(
 				$c->get( DraftManagerInterface::class ),
 				$c->get( PolicyInterface::class ),
-				$c->get( WooCommerceOrderGatewayInterface::class )
+				$c->get( WooCommerceOrderGatewayInterface::class ),
+				$c->has( AuditLoggerInterface::class ) ? $c->get( AuditLoggerInterface::class ) : null
 			)
 		);
 	}
@@ -272,7 +275,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 			fn( $c ) => new OrderRefundService(
 				$c->get( DraftManagerInterface::class ),
 				$c->get( PolicyInterface::class ),
-				$c->get( WooCommerceRefundGatewayInterface::class )
+				$c->get( WooCommerceRefundGatewayInterface::class ),
+				$c->has( AuditLoggerInterface::class ) ? $c->get( AuditLoggerInterface::class ) : null
 			)
 		);
 	}
