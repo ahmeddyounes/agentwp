@@ -44,6 +44,7 @@ export const AGENTWP_ERROR_MESSAGES: Record<string, string> = {
   agentwp_invalid_nonce: 'Invalid security nonce. Please refresh the page.',
   // Validation
   agentwp_invalid_request: 'Please check your request and try again.',
+  agentwp_validation_error: 'Validation failed. Please check your input and try again.',
   agentwp_invalid_period: 'Invalid time period selected.',
   agentwp_invalid_theme: 'Theme must be light or dark.',
   agentwp_missing_prompt: 'Please enter a prompt to continue.',
@@ -52,6 +53,7 @@ export const AGENTWP_ERROR_MESSAGES: Record<string, string> = {
   agentwp_openai_unreachable: 'Cannot reach OpenAI servers. Please check your connection.',
   agentwp_api_error: 'API error occurred. Please try again.',
   agentwp_encryption_failed: 'Failed to encrypt API key. Please try again.',
+  agentwp_service_unavailable: 'Service is temporarily unavailable. Please try again later.',
   // Intent processing
   agentwp_intent_failed: 'Failed to process your request. Please try again.',
 };
