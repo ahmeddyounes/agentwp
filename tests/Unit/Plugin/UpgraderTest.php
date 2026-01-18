@@ -375,4 +375,77 @@ class UpgraderTest extends TestCase {
 		$this->assertTrue( $method->isPrivate() );
 		$this->assertTrue( $method->isStatic() );
 	}
+
+	// ===========================================
+	// Upgrade Step Content Tests
+	// ===========================================
+
+	public function test_upgrade_step_0_1_1_exists(): void {
+		// Use reflection to access the private method.
+		$reflection = new ReflectionClass( Upgrader::class );
+		$method     = $reflection->getMethod( 'get_upgrade_steps' );
+		$method->setAccessible( true );
+
+		$steps = $method->invoke( null );
+
+		$this->assertArrayHasKey( '0.1.1', $steps );
+	}
+
+	public function test_upgrade_step_0_1_1_callback_references_valid_method(): void {
+		$reflection = new ReflectionClass( Upgrader::class );
+		$method     = $reflection->getMethod( 'get_upgrade_steps' );
+		$method->setAccessible( true );
+
+		$steps = $method->invoke( null );
+
+		// Check the callback is an array with class and method name.
+		$this->assertIsArray( $steps['0.1.1'] );
+		$this->assertCount( 2, $steps['0.1.1'] );
+		$this->assertSame( Upgrader::class, $steps['0.1.1'][0] );
+		$this->assertSame( 'upgrade_to_0_1_1', $steps['0.1.1'][1] );
+
+		// Verify the method exists.
+		$this->assertTrue( $reflection->hasMethod( $steps['0.1.1'][1] ) );
+	}
+
+	public function test_upgrade_step_0_1_1_method_is_private(): void {
+		$reflection = new ReflectionClass( Upgrader::class );
+		$method     = $reflection->getMethod( 'upgrade_to_0_1_1' );
+
+		$this->assertTrue( $method->isPrivate() );
+		$this->assertTrue( $method->isStatic() );
+	}
+
+	public function test_get_pending_steps_includes_0_1_1_for_upgrade_from_0_1_0(): void {
+		$steps = Upgrader::get_pending_steps( '0.1.0', '0.2.0' );
+
+		$this->assertContains( '0.1.1', $steps );
+	}
+
+	public function test_get_pending_steps_excludes_0_1_1_for_upgrade_from_0_1_1(): void {
+		$steps = Upgrader::get_pending_steps( '0.1.1', '0.2.0' );
+
+		$this->assertNotContains( '0.1.1', $steps );
+	}
+
+	// ===========================================
+	// Multisite Support Tests
+	// ===========================================
+
+	public function test_run_network_upgrades_is_public(): void {
+		$reflection = new ReflectionClass( Upgrader::class );
+		$method     = $reflection->getMethod( 'run_network_upgrades' );
+
+		$this->assertTrue( $method->isPublic() );
+		$this->assertTrue( $method->isStatic() );
+	}
+
+	public function test_run_network_upgrades_returns_array(): void {
+		$reflection = new ReflectionClass( Upgrader::class );
+		$method     = $reflection->getMethod( 'run_network_upgrades' );
+		$returnType = $method->getReturnType();
+
+		$this->assertNotNull( $returnType );
+		$this->assertSame( 'array', $returnType->getName() );
+	}
 }

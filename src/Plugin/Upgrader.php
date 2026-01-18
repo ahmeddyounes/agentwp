@@ -175,21 +175,85 @@ class Upgrader {
 	 * 2. Implement the upgrade logic in a static method
 	 * 3. Ensure the step is idempotent (safe to run multiple times)
 	 *
-	 * Example:
-	 *   '0.2.0' => array( __CLASS__, 'upgrade_to_0_2_0' ),
-	 *
 	 * @return array<string, callable> Version => callback pairs.
 	 */
 	private static function get_upgrade_steps(): array {
 		$steps = array(
-			// Example upgrade step (commented out as placeholder):
-			// '0.2.0' => array( __CLASS__, 'upgrade_to_0_2_0' ),
+			'0.1.1' => array( __CLASS__, 'upgrade_to_0_1_1' ),
 		);
 
 		// Sort by version to ensure correct execution order.
 		uksort( $steps, 'version_compare' );
 
 		return $steps;
+	}
+
+	/**
+	 * Upgrade to 0.1.1: Initialize memory options for existing installations.
+	 *
+	 * Adds default values for agentwp_memory_limit and agentwp_memory_ttl
+	 * which were introduced in this version.
+	 *
+	 * @return void
+	 */
+	private static function upgrade_to_0_1_1(): void {
+		// Initialize memory limit if not set.
+		if ( false === get_option( SettingsManager::OPTION_MEMORY_LIMIT, false ) ) {
+			add_option(
+				SettingsManager::OPTION_MEMORY_LIMIT,
+				SettingsManager::DEFAULT_MEMORY_LIMIT,
+				'',
+				false
+			);
+		}
+
+		// Initialize memory TTL if not set.
+		if ( false === get_option( SettingsManager::OPTION_MEMORY_TTL, false ) ) {
+			add_option(
+				SettingsManager::OPTION_MEMORY_TTL,
+				SettingsManager::DEFAULT_MEMORY_TTL,
+				'',
+				false
+			);
+		}
+	}
+
+	/**
+	 * Run upgrades on all sites in a multisite network.
+	 *
+	 * This method is useful for network admins who want to trigger
+	 * upgrades across all sites immediately after updating the plugin,
+	 * rather than waiting for each site to be visited.
+	 *
+	 * @return array<int, bool> Map of site_id => upgrade_result.
+	 */
+	public static function run_network_upgrades(): array {
+		$results = array();
+
+		if ( ! is_multisite() ) {
+			// Single site: just run the upgrade.
+			$results[1] = self::maybe_upgrade();
+			return $results;
+		}
+
+		if ( ! function_exists( 'get_sites' ) ) {
+			return $results;
+		}
+
+		$site_ids = get_sites( array( 'fields' => 'ids' ) );
+
+		foreach ( $site_ids as $site_id ) {
+			// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.switch_to_blog_switch_to_blog -- Required for multisite upgrade.
+			switch_to_blog( (int) $site_id );
+
+			// Reset state so upgrade can run on this site.
+			self::$has_run = false;
+			$results[ (int) $site_id ] = self::maybe_upgrade();
+
+			restore_current_blog();
+		}
+
+		return $results;
 	}
 
 	/**
