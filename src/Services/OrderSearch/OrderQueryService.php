@@ -13,6 +13,8 @@ use AgentWP\Contracts\OrderRepositoryInterface;
 use AgentWP\Contracts\TransientCacheInterface;
 use AgentWP\DTO\OrderDTO;
 use AgentWP\DTO\OrderQuery;
+use AgentWP\DTO\OrderQuerySummaryDTO;
+use AgentWP\DTO\OrderSearchResultsDTO;
 use AgentWP\DTO\ServiceResult;
 
 /**
@@ -109,28 +111,38 @@ final class OrderQueryService {
 		$cached   = $this->resultCache->get( $cacheKey );
 
 		if ( null !== $cached && is_array( $cached ) ) {
+			$responseData = array(
+				'orders' => $cached,
+				'count'  => count( $cached ),
+				'cached' => true,
+				'query'  => $this->formatQuerySummary( $query ),
+			);
+
+			// Validate structure via DTO (for internal consistency).
+			$resultsDTO = OrderSearchResultsDTO::fromArray( $responseData );
+
 			return ServiceResult::success(
 				count( $cached ) . ' order(s) found.',
-				array(
-					'orders' => $cached,
-					'count'  => count( $cached ),
-					'cached' => true,
-					'query'  => $this->formatQuerySummary( $query ),
-				)
+				$resultsDTO->toArray()
 			);
 		}
 
 		$orders = $this->executeQuery( $query );
 		$this->resultCache->set( $cacheKey, $orders, self::DEFAULT_CACHE_TTL );
 
+		$responseData = array(
+			'orders' => $orders,
+			'count'  => count( $orders ),
+			'cached' => false,
+			'query'  => $this->formatQuerySummary( $query ),
+		);
+
+		// Validate structure via DTO (for internal consistency).
+		$resultsDTO = OrderSearchResultsDTO::fromArray( $responseData );
+
 		return ServiceResult::success(
 			count( $orders ) . ' order(s) found.',
-			array(
-				'orders' => $orders,
-				'count'  => count( $orders ),
-				'cached' => false,
-				'query'  => $this->formatQuerySummary( $query ),
-			)
+			$resultsDTO->toArray()
 		);
 	}
 
@@ -285,14 +297,16 @@ final class OrderQueryService {
 			);
 		}
 
-		return array(
-			'order_id'   => $query->orderId ?? 0,
-			'email'      => $query->email ?? '',
-			'status'     => $query->status ?? '',
-			'limit'      => $query->limit,
-			'offset'     => $query->offset,
-			'date_range' => $dateRange,
+		$summaryDTO = new OrderQuerySummaryDTO(
+			orderId: $query->orderId ?? 0,
+			email: $query->email ?? '',
+			status: $query->status ?? '',
+			limit: $query->limit,
+			offset: $query->offset,
+			dateRange: $dateRange,
 		);
+
+		return $summaryDTO->toArray();
 	}
 
 	/**

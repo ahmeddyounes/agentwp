@@ -9,6 +9,7 @@ namespace AgentWP\Services;
 
 use AgentWP\Billing\UsageTracker;
 use AgentWP\Contracts\UsageTrackerInterface;
+use AgentWP\DTO\UsageSummaryDTO;
 
 /**
  * Usage tracker service that wraps the static UsageTracker for DI-based access.
@@ -42,7 +43,24 @@ final class UsageTrackerService implements UsageTrackerInterface {
 	 * @return array Usage summary data.
 	 */
 	public function getUsageSummary( string $period ): array {
-		return UsageTracker::get_usage_summary( $period );
+		$rawSummary = UsageTracker::get_usage_summary( $period );
+
+		// Validate structure via DTO (for internal consistency).
+		$summaryDTO = UsageSummaryDTO::fromArray( $rawSummary );
+
+		return $summaryDTO->toArray();
+	}
+
+	/**
+	 * Get usage summary as DTO.
+	 *
+	 * @param string $period The period (e.g., 'today', 'week', 'month').
+	 * @return UsageSummaryDTO Usage summary DTO.
+	 */
+	public function getUsageSummaryAsDTO( string $period ): UsageSummaryDTO {
+		$rawSummary = UsageTracker::get_usage_summary( $period );
+
+		return UsageSummaryDTO::fromArray( $rawSummary );
 	}
 
 	/**

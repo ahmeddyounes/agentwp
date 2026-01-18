@@ -11,6 +11,7 @@ use AgentWP\Contracts\AnalyticsServiceInterface;
 use AgentWP\Contracts\ClockInterface;
 use AgentWP\Contracts\OrderRepositoryInterface;
 use AgentWP\Contracts\WooCommerceOrderGatewayInterface;
+use AgentWP\DTO\AnalyticsChartDTO;
 use AgentWP\DTO\DateRange;
 use AgentWP\DTO\OrderQuery;
 use AgentWP\DTO\ServiceResult;
@@ -79,35 +80,41 @@ class AnalyticsService implements AnalyticsServiceInterface {
 		$current_data = $this->query_period( $current_start, $current_end );
 		$previous_data = $this->query_period( $prev_start, $prev_end );
 
+		// Build response data array.
+		$responseData = array(
+			'label'    => "Last {$days} days",
+			'labels'   => $this->generate_date_labels( $days ),
+			'current'  => $this->map_daily_totals( $current_data['daily'], $days ),
+			'previous' => $this->map_daily_totals( $previous_data['daily'], $days ),
+			'metrics'  => array(
+				'labels'   => array( 'Revenue', 'Orders', 'Avg Order', 'Refunds' ),
+				'current'  => array(
+					$current_data['total_sales'],
+					$current_data['order_count'],
+					$current_data['order_count'] > 0 ? round( $current_data['total_sales'] / $current_data['order_count'], 2 ) : 0,
+					$current_data['total_refunds'],
+				),
+				'previous' => array(
+					$previous_data['total_sales'],
+					$previous_data['order_count'],
+					$previous_data['order_count'] > 0 ? round( $previous_data['total_sales'] / $previous_data['order_count'], 2 ) : 0,
+					$previous_data['total_refunds'],
+				),
+			),
+			// Categories are harder to aggregate efficiently without complex queries.
+			// Sending empty/mock for now to avoid massive performance hit on large stores.
+			'categories' => array(
+				'labels' => array( 'General' ),
+				'values' => array( $current_data['total_sales'] ),
+			),
+		);
+
+		// Validate structure via DTO (for internal consistency).
+		$chartDTO = AnalyticsChartDTO::fromArray( $responseData );
+
 		return ServiceResult::success(
 			"Analytics retrieved for last {$days} days.",
-			array(
-				'label'    => "Last {$days} days",
-				'labels'   => $this->generate_date_labels( $days ),
-				'current'  => $this->map_daily_totals( $current_data['daily'], $days ),
-				'previous' => $this->map_daily_totals( $previous_data['daily'], $days ),
-				'metrics'  => array(
-					'labels'   => array( 'Revenue', 'Orders', 'Avg Order', 'Refunds' ),
-					'current'  => array(
-						$current_data['total_sales'],
-						$current_data['order_count'],
-						$current_data['order_count'] > 0 ? round( $current_data['total_sales'] / $current_data['order_count'], 2 ) : 0,
-						$current_data['total_refunds'],
-					),
-					'previous' => array(
-						$previous_data['total_sales'],
-						$previous_data['order_count'],
-						$previous_data['order_count'] > 0 ? round( $previous_data['total_sales'] / $previous_data['order_count'], 2 ) : 0,
-						$previous_data['total_refunds'],
-					),
-				),
-				// Categories are harder to aggregate efficiently without complex queries.
-				// Sending empty/mock for now to avoid massive performance hit on large stores.
-				'categories' => array(
-					'labels' => array( 'General' ),
-					'values' => array( $current_data['total_sales'] ),
-				),
-			)
+			$chartDTO->toArray()
 		);
 	}
 

@@ -14,6 +14,7 @@ use AgentWP\Contracts\WooCommerceOrderGatewayInterface;
 use AgentWP\Contracts\WooCommercePriceFormatterInterface;
 use AgentWP\Contracts\WooCommerceProductCategoryGatewayInterface;
 use AgentWP\Contracts\WooCommerceUserGatewayInterface;
+use AgentWP\DTO\CustomerProfileDTO;
 use AgentWP\DTO\OrderQuery;
 use AgentWP\DTO\ServiceResult;
 
@@ -122,20 +123,26 @@ class CustomerService implements CustomerServiceInterface {
 			? "Customer profile retrieved for {$identifier}."
 			: 'Customer profile retrieved.';
 
+		// Build response data array.
+		$responseData = array_merge(
+			$metrics,
+			array(
+				'customer'          => $customer_summary,
+				'health_thresholds' => $this->get_health_thresholds(),
+				'included_statuses' => $paid_statuses,
+				'recent_orders'     => $recent_orders,
+				'orders_truncated'  => $order_data['truncated'],
+				'orders_sampled'    => count( $order_ids ),
+				'orders_limit'      => self::MAX_ORDER_IDS,
+			)
+		);
+
+		// Validate structure via DTO (for internal consistency).
+		$profileDTO = CustomerProfileDTO::fromArray( $responseData );
+
 		return ServiceResult::success(
 			$message,
-			array_merge(
-				$metrics,
-				array(
-					'customer'          => $customer_summary,
-					'health_thresholds' => $this->get_health_thresholds(),
-					'included_statuses' => $paid_statuses,
-					'recent_orders'     => $recent_orders,
-					'orders_truncated'  => $order_data['truncated'],
-					'orders_sampled'    => count( $order_ids ),
-					'orders_limit'      => self::MAX_ORDER_IDS,
-				)
-			)
+			$profileDTO->toArray()
 		);
 	}
 
