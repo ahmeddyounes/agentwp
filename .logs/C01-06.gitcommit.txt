@@ -1,0 +1,8 @@
+[main b88f4c0] C01-06: implement
+ 7 files changed, 269 insertions(+), 23 deletions(-)
+ create mode 100644 .logs/C01-06.claude.impl.last.md
+ create mode 100644 .logs/C01-06.claude.impl.raw.txt
+ create mode 100644 .plans/C01-06.md
+ create mode 100644 .t2/handoff/C01-06.md
+
+→ No staged files match any configured task.

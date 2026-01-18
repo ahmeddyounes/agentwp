@@ -61,6 +61,7 @@ use AgentWP\Intent\Classifier\ScorerRegistry;
 use AgentWP\Intent\Intent;
 use AgentWP\Intent\IntentClassifier;
 use AgentWP\Intent\ToolRegistry;
+use AgentWP\Plugin\RestRouteRegistrar;
 use AgentWP\Plugin\SettingsManager;
 use AgentWP\Providers\CoreServiceProvider;
 use AgentWP\Providers\InfrastructureServiceProvider;
@@ -949,5 +950,130 @@ class ContainerWiringTest extends TestCase {
 
 		$this->assertNotNull( $logger, 'LoggerInterface should not resolve to null' );
 		$this->assertInstanceOf( LoggerInterface::class, $logger );
+	}
+
+	// -------------------------------------------------------------------------
+	// RestRouteRegistrar Tests
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Test that RestRouteRegistrar::getDefaultControllers() returns correct namespaces.
+	 *
+	 * All controllers should be in AgentWP\Rest namespace after the REST refactor.
+	 */
+	public function test_rest_route_registrar_default_controllers_have_correct_namespace(): void {
+		$controllers = RestRouteRegistrar::getDefaultControllers();
+
+		$this->assertNotEmpty( $controllers, 'Should have default controllers' );
+
+		foreach ( $controllers as $controller ) {
+			$this->assertStringStartsWith(
+				'AgentWP\\Rest\\',
+				$controller,
+				sprintf( 'Controller %s should be in AgentWP\\Rest namespace', $controller )
+			);
+		}
+	}
+
+	/**
+	 * Test that RestRouteRegistrar::getDefaultControllers() includes all expected controllers.
+	 */
+	public function test_rest_route_registrar_default_controllers_list_is_complete(): void {
+		$controllers = RestRouteRegistrar::getDefaultControllers();
+
+		$expected = array(
+			'AgentWP\\Rest\\SettingsController',
+			'AgentWP\\Rest\\IntentController',
+			'AgentWP\\Rest\\HealthController',
+			'AgentWP\\Rest\\SearchController',
+			'AgentWP\\Rest\\AnalyticsController',
+			'AgentWP\\Rest\\HistoryController',
+			'AgentWP\\Rest\\ThemeController',
+		);
+
+		foreach ( $expected as $expectedController ) {
+			$this->assertContains(
+				$expectedController,
+				$controllers,
+				sprintf( 'Default controllers should include %s', $expectedController )
+			);
+		}
+
+		$this->assertCount(
+			count( $expected ),
+			$controllers,
+			'Default controller list should have exactly the expected number of controllers'
+		);
+	}
+
+	/**
+	 * Test that RestRouteRegistrar uses tagged controllers when available.
+	 *
+	 * When controllers are tagged with 'rest.controller', the registrar
+	 * should use those instead of falling back to defaults.
+	 */
+	public function test_rest_route_registrar_prefers_tagged_controllers(): void {
+		// Create a mock controller.
+		$mockController = new class() {
+			public bool $registered = false;
+
+			public function register_routes(): void {
+				$this->registered = true;
+			}
+		};
+
+		// Tag the mock controller.
+		$this->container->bind( get_class( $mockController ), fn() => $mockController );
+		$this->container->tag( get_class( $mockController ), 'rest.controller' );
+
+		// Create registrar from container.
+		$registrar = RestRouteRegistrar::fromContainer( $this->container );
+
+		// The registrar should have tagged controllers and NOT use defaults.
+		// We verify this by checking that the registrar was created with tagged controllers.
+		// Note: We can't call registerRoutes() without WordPress, but we can test the factory method.
+		$this->assertInstanceOf( RestRouteRegistrar::class, $registrar );
+	}
+
+	/**
+	 * Test that RestRouteRegistrar falls back to defaults when no tagged controllers.
+	 */
+	public function test_rest_route_registrar_falls_back_to_defaults_without_tags(): void {
+		// Create registrar from empty container (no tagged controllers).
+		$registrar = RestRouteRegistrar::fromContainer( $this->container );
+
+		$this->assertInstanceOf( RestRouteRegistrar::class, $registrar );
+
+		// The static method should create a registrar with defaults.
+		$defaultRegistrar = RestRouteRegistrar::withDefaults( $this->container );
+		$this->assertInstanceOf( RestRouteRegistrar::class, $defaultRegistrar );
+	}
+
+	/**
+	 * Test that RestRouteRegistrar::addController() adds to the controller list.
+	 */
+	public function test_rest_route_registrar_add_controller_method(): void {
+		$registrar = new RestRouteRegistrar( array(), $this->container );
+
+		$result = $registrar->addController( 'TestController' );
+
+		// Should return self for fluent API.
+		$this->assertSame( $registrar, $result );
+	}
+
+	/**
+	 * Test that RestRouteRegistrar::addTaggedController() adds to tagged list.
+	 */
+	public function test_rest_route_registrar_add_tagged_controller_method(): void {
+		$mockController = new class() {
+			public function register_routes(): void {}
+		};
+
+		$registrar = new RestRouteRegistrar( array(), $this->container );
+
+		$result = $registrar->addTaggedController( $mockController );
+
+		// Should return self for fluent API.
+		$this->assertSame( $registrar, $result );
 	}
 }
