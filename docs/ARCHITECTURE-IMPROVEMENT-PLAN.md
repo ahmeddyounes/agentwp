@@ -5,14 +5,13 @@
 
 ## Executive summary
 
-AgentWP already has a strong backend architecture (custom container + service providers + contracts, and a clean REST layer). The biggest remaining architecture risk is the **split frontend story**:
+AgentWP already has a strong backend architecture (custom container + service providers + contracts, and a clean REST layer). The frontend is now fully consolidated:
 
-- A legacy wp-element/wp-components bundle shipped as `assets/agentwp-admin.js` + `assets/agentwp-admin.css`
-- A modern Vite React app in `react/` that builds to `react/dist/` (hashed chunks, Shadow DOM mounting, stores/hooks)
+- The React-based UI in `react/` builds to `assets/build/` (hashed chunks via Vite, Shadow DOM mounting, stores/hooks)
+- The `AssetManager` reads the Vite manifest and enqueues the production assets
+- Legacy wp-element bundle has been removed (Phase 1.3 completed)
 
-The WordPress runtime currently **only enqueues** the legacy bundle (`src/Plugin/AssetManager.php`) and renders a mount point for it (`#agentwp-admin-root` in `src/Plugin/AdminMenuManager.php`). The Vite app expects a different mount point (`#agentwp-root` in `react/src/main.tsx`) and its build output is not wired into WP enqueuing.
-
-This plan prioritizes **making the UI build + runtime integration deterministic**, then tightening module boundaries and standardizing service contracts and cross-cutting concerns (logging, usage tracking, upgrade/migrations).
+This plan prioritizes **tightening module boundaries and standardizing service contracts and cross-cutting concerns** (logging, usage tracking, upgrade/migrations).
 
 ## Baseline (what exists today)
 
@@ -112,11 +111,11 @@ Adopt **Option B** if the React app in `react/` is the intended "Command Deck" e
   - If manifest missing → fall back to legacy `assets/agentwp-admin.*`.
 - This allows safe rollback if issues arise during rollout.
 
-**Phase 1.3 — Legacy removal (target: next minor release)**
-- Once the Vite React app is confirmed stable in production:
-  - Remove `assets/agentwp-admin.js` and `assets/agentwp-admin.css`.
-  - Remove fallback logic from `AssetManager`.
-  - Update `.github/workflows/release.yml` to only package Vite build output.
+**Phase 1.3 — Legacy removal** ✅ **COMPLETED**
+- The Vite React app is confirmed stable in production:
+  - ✅ Removed `assets/agentwp-admin.js` and `assets/agentwp-admin.css`.
+  - ✅ Removed fallback logic from `AssetManager` (`enqueueLegacyScript`, `enqueueStyle` methods).
+  - Update `.github/workflows/release.yml` to only package Vite build output (if not already done).
 
 ### Runtime Surfaces
 The Command Deck will be available on:

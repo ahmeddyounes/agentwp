@@ -5,11 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Deprecated
-- **Legacy wp-element UI bundle** (`assets/agentwp-admin.js`, `assets/agentwp-admin.css`) is now deprecated. The React-based UI in `react/src/` is the supported runtime. The legacy bundle will be removed in version **1.0.0**.
+### Removed
+- **Legacy wp-element UI bundle** (`assets/agentwp-admin.js`, `assets/agentwp-admin.css`) has been removed. The React-based UI in `react/src/` is now the sole supported runtime.
+  - The `AssetManager` no longer falls back to the legacy bundle when the Vite manifest is missing.
+  - All legacy fallback methods (`enqueueLegacyScript`, `enqueueStyle`) have been removed from `AssetManager`.
   - Migration: Run `npm run build` in the `react/` directory to generate the Vite build output in `assets/build/`.
-  - The `AssetManager` now logs deprecation warnings when falling back to the legacy bundle.
-  - Console warnings are displayed in the browser when the legacy UI loads.
 
 ### Added
 - Comprehensive documentation suite and OpenAPI reference.

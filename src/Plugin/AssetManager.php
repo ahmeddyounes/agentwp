@@ -103,7 +103,6 @@ final class AssetManager {
 		}
 
 		$this->enqueueScript();
-		$this->enqueueStyle();
 	}
 
 	/**
@@ -180,11 +179,11 @@ final class AssetManager {
 	private function enqueueScript(): void {
 		$manifest = $this->getViteManifest();
 
-		if ( null !== $manifest ) {
-			$this->enqueueFromManifest( $manifest );
-		} else {
-			$this->enqueueLegacyScript();
+		if ( null === $manifest ) {
+			return;
 		}
+
+		$this->enqueueFromManifest( $manifest );
 
 		wp_enqueue_style( 'wp-components' );
 
@@ -247,7 +246,6 @@ final class AssetManager {
 		$entryKey = 'index.html';
 
 		if ( ! isset( $manifest[ $entryKey ] ) ) {
-			$this->enqueueLegacyScript();
 			return;
 		}
 
@@ -369,61 +367,6 @@ final class AssetManager {
 				);
 			}
 		}
-	}
-
-	/**
-	 * Enqueue the legacy admin script (fallback when manifest unavailable).
-	 *
-	 * @deprecated since 0.2.0 - The legacy wp-element UI bundle is deprecated.
-	 *             Build the React UI from react/ directory. Will be removed in 1.0.0.
-	 *
-	 * @return void
-	 */
-	private function enqueueLegacyScript(): void {
-		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_trigger_error -- Intentional deprecation notice.
-		trigger_error(
-			'AgentWP: The legacy wp-element UI (agentwp-admin.js) is deprecated since 0.2.0 and will be removed in 1.0.0. ' .
-			'Please build the React UI from the react/ directory.',
-			E_USER_DEPRECATED
-		);
-
-		$scriptPath = $this->pluginDir . '/assets/agentwp-admin.js';
-
-		if ( ! file_exists( $scriptPath ) ) {
-			return;
-		}
-
-		$scriptVersion = filemtime( $scriptPath );
-
-		wp_enqueue_script(
-			'agentwp-admin',
-			$this->pluginUrl . '/assets/agentwp-admin.js',
-			array( 'wp-element', 'wp-components', 'wp-api-fetch', 'wp-i18n' ),
-			false !== $scriptVersion ? (string) $scriptVersion : $this->version,
-			true
-		);
-	}
-
-	/**
-	 * Enqueue the admin stylesheet.
-	 *
-	 * @return void
-	 */
-	private function enqueueStyle(): void {
-		$stylePath = $this->pluginDir . '/assets/agentwp-admin.css';
-
-		if ( ! file_exists( $stylePath ) ) {
-			return;
-		}
-
-		$styleVersion = filemtime( $stylePath );
-
-		wp_enqueue_style(
-			'agentwp-admin',
-			$this->pluginUrl . '/assets/agentwp-admin.css',
-			array(),
-			false !== $styleVersion ? (string) $styleVersion : $this->version
-		);
 	}
 
 	/**
