@@ -57,6 +57,19 @@ jobs:
             echo "No PHPUnit config/tests found; skipping."
           fi
 
+      - name: Run PHPStan
+        if: hashFiles('composer.json') != ''
+        run: |
+          if [ ! -x vendor/bin/phpstan ]; then
+            echo "PHPStan not installed; skipping."
+            exit 0
+          fi
+          if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
+            composer run phpstan
+          else
+            echo "No PHPStan config found; skipping."
+          fi
+
       - name: Validate OpenAPI spec
         if: hashFiles('composer.json') != ''
         run: |
