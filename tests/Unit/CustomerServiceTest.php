@@ -62,9 +62,65 @@ class CustomerServiceTest extends TestCase {
 
 		$result = $service->handle( array( 'email' => 'john@example.com' ) );
 
-		$this->assertArrayHasKey( 'total_orders', $result );
-		$this->assertEquals( 1, $result['total_orders'] );
-		$this->assertEquals( 50.00, $result['total_spent'] );
-		$this->assertEquals( 'john@example.com', $result['customer']['email'] );
+		$this->assertTrue( $result->isSuccess() );
+		$this->assertSame( 200, $result->httpStatus );
+		$this->assertEquals( 1, $result->get( 'total_orders' ) );
+		$this->assertEquals( 50.00, $result->get( 'total_spent' ) );
+		$customer = $result->get( 'customer' );
+		$this->assertEquals( 'john@example.com', $customer['email'] );
+	}
+
+	public function test_handle_returns_error_when_woocommerce_unavailable() {
+		$configGateway = Mockery::mock( WooCommerceConfigGatewayInterface::class );
+		$configGateway->shouldReceive( 'is_woocommerce_available' )->andReturn( false );
+
+		$userGateway     = Mockery::mock( WooCommerceUserGatewayInterface::class );
+		$orderGateway    = Mockery::mock( WooCommerceOrderGatewayInterface::class );
+		$orderRepository = Mockery::mock( OrderRepositoryInterface::class );
+		$categoryGateway = Mockery::mock( WooCommerceProductCategoryGatewayInterface::class );
+		$priceFormatter  = Mockery::mock( WooCommercePriceFormatterInterface::class );
+
+		$service = new CustomerService(
+			$configGateway,
+			$userGateway,
+			$orderGateway,
+			$orderRepository,
+			$categoryGateway,
+			$priceFormatter
+		);
+
+		$result = $service->handle( array( 'email' => 'john@example.com' ) );
+
+		$this->assertFalse( $result->isSuccess() );
+		$this->assertSame( 400, $result->httpStatus );
+		$this->assertSame( 'invalid_input', $result->code );
+		$this->assertSame( 'WooCommerce is required.', $result->message );
+	}
+
+	public function test_handle_returns_error_when_no_identifier_provided() {
+		$configGateway = Mockery::mock( WooCommerceConfigGatewayInterface::class );
+		$configGateway->shouldReceive( 'is_woocommerce_available' )->andReturn( true );
+
+		$userGateway     = Mockery::mock( WooCommerceUserGatewayInterface::class );
+		$orderGateway    = Mockery::mock( WooCommerceOrderGatewayInterface::class );
+		$orderRepository = Mockery::mock( OrderRepositoryInterface::class );
+		$categoryGateway = Mockery::mock( WooCommerceProductCategoryGatewayInterface::class );
+		$priceFormatter  = Mockery::mock( WooCommercePriceFormatterInterface::class );
+
+		$service = new CustomerService(
+			$configGateway,
+			$userGateway,
+			$orderGateway,
+			$orderRepository,
+			$categoryGateway,
+			$priceFormatter
+		);
+
+		$result = $service->handle( array() );
+
+		$this->assertFalse( $result->isSuccess() );
+		$this->assertSame( 400, $result->httpStatus );
+		$this->assertSame( 'invalid_input', $result->code );
+		$this->assertSame( 'Provide a customer ID or email.', $result->message );
 	}
 }

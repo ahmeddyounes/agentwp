@@ -15,6 +15,7 @@ use AgentWP\Contracts\WooCommercePriceFormatterInterface;
 use AgentWP\Contracts\WooCommerceProductCategoryGatewayInterface;
 use AgentWP\Contracts\WooCommerceUserGatewayInterface;
 use AgentWP\DTO\OrderQuery;
+use AgentWP\DTO\ServiceResult;
 
 class CustomerService implements CustomerServiceInterface {
 	const RECENT_LIMIT  = 5;
@@ -94,16 +95,16 @@ class CustomerService implements CustomerServiceInterface {
 	 * Handle a customer profile request.
 	 *
 	 * @param array $args Request arguments.
-	 * @return array
+	 * @return ServiceResult
 	 */
-	public function handle( array $args ) {
+	public function handle( array $args ): ServiceResult {
 		if ( ! $this->configGateway->is_woocommerce_available() ) {
-			return array( 'error' => 'WooCommerce is required.', 'code' => 400 );
+			return ServiceResult::invalidInput( 'WooCommerce is required.' );
 		}
 
 		$normalized = $this->normalize_args( $args );
 		if ( 0 === $normalized['customer_id'] && '' === $normalized['email'] ) {
-			return array( 'error' => 'Provide a customer ID or email.', 'code' => 400 );
+			return ServiceResult::invalidInput( 'Provide a customer ID or email.' );
 		}
 
 		$paid_statuses = $this->configGateway->get_paid_statuses();
@@ -112,16 +113,28 @@ class CustomerService implements CustomerServiceInterface {
 		$metrics       = $this->build_metrics( $order_ids );
 		$recent_orders = $this->get_recent_orders( $normalized, $paid_statuses );
 
-		return array_merge(
-			$metrics,
-			array(
-				'customer'          => $this->build_customer_summary( $normalized, $recent_orders ),
-				'health_thresholds' => $this->get_health_thresholds(),
-				'included_statuses' => $paid_statuses,
-				'recent_orders'     => $recent_orders,
-				'orders_truncated'  => $order_data['truncated'],
-				'orders_sampled'    => count( $order_ids ),
-				'orders_limit'      => self::MAX_ORDER_IDS,
+		$customer_summary = $this->build_customer_summary( $normalized, $recent_orders );
+		$customer_name    = $customer_summary['name'] ?? '';
+		$customer_email   = $customer_summary['email'] ?? '';
+
+		$identifier = '' !== $customer_name ? $customer_name : $customer_email;
+		$message    = '' !== $identifier
+			? "Customer profile retrieved for {$identifier}."
+			: 'Customer profile retrieved.';
+
+		return ServiceResult::success(
+			$message,
+			array_merge(
+				$metrics,
+				array(
+					'customer'          => $customer_summary,
+					'health_thresholds' => $this->get_health_thresholds(),
+					'included_statuses' => $paid_statuses,
+					'recent_orders'     => $recent_orders,
+					'orders_truncated'  => $order_data['truncated'],
+					'orders_sampled'    => count( $order_ids ),
+					'orders_limit'      => self::MAX_ORDER_IDS,
+				)
 			)
 		);
 	}

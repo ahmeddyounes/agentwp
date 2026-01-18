@@ -72,11 +72,11 @@ class CustomerLookupHandler extends AbstractAgenticHandler {
 	 *
 	 * @param string $name      Tool name.
 	 * @param array  $arguments Tool arguments.
-	 * @return mixed Tool execution result.
+	 * @return array Tool execution result.
 	 */
 	public function execute_tool( string $name, array $arguments ) {
 		if ( 'get_customer_profile' === $name ) {
-			return $this->service->handle( $arguments );
+			return $this->service->handle( $arguments )->toLegacyArray();
 		}
 
 		return array( 'error' => "Unknown tool: {$name}" );

@@ -7,6 +7,7 @@ namespace AgentWP\Tests\Unit\Intent\Handlers;
 
 use AgentWP\AI\Response;
 use AgentWP\Contracts\CustomerServiceInterface;
+use AgentWP\DTO\ServiceResult;
 use AgentWP\Intent\Handlers\CustomerLookupHandler;
 use AgentWP\Intent\Intent;
 use AgentWP\Tests\Fakes\FakeAIClientFactory;
@@ -39,8 +40,9 @@ class CustomerLookupHandlerTest extends TestCase {
 				)
 			)
 			->andReturn(
-				array(
-					'total_orders' => 2,
+				ServiceResult::success(
+					'Customer profile retrieved.',
+					array( 'total_orders' => 2 )
 				)
 			);
 
