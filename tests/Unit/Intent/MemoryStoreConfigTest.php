@@ -6,6 +6,7 @@
 namespace AgentWP\Tests\Unit\Intent;
 
 use AgentWP\Container\Container;
+use AgentWP\Contracts\HooksInterface;
 use AgentWP\Contracts\MemoryStoreInterface;
 use AgentWP\Contracts\OptionsInterface;
 use AgentWP\Infrastructure\WPFunctions;
@@ -30,6 +31,7 @@ class MemoryStoreConfigTest extends TestCase {
 		$container->singleton( OptionsInterface::class, fn() => $options );
 		$container->singleton( SettingsManager::class, fn( $c ) => new SettingsManager( $c->get( OptionsInterface::class ) ) );
 		$container->singleton( WPFunctions::class, fn() => new FakeWPFunctions() );
+		$container->singleton( HooksInterface::class, fn( $c ) => $c->get( WPFunctions::class ) );
 
 		$provider = new IntentServiceProvider( $container );
 		$provider->register();
@@ -43,6 +45,7 @@ class MemoryStoreConfigTest extends TestCase {
 	public function test_memory_store_uses_defaults_without_settings_manager(): void {
 		$container = new Container();
 		$container->singleton( WPFunctions::class, fn() => new FakeWPFunctions() );
+		$container->singleton( HooksInterface::class, fn( $c ) => $c->get( WPFunctions::class ) );
 
 		$provider = new IntentServiceProvider( $container );
 		$provider->register();
@@ -62,6 +65,7 @@ class MemoryStoreConfigTest extends TestCase {
 		$container->singleton( OptionsInterface::class, fn() => $options );
 		$container->singleton( SettingsManager::class, fn( $c ) => new SettingsManager( $c->get( OptionsInterface::class ) ) );
 		$container->singleton( WPFunctions::class, fn() => $wp );
+		$container->singleton( HooksInterface::class, fn( $c ) => $c->get( WPFunctions::class ) );
 
 		$provider = new IntentServiceProvider( $container );
 		$provider->register();
@@ -80,6 +84,7 @@ class MemoryStoreConfigTest extends TestCase {
 		$container->singleton( OptionsInterface::class, fn() => $options );
 		$container->singleton( SettingsManager::class, fn( $c ) => new SettingsManager( $c->get( OptionsInterface::class ) ) );
 		$container->singleton( WPFunctions::class, fn() => $wp );
+		$container->singleton( HooksInterface::class, fn( $c ) => $c->get( WPFunctions::class ) );
 
 		$provider = new IntentServiceProvider( $container );
 		$provider->register();
@@ -103,6 +108,7 @@ class MemoryStoreConfigTest extends TestCase {
 		$container->singleton( OptionsInterface::class, fn() => $options );
 		$container->singleton( SettingsManager::class, fn( $c ) => new SettingsManager( $c->get( OptionsInterface::class ) ) );
 		$container->singleton( WPFunctions::class, fn() => $wp );
+		$container->singleton( HooksInterface::class, fn( $c ) => $c->get( WPFunctions::class ) );
 
 		$provider = new IntentServiceProvider( $container );
 		$provider->register();
@@ -134,6 +140,7 @@ class MemoryStoreConfigTest extends TestCase {
 		$container->singleton( OptionsInterface::class, fn() => $options );
 		$container->singleton( SettingsManager::class, fn( $c ) => new SettingsManager( $c->get( OptionsInterface::class ) ) );
 		$container->singleton( WPFunctions::class, fn() => new FakeWPFunctions() );
+		$container->singleton( HooksInterface::class, fn( $c ) => $c->get( WPFunctions::class ) );
 
 		$provider = new IntentServiceProvider( $container );
 		$provider->register();

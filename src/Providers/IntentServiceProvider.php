@@ -67,7 +67,6 @@ use AgentWP\Intent\HandlerRegistry;
 use AgentWP\Intent\MemoryStore;
 use AgentWP\Intent\Handlers\ProductStockHandler;
 use AgentWP\Intent\ToolRegistry;
-use AgentWP\Infrastructure\WPFunctions;
 
 /**
  * Registers intent-related services.
@@ -112,10 +111,8 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			MemoryStoreInterface::class,
 			function () {
-				// Get WPFunctions for filter hooks.
-				$wp = $this->container->has( WPFunctions::class )
-					? $this->container->get( WPFunctions::class )
-					: new WPFunctions();
+				// Get hooks adapter for filter hooks.
+				$hooks = $this->container->get( HooksInterface::class );
 
 				// Read from settings or use safe defaults.
 				$limit = SettingsManager::DEFAULT_MEMORY_LIMIT;
@@ -128,8 +125,8 @@ final class IntentServiceProvider extends ServiceProvider {
 				}
 
 				// Apply filters for customization.
-				$limit = (int) $wp->applyFilters( 'agentwp_memory_limit', $limit );
-				$ttl   = (int) $wp->applyFilters( 'agentwp_memory_ttl', $ttl );
+				$limit = (int) $hooks->applyFilters( 'agentwp_memory_limit', $limit );
+				$ttl   = (int) $hooks->applyFilters( 'agentwp_memory_ttl', $ttl );
 
 				return new MemoryStore( $limit, $ttl );
 			}
@@ -179,12 +176,10 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			IntentClassifierInterface::class,
 			function () {
-				// Get WPFunctions for filter/action hooks.
-				$wp = $this->container->has( WPFunctions::class )
-					? $this->container->get( WPFunctions::class )
-					: new WPFunctions();
+				// Get hooks adapter for filter/action hooks.
+				$hooks = $this->container->get( HooksInterface::class );
 
-				$registry = new ScorerRegistry( $wp );
+				$registry = new ScorerRegistry( $hooks );
 
 				// Register default scorers.
 				$default_scorers = array(
@@ -198,7 +193,7 @@ final class IntentServiceProvider extends ServiceProvider {
 				);
 
 				// Apply filter for third-party scorers.
-				$scorers = $wp->applyFilters( 'agentwp_intent_scorers', $default_scorers );
+				$scorers = $hooks->applyFilters( 'agentwp_intent_scorers', $default_scorers );
 
 				// Validate that filter returned an array.
 				if ( ! is_array( $scorers ) ) {
@@ -369,12 +364,8 @@ final class IntentServiceProvider extends ServiceProvider {
 			function () {
 				$handlers = $this->container->tagged( 'intent.handler' );
 
-				// Get hooks adapter - use WPFunctions if registered, fallback to new instance.
-				$hooks = $this->container->has( HooksInterface::class )
-					? $this->container->get( HooksInterface::class )
-					: ( $this->container->has( WPFunctions::class )
-						? $this->container->get( WPFunctions::class )
-						: new WPFunctions() );
+				// Get hooks adapter from the container.
+				$hooks = $this->container->get( HooksInterface::class );
 
 				return new Engine(
 					$handlers,

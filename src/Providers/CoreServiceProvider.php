@@ -8,7 +8,9 @@
 namespace AgentWP\Providers;
 
 use AgentWP\Container\ServiceProvider;
+use AgentWP\Contracts\HooksInterface;
 use AgentWP\Contracts\OptionsInterface;
+use AgentWP\Contracts\WPUserFunctionsInterface;
 use AgentWP\Infrastructure\WordPressOptions;
 use AgentWP\Infrastructure\WPFunctions;
 use AgentWP\Intent\HandlerRegistry;
@@ -130,6 +132,8 @@ final class CoreServiceProvider extends ServiceProvider {
 	private function registerInfrastructure(): void {
 		// WordPress functions wrapper for testability.
 		$this->container->singleton( WPFunctions::class, fn() => new WPFunctions() );
+		$this->container->singleton( HooksInterface::class, fn( $c ) => $c->get( WPFunctions::class ) );
+		$this->container->singleton( WPUserFunctionsInterface::class, fn( $c ) => $c->get( WPFunctions::class ) );
 
 		// Handler registry for O(1) intent resolution.
 		$this->container->singleton( HandlerRegistry::class, fn() => new HandlerRegistry() );
