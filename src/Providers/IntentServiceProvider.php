@@ -42,9 +42,12 @@ use AgentWP\Intent\Handlers\OrderSearchHandler;
 use AgentWP\Intent\Handlers\OrderStatusHandler;
 use AgentWP\Intent\Classifier\ScorerRegistry;
 use AgentWP\Intent\Classifier\Scorers;
+use AgentWP\Intent\ContextBuilder;
+use AgentWP\Intent\Engine;
 use AgentWP\Intent\FunctionRegistry;
 use AgentWP\Intent\Handler;
 use AgentWP\Intent\HandlerRegistry;
+use AgentWP\Intent\MemoryStore;
 use AgentWP\Intent\Handlers\ProductStockHandler;
 use AgentWP\Intent\ToolRegistry;
 use AgentWP\Infrastructure\WPFunctions;
@@ -84,7 +87,7 @@ final class IntentServiceProvider extends ServiceProvider {
 	private function registerMemoryStore(): void {
 		// Only register if class exists.
 		// Don't register null - let has() return false and get() throw NotFoundException.
-		if ( ! class_exists( 'AgentWP\\Intent\\MemoryStore' ) ) {
+		if ( ! class_exists( MemoryStore::class ) ) {
 			return;
 		}
 
@@ -110,7 +113,7 @@ final class IntentServiceProvider extends ServiceProvider {
 				$limit = (int) $wp->applyFilters( 'agentwp_memory_limit', $limit );
 				$ttl   = (int) $wp->applyFilters( 'agentwp_memory_ttl', $ttl );
 
-				return new \AgentWP\Intent\MemoryStore( $limit, $ttl );
+				return new MemoryStore( $limit, $ttl );
 			}
 		);
 	}
@@ -127,7 +130,7 @@ final class IntentServiceProvider extends ServiceProvider {
 	private function registerContextBuilder(): void {
 		// Only register if class exists.
 		// Don't register null - let has() return false and get() throw NotFoundException.
-		if ( ! class_exists( 'AgentWP\\Intent\\ContextBuilder' ) ) {
+		if ( ! class_exists( ContextBuilder::class ) ) {
 			return;
 		}
 
@@ -137,7 +140,7 @@ final class IntentServiceProvider extends ServiceProvider {
 				// Get all context providers tagged with 'intent.context_provider'.
 				// Returns associative array keyed by context key (e.g., 'user', 'store').
 				$providers = $this->container->taggedWithKeys( 'intent.context_provider' );
-				return new \AgentWP\Intent\ContextBuilder( $providers );
+				return new ContextBuilder( $providers );
 			}
 		);
 	}
@@ -279,17 +282,17 @@ final class IntentServiceProvider extends ServiceProvider {
 	 * @return void
 	 */
 	private function registerEngine(): void {
-		if ( ! class_exists( 'AgentWP\\Intent\\Engine' ) ) {
+		if ( ! class_exists( Engine::class ) ) {
 			return;
 		}
 
 		$this->registerHandlers();
 
 		$this->container->singleton(
-			'AgentWP\\Intent\\Engine',
+			Engine::class,
 			function () {
 				$handlers = $this->container->tagged( 'intent.handler' );
-				return new \AgentWP\Intent\Engine(
+				return new Engine(
 					$handlers,
 					$this->container->get( FunctionRegistry::class ),
 					$this->container->get( ContextBuilderInterface::class ),

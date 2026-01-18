@@ -8,7 +8,9 @@
 namespace AgentWP\Providers;
 
 use AgentWP\API\RateLimiter;
+use AgentWP\API\RestController;
 use AgentWP\Container\ServiceProvider;
+use AgentWP\Error\Handler as ErrorHandler;
 use AgentWP\Contracts\ClockInterface;
 use AgentWP\Contracts\RateLimiterInterface;
 use AgentWP\Contracts\TransientCacheInterface;
@@ -82,16 +84,16 @@ final class RestServiceProvider extends ServiceProvider {
 				$formatter = new ResponseFormatter();
 
 				// Set error categorizer if handler exists.
-				if ( class_exists( 'AgentWP\\Error\\Handler' ) ) {
+				if ( class_exists( ErrorHandler::class ) ) {
 					$formatter->setErrorCategorizer(
-						fn( $code, $status, $message, $data ) => \AgentWP\Error\Handler::categorize( $code, $status, $message, $data )
+						fn( $code, $status, $message, $data ) => ErrorHandler::categorize( $code, $status, $message, $data )
 					);
 				}
 
 				// Set request logger if RestController exists.
-				if ( class_exists( 'AgentWP\\API\\RestController' ) ) {
+				if ( class_exists( RestController::class ) ) {
 					$formatter->setRequestLogger(
-						fn( $request, $status, $errorCode ) => \AgentWP\API\RestController::log_request( $request, $status, $errorCode )
+						fn( $request, $status, $errorCode ) => RestController::log_request( $request, $status, $errorCode )
 					);
 				}
 

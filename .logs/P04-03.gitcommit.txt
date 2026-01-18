@@ -1,0 +1,11 @@
+[main 343647d] P04-03: implement
+ 11 files changed, 276 insertions(+), 9 deletions(-)
+ create mode 100644 .logs/P04-02.gitcommit.txt
+ create mode 100644 .logs/P04-03.claude.impl.last.md
+ create mode 100644 .logs/P04-03.claude.impl.raw.txt
+ create mode 100644 .plans/P04-03.md
+ create mode 100644 .t2/handoff/P04-03.md
+ create mode 100644 src/Contracts/SearchIndexInterface.php
+ create mode 100644 src/Infrastructure/SearchIndexAdapter.php
+
+→ No staged files match any configured task.
