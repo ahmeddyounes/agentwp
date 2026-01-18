@@ -8,6 +8,7 @@
 namespace AgentWP\Search;
 
 use AgentWP\Config\AgentWPConfig;
+use AgentWP\Plugin;
 
 // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom search index relies on direct SQL; caching/invalidation is managed by the index lifecycle.
 
@@ -17,7 +18,7 @@ class Index {
 	const VERSION_OPTION  = 'agentwp_search_index_version';
 	const STATE_OPTION    = 'agentwp_search_index_state';
 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
-	const BACKFILL_LOCK   = 'agentwp_search_backfill_lock';
+	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
 
 	// Backward-compat constants (tests + public API expectations).
 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;

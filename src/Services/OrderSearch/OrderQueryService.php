@@ -7,6 +7,7 @@
 
 namespace AgentWP\Services\OrderSearch;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\CacheInterface;
 use AgentWP\Contracts\OptionsInterface;
 use AgentWP\Contracts\OrderRepositoryInterface;
@@ -35,7 +36,7 @@ final class OrderQueryService {
 	/**
 	 * Cache key prefix.
 	 */
-	public const CACHE_PREFIX = 'order_search_';
+	public const CACHE_PREFIX = AgentWPConfig::CACHE_PREFIX_ORDER_SEARCH; // used with TransientCacheInterface (adapter adds Plugin::TRANSIENT_PREFIX).
 
 	/**
 	 * Option key for cache version (without prefix - OptionsInterface adds prefix).

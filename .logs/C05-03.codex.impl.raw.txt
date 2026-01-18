@@ -1,0 +1,3128 @@
+Standardized transient key segments by centralizing session/draft/search backfill prefixes in `AgentWPConfig` and wiring those constants into the transient key builders, keeping the actual key strings unchanged so cleanup still works.
+
+Status: DONE
+
+Summary of changes:
+- Added cache prefix constants for sessions, drafts, and search backfill in `src/Config/AgentWPConfig.php` to make transient naming conventions explicit.
+- Updated transient key construction to use the new constants in `src/Infrastructure/PhpSessionHandler.php`, `src/Infrastructure/TransientDraftStorage.php`, and `src/Search/Index.php`, preserving existing key formats.
+
+How to verify (exact commands):
+- No verification commands provided.
+
+Risks / follow-ups:
+- Tests not run (no format/lint/test commands specified).
+
+OpenAI Codex v0.87.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019bd179-1b05-7b52-a76a-4d1f64d914f5
+--------
+user
+You are implementing task C05-03 in this git repository.
+
+1) Read the spec: .plans/C05-03.md
+2) Read handoff/context: .t2/handoff/C05-03.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+
+thinking
+**Preparing to inspect files**
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 43ms:
+agentwp.php
+assets
+composer.json
+composer.lock
+docker
+docker-compose.demo.yml
+docker-compose.yml
+docs
+includes
+languages
+node_modules
+package-lock.json
+package.json
+phpcs.xml
+phpstan
+phpstan.neon
+phpunit.xml.dist
+plan_tasks.csv
+playwright.config.cjs
+react
+exec
+/bin/zsh -lc "sed -n '1,200p' .plans/C05-03.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+# C05-03 — Standardize transient prefixes and cache key conventions
+
+Audit uses of `Plugin::TRANSIENT_PREFIX`, `AgentWPConfig::CACHE_PREFIX_*`, and ad-hoc transient keys (REST log, caches). Standardize on one convention and refactor accordingly; ensure uninstall/deactivation cleanup still removes all plugin transients. Acceptance: cache keys are predictable and cleanup remains complete.
+exec
+/bin/zsh -lc "sed -n '1,200p' .t2/handoff/C05-03.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 45ms:
+# Handoff: C05-03
+
+Created: 2026-01-17T18:47:44.597815Z
+
+Spec: .plans/C05-03.md
+
+
+## 2026-01-17T19:00:06.940301Z — claude — impl
+
+Command:
+```
+claude -p --output-format json --model opus --permission-mode acceptEdits --dangerously-skip-permissions You are implementing task C05-03 in this git repository.
+
+1) Read the spec: .plans/C05-03.md
+2) Read handoff/context: .t2/handoff/C05-03.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+
+thinking
+**Assessing pending changes**
+
+I'll check the modified files using git status to review the pending Copilot changes before proceeding.
+exec
+/bin/zsh -lc 'git status --short' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 61ms:
+ M .logs/C05-02.gitcommit.txt
+ M .plans/C05-03.md
+ M .t2/handoff/C05-03.md
+ M .t2/state.json
+ M src/Config/AgentWPConfig.php
+ M src/Infrastructure/PhpSessionHandler.php
+ M src/Infrastructure/RateLimiting/RateLimiter.php
+ M src/Infrastructure/WooCommerceProductCategoryGateway.php
+ M src/Infrastructure/WordPressTransientCache.php
+ M src/Intent/MemoryStore.php
+ M src/Providers/InfrastructureServiceProvider.php
+ M src/Rest/RestController.php
+ M src/Search/Index.php
+ M src/Services/OrderSearch/OrderQueryService.php
+?? .logs/C05-03.copilot.impl.last.md
+?? .logs/C05-03.copilot.impl.raw.txt
+
+thinking
+**Reviewing transient handling changes**
+
+I'm inspecting modifications in PhpSessionHandler, WordPressTransientCache, and InfrastructureServiceProvider to verify updated transient prefix usage and integration correctness.
+exec
+/bin/zsh -lc "sed -n '1,240p' src/Config/AgentWPConfig.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 53ms:
+<?php
+/**
+ * Centralized configuration for AgentWP.
+ *
+ * @package AgentWP\Config
+ */
+
+namespace AgentWP\Config;
+
+/**
+ * Central configuration class for all AgentWP settings.
+ *
+ * This class consolidates magic numbers and configuration values
+ * that were previously scattered across multiple classes.
+ */
+final class AgentWPConfig {
+
+	/**
+	 * Agentic loop settings.
+	 */
+
+thinking
+**Checking cache prefixes**
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Infrastructure/RateLimiting/RateLimiter.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 54ms:
+<?php
+/**
+ * Rate limiter implementation.
+ *
+ * @package AgentWP\Infrastructure\RateLimiting
+ */
+
+namespace AgentWP\Infrastructure\RateLimiting;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Contracts\ClockInterface;
+use AgentWP\Contracts\AtomicRateLimiterInterface;
+use AgentWP\Contracts\RateLimiterInterface;
+use AgentWP\Contracts\TransientCacheInterface;
+
+/**
+ * Transient-based rate limiter for API requests.
+ */
+final class RateLimiter implements AtomicRateLimiterInterface {
+
+
+thinking
+**Reviewing prefix usage across files**
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Infrastructure/WooCommerceProductCategoryGateway.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 53ms:
+<?php
+/**
+ * WooCommerce product category gateway implementation.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Contracts\CacheInterface;
+use AgentWP\Contracts\WooCommerceProductCategoryGatewayInterface;
+
+/**
+ * Wraps WooCommerce product category functions.
+ */
+final class WooCommerceProductCategoryGateway implements WooCommerceProductCategoryGatewayInterface {
+
+	/**
+	 * Cache key prefix.
+
+thinking
+**Reviewing cache prefix usage**
+
+Noting that the cache prefix applies to object cache but may not be relevant for transient cache within the CacheInterface; planning to move on to inspecting the MemoryStore next.
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Intent/MemoryStore.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+<?php
+/**
+ * Conversation memory stored in WordPress transients.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP\Intent;
+
+use AgentWP\Contracts\MemoryStoreInterface;
+
+final class MemoryStore implements MemoryStoreInterface {
+	const TRANSIENT_KEY_PREFIX = \AgentWP\Plugin::TRANSIENT_PREFIX . \AgentWP\Config\AgentWPConfig::CACHE_PREFIX_INTENT_MEMORY;
+
+	/**
+	 * @var int Max memory entries.
+	 */
+	private int $limit;
+
+	/**
+
+thinking
+**Noting key prefix usage**
+
+MemoryStore employs a combination of plugin prefix and config for keys, suggesting RestController might rely on transient keys for ephemeral data handling next.
+exec
+/bin/zsh -lc "sed -n '1,220p' src/Rest/RestController.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 69ms:
+<?php
+/**
+ * Base REST controller.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP\Rest;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Container\ContainerInterface;
+use AgentWP\Contracts\AtomicRateLimiterInterface;
+use AgentWP\Contracts\RateLimiterInterface;
+use AgentWP\Error\Handler as ErrorHandler;
+use AgentWP\Plugin;
+use WP_Error;
+use WP_REST_Controller;
+use WP_REST_Request;
+use WP_REST_Response;
+
+
+thinking
+**Reviewing caching-related files**
+
+Next, I'll examine WordPressTransientCache for cache prefix usage and assess related files like Search/Index and OrderQueryService to understand caching changes.
+exec
+/bin/zsh -lc "sed -n '1,240p' src/Infrastructure/WordPressTransientCache.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 44ms:
+<?php
+/**
+ * WordPress transient cache adapter.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Contracts\TransientCacheInterface;
+use AgentWP\Plugin;
+
+/**
+ * Wraps WordPress transient functions.
+ */
+final class WordPressTransientCache implements TransientCacheInterface {
+
+	/**
+	 * Key prefix.
+exec
+/bin/zsh -lc "sed -n '240,480p' src/Infrastructure/WordPressTransientCache.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 69ms:
+	 */
+	private function prefixKey( string $key ): string {
+		return $this->prefix . $key;
+	}
+}
+
+thinking
+**Noting indentation issue**
+
+Found a stray indentation near a return statement, but it's not critical to the current scope; moving on to examine the InfrastructureServiceProvider next.
+exec
+/bin/zsh -lc "sed -n '1,240p' src/Providers/InfrastructureServiceProvider.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 69ms:
+<?php
+/**
+ * Infrastructure service provider.
+ *
+ * @package AgentWP\Providers
+ */
+
+namespace AgentWP\Providers;
+
+use AgentWP\AI\AIClientFactory;
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Container\ServiceProvider;
+use AgentWP\Contracts\AIClientFactoryInterface;
+use AgentWP\Demo\DemoCredentials;
+use AgentWP\Contracts\CacheInterface;
+use AgentWP\Contracts\ClockInterface;
+use AgentWP\Contracts\CurrentUserContextInterface;
+use AgentWP\Contracts\DraftStorageInterface;
+use AgentWP\Contracts\HttpClientInterface;
+use AgentWP\Contracts\OrderRepositoryInterface;
+
+thinking
+**Confirming cache prefix usage**
+exec
+/bin/zsh -lc "sed -n '1,240p' src/Infrastructure/PhpSessionHandler.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 68ms:
+<?php
+/**
+ * Session handler adapter backed by WordPress transients.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Contracts\SessionHandlerInterface;
+use AgentWP\Plugin;
+
+/**
+ * Provides session-like key/value storage without using PHP sessions.
+ */
+final class PhpSessionHandler implements SessionHandlerInterface {
+	/**
+	 * Default TTL for stored values (in seconds).
+	 */
+	private const DEFAULT_TTL = 1800;
+
+thinking
+**Identifying use of transient prefix outside config**
+exec
+/bin/zsh -lc "sed -n '1,240p' src/Search/Index.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 41ms:
+<?php
+/**
+ * Search index management.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP\Search;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Plugin;
+
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom search index relies on direct SQL; caching/invalidation is managed by the index lifecycle.
+
+class Index {
+	const TABLE           = 'agentwp_search_index';
+	const VERSION         = '1.0';
+	const VERSION_OPTION  = 'agentwp_search_index_version';
+	const STATE_OPTION    = 'agentwp_search_index_state';
+	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+
+thinking
+**Noticing inconsistent use of prefix constants**
+
+The search index uses a BACKFILL_LOCK constant based on a plugin prefix rather than the config prefix as the spec requires; this may reflect earlier changes, so I'll audit all uses of Plugin::TRANSIENT_PREFIX for consistency, including in OrderQueryService.
+exec
+/bin/zsh -lc "sed -n '1,240p' src/Services/OrderSearch/OrderQueryService.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 68ms:
+<?php
+/**
+ * Order query service.
+ *
+ * @package AgentWP\Services\OrderSearch
+ */
+
+namespace AgentWP\Services\OrderSearch;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Contracts\CacheInterface;
+use AgentWP\Contracts\OptionsInterface;
+use AgentWP\Contracts\OrderRepositoryInterface;
+use AgentWP\Contracts\TransientCacheInterface;
+use AgentWP\DTO\OrderDTO;
+use AgentWP\DTO\OrderQuery;
+use AgentWP\DTO\OrderQuerySummaryDTO;
+use AgentWP\DTO\OrderSearchResultsDTO;
+use AgentWP\DTO\ServiceResult;
+
+
+thinking
+**Searching for cache prefix usages**
+exec
+/bin/zsh -lc 'rg -n "TRANSIENT_PREFIX|CACHE_PREFIX_|transient" src includes tests' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 78ms:
+src/Plugin.php:21:	const TRANSIENT_PREFIX = 'agentwp_';
+src/Plugin.php:92:		self::delete_transients();
+src/Plugin.php:210:	 * Remove plugin transients.
+src/Plugin.php:214:	private static function delete_transients() {
+src/Plugin.php:217:		$transient_like = $wpdb->esc_like( self::TRANSIENT_PREFIX ) . '%';
+src/Plugin.php:223:				"_transient_{$transient_like}",
+src/Plugin.php:224:				"_transient_timeout_{$transient_like}"
+src/Plugin.php:232:					"_site_transient_{$transient_like}",
+src/Plugin.php:233:					"_site_transient_timeout_{$transient_like}"
+tests/wp-env/mu-plugins/agentwp-test-tools.php:253:		$like      = $wpdb->esc_like( '_transient_agentwp_' ) . '%';
+tests/wp-env/mu-plugins/agentwp-test-tools.php:254:		$like_time = $wpdb->esc_like( '_transient_timeout_agentwp_' ) . '%';
+src/Providers/InfrastructureServiceProvider.php:107:	 * Register transient cache.
+src/Providers/InfrastructureServiceProvider.php:114:			fn() => new WordPressTransientCache( Plugin::TRANSIENT_PREFIX )
+src/Providers/InfrastructureServiceProvider.php:162:			fn() => new PhpSessionHandler( Plugin::TRANSIENT_PREFIX )
+tests/Integration/Architecture/BoundariesTest.php:95:		// WordPress transients/cache.
+tests/Integration/Architecture/BoundariesTest.php:96:		'get_transient',
+tests/Integration/Architecture/BoundariesTest.php:97:		'set_transient',
+tests/Integration/Architecture/BoundariesTest.php:98:		'delete_transient',
+src/Infrastructure/PhpSessionHandler.php:3: * Session handler adapter backed by WordPress transients.
+src/Infrastructure/PhpSessionHandler.php:56:	public function __construct( string $prefix = Plugin::TRANSIENT_PREFIX, int $ttl = self::DEFAULT_TTL ) {
+
+thinking
+**Auditing transient key prefixes**
+
+Planning to review usage of transient key prefixes across the codebase, focusing on Plugin and AgentWPConfig constants and manual keys, to enforce a consistent naming convention and ensure proper cleanup on uninstall or deactivation. Next step is to examine Plugin.php for delete_transients functionality.
+exec
+/bin/zsh -lc "sed -n '1,280p' src/Plugin.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 68ms:
+<?php
+/**
+ * Core plugin bootstrap.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP;
+
+use AgentWP\Container\Container;
+use AgentWP\Container\ContainerInterface;
+use AgentWP\Container\ServiceProvider;
+use AgentWP\Plugin\SettingsManager;
+use AgentWP\Providers\CoreServiceProvider;
+use AgentWP\Providers\InfrastructureServiceProvider;
+use AgentWP\Providers\IntentServiceProvider;
+use AgentWP\Providers\RestServiceProvider;
+use AgentWP\Providers\ServicesServiceProvider;
+
+class Plugin {
+
+thinking
+**Planning transient prefix audit**
+
+The plugin uses a prefix for transient keys to ensure proper cleanup, but some ad-hoc keys might bypass this. The next step is to audit usages of Plugin::TRANSIENT_PREFIX, AgentWPConfig::CACHE_PREFIX_*, and any direct transient keys to standardize on a single prefix convention and confirm uninstall cleanup covers all keys. I'll start by inspecting TransientDraftStorage's key building.
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Infrastructure/TransientDraftStorage.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 69ms:
+<?php
+/**
+ * Transient-based draft storage implementation.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Contracts\CurrentUserContextInterface;
+use AgentWP\Contracts\DraftStorageInterface;
+use AgentWP\Plugin;
+
+/**
+ * Stores drafts using WordPress transients.
+ */
+class TransientDraftStorage implements DraftStorageInterface {
+
+	/**
+	 * Default TTL in seconds (1 hour).
+
+thinking
+**Reviewing transient usage patterns**
+
+TransientDraftStorage uses a specific prefix without AgentWPConfig, and RestController uses a different transient key; I'll explore the rest log section to identify other transient uses that might require adjustments.
+exec
+/bin/zsh -lc 'rg -n "rest_log|log" -n src/Rest/RestController.php' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 74ms:
+330:	public static function log_request( $request, $status, $error_code = '' ) {
+333:		$logs    = get_transient( $key );
+334:		$logs    = is_array( $logs ) ? $logs : array();
+352:		$logs[] = $entry;
+353:		$logLimit = (int) AgentWPConfig::get( 'rest.log_limit', AgentWPConfig::REST_LOG_LIMIT );
+354:		if ( count( $logs ) > $logLimit ) {
+355:			$logs = array_slice( $logs, -1 * $logLimit );
+358:		set_transient( $key, $logs, DAY_IN_SECONDS );
+exec
+/bin/zsh -lc "sed -n '300,380p' src/Rest/RestController.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 66ms:
+				'data'    => array(),
+				'error'   => array(
+					'code'    => $code,
+					'message' => $message,
+					'type'    => $type,
+					'meta'    => $meta,
+				),
+			)
+		);
+
+		if ( $response instanceof WP_REST_Response ) {
+			$response->set_status( $status );
+
+			// Set Retry-After header for rate-limited responses.
+			if ( isset( $meta['retry_after'] ) ) {
+				$response->header( 'Retry-After', (string) intval( $meta['retry_after'] ) );
+			}
+		}
+
+		return $response;
+
+
+thinking
+**Auditing transient prefix usage**
+
+Transient keys use Plugin::TRANSIENT_PREFIX consistently in some places but also have ad-hoc keys and config-based prefixes scattered across components. Next is standardizing all to AgentWPConfig::CACHE_PREFIX_* constants with a unified base prefix, expanding constants as needed, and ensuring cleanup covers all transient keys.
+thinking
+**Examining prefix patterns in caches**
+
+Different components layer prefixes variably—Plugin::TRANSIENT_PREFIX combined with config prefixes like "intent_memory_", "rate_", or "order_search_". RateLimiter passes a config prefix into the transient cache, which adds Plugin::TRANSIENT_PREFIX underneath. Next, I'll verify RateLimiter's key construction to confirm consistent prefix layering.
+exec
+/bin/zsh -lc 'rg -n "getKey" -n src/Infrastructure/RateLimiting/RateLimiter.php' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 72ms:
+139:			$this->getKey( $userId ),
+175:		$key     = $this->getKey( $userId );
+244:		$this->cache->delete( $this->getKey( $userId ) );
+254:		$key    = $this->getKey( $userId );
+285:	private function getKey( int $userId ): string {
+exec
+/bin/zsh -lc "sed -n '250,340p' src/Infrastructure/RateLimiting/RateLimiter.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 70ms:
+	 * @param int $userId The user ID.
+	 * @return array{start: int, count: int}
+	 */
+	private function getBucket( int $userId ): array {
+		$key    = $this->getKey( $userId );
+		$bucket = $this->cache->get( $key );
+		$now    = $this->clock->timestamp();
+
+		if ( ! is_array( $bucket ) ) {
+			return array(
+				'start' => $now,
+				'count' => 0,
+			);
+		}
+
+		// Reset if window has expired.
+		if ( $now - (int) $bucket['start'] >= $this->window ) {
+			return array(
+				'start' => $now,
+				'count' => 0,
+
+thinking
+**Reviewing transient key prefixes**
+
+I'm considering adding explicit constants for search-related cache prefixes to standardize keys and prevent ad-hoc strings. Next, I'll search for other transient keys to identify any additional inconsistent patterns.
+exec
+/bin/zsh -lc "rg -n \"set_transient\\(|get_transient\\(|delete_transient\\(\" src" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 41ms:
+src/Rest/RestController.php:333:		$logs    = get_transient( $key );
+src/Rest/RestController.php:358:		set_transient( $key, $logs, DAY_IN_SECONDS );
+src/Infrastructure/PhpSessionHandler.php:144:			delete_transient( $storeKey );
+src/Infrastructure/PhpSessionHandler.php:159:			$value = get_transient( $storeKey );
+src/Infrastructure/PhpSessionHandler.php:180:			set_transient( $storeKey, $store, $this->ttl );
+src/Infrastructure/WordPressTransientCache.php:39:		$raw = get_transient( $this->prefixKey( $key ) );
+src/Infrastructure/WordPressTransientCache.php:64:		return set_transient( $this->prefixKey( $key ), $wrapped, $expiration );
+src/Infrastructure/WordPressTransientCache.php:71:		return delete_transient( $this->prefixKey( $key ) );
+src/Infrastructure/WordPressTransientCache.php:78:		$raw = get_transient( $this->prefixKey( $key ) );
+src/Infrastructure/WordPressTransientCache.php:140:		$raw = get_transient( $prefixed_key );
+src/Infrastructure/WordPressTransientCache.php:166:			$raw = get_transient( $prefixed_key );
+src/Infrastructure/WordPressTransientCache.php:180:				$raw = get_transient( $prefixed_key );
+src/Infrastructure/WordPressTransientCache.php:227:		$existing = get_transient( $prefixed_key );
+src/Infrastructure/WordPressTransientCache.php:232:		return set_transient( $prefixed_key, $wrapped, $expiration );
+src/Infrastructure/TransientDraftStorage.php:61:		return set_transient( $key, $data, $ttl );
+src/Infrastructure/TransientDraftStorage.php:73:		$data = get_transient( $key );
+src/Infrastructure/TransientDraftStorage.php:86:		$data = get_transient( $key );
+src/Infrastructure/TransientDraftStorage.php:89:			delete_transient( $key );
+src/Infrastructure/TransientDraftStorage.php:105:		return delete_transient( $key );
+src/Search/Index.php:944:		$lock_value = get_transient( self::BACKFILL_LOCK );
+
+
+thinking
+**Assessing cache key standardization**
+
+Noticed existing ad-hoc cache keys lack standardized constants, suggesting new CACHE_PREFIX_* constants for drafts, search backfill lock, and sessions; next steps include confirming relevant constants in config files and ignoring .plans modifications since spec-driven implementation shouldn't alter those.
+thinking
+**Planning unified cache key prefixes**
+
+Decided to standardize all transient keys with Plugin::TRANSIENT_PREFIX plus AgentWPConfig CACHE_PREFIX_* constants for segments like drafts and sessions, ensuring consistent cleanup and predictable keys; next, I'll verify existing constants, add missing ones, and update related tests to reflect any key format changes.
+exec
+/bin/zsh -lc "sed -n '1,200p' tests/Unit/Infrastructure/TransientDraftStorageTest.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 69ms:
+<?php
+/**
+ * Unit tests for TransientDraftStorage class.
+ */
+
+namespace AgentWP\Tests\Unit\Infrastructure;
+
+use AgentWP\Contracts\CurrentUserContextInterface;
+use AgentWP\Infrastructure\TransientDraftStorage;
+use AgentWP\Tests\TestCase;
+use WP_Mock;
+
+class TransientDraftStorageTest extends TestCase {
+
+	public function setUp(): void {
+		parent::setUp();
+		WP_Mock::setUp();
+	}
+
+	public function tearDown(): void {
+
+
+thinking
+**Considering cache key prefix standardization**
+
+I'm evaluating whether to unify cache key prefixes by adding a `CACHE_PREFIX_DRAFT` and reorganizing the key pattern, but this would alter the current `type_draft` order to `draft_type`, which might require updating tests and needs careful alignment with existing constants.
+thinking
+**Analyzing cache prefix consistency and duplication risks**
+
+I'm confirming that standardizing on `CACHE_PREFIX_*` with a single plugin prefix is intended, while cleanup by plugin prefix suffices. I need to verify no double prefixing occurs, especially where prefixes might be added both in keys and by cache wrappers, to ensure consistent predictable keys without redundancy.
+exec
+/bin/zsh -lc 'rg -n "Plugin::TRANSIENT_PREFIX" src' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 79ms:
+src/Rest/RestController.php:332:		$key     = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_REST_LOG . ( $user_id ? $user_id : 'guest' );
+src/Services/OrderSearch/OrderQueryService.php:39:	public const CACHE_PREFIX = AgentWPConfig::CACHE_PREFIX_ORDER_SEARCH; // used with TransientCacheInterface (adapter adds Plugin::TRANSIENT_PREFIX).
+src/Search/Index.php:21:	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
+src/Infrastructure/PhpSessionHandler.php:56:	public function __construct( string $prefix = Plugin::TRANSIENT_PREFIX, int $ttl = self::DEFAULT_TTL ) {
+src/Infrastructure/WordPressTransientCache.php:31:	public function __construct( string $prefix = Plugin::TRANSIENT_PREFIX ) {
+src/Infrastructure/TransientDraftStorage.php:117:		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
+src/Config/AgentWPConfig.php:207:	 * TransientCacheInterface, the underlying adapter adds Plugin::TRANSIENT_PREFIX.
+src/Config/AgentWPConfig.php:209:	 * Plugin::TRANSIENT_PREFIX themselves.
+src/Providers/InfrastructureServiceProvider.php:114:			fn() => new WordPressTransientCache( Plugin::TRANSIENT_PREFIX )
+src/Providers/InfrastructureServiceProvider.php:162:			fn() => new PhpSessionHandler( Plugin::TRANSIENT_PREFIX )
+src/Intent/MemoryStore.php:13:	const TRANSIENT_KEY_PREFIX = \AgentWP\Plugin::TRANSIENT_PREFIX . \AgentWP\Config\AgentWPConfig::CACHE_PREFIX_INTENT_MEMORY;
+
+
+thinking
+**Planning cache key unification**
+
+The cache key conventions should unify transient and object cache prefixes via `AgentWPConfig::CACHE_PREFIX_*` constants, adding new constants for inconsistent uses like search lock and draft storage; also considering replacing direct Plugin prefix usage with a central config constant to standardize all keys.
+thinking
+**Inspecting tests for cache key consistency**
+
+Planning to add new cache prefix constants in config and align existing keys like search backfill lock accordingly, while verifying test usage to ensure final key strings remain consistent for backward compatibility.
+exec
+/bin/zsh -lc "sed -n '360,520p' tests/Unit/Search/BackfillTest.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 33ms:
+				'display'  => 'Hourly',
+			),
+		);
+
+		$schedules = Index::add_cron_interval( $existing );
+
+		$this->assertArrayHasKey( 'hourly', $schedules );
+		$this->assertArrayHasKey( 'agentwp_one_minute', $schedules );
+	}
+
+	public function test_add_cron_interval_does_not_overwrite_existing(): void {
+		$existing = array(
+			'agentwp_one_minute' => array(
+				'interval' => 999,
+				'display'  => 'Custom',
+			),
+		);
+
+		$schedules = Index::add_cron_interval( $existing );
+
+
+thinking
+**Planning cache key standardization**
+
+I'm identifying inconsistent use of string prefixes for cache keys across code and tests, noting some use hardcoded strings while others use config constants. Next, I'll align all cache keys to use unified `AgentWPConfig::CACHE_PREFIX_*` constants and verify all related caches and transient prefixes for consistency.
+exec
+/bin/zsh -lc 'rg -n "CACHE_PREFIX_(INTENT|CONTEXT|RESPONSE)" -S src' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 58ms:
+src/Config/AgentWPConfig.php:211:	public const CACHE_PREFIX_INTENT        = 'intent_';
+src/Config/AgentWPConfig.php:212:	public const CACHE_PREFIX_CONTEXT       = 'context_';
+src/Config/AgentWPConfig.php:213:	public const CACHE_PREFIX_RESPONSE      = 'response_';
+src/Config/AgentWPConfig.php:216:	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
+src/Intent/MemoryStore.php:13:	const TRANSIENT_KEY_PREFIX = \AgentWP\Plugin::TRANSIENT_PREFIX . \AgentWP\Config\AgentWPConfig::CACHE_PREFIX_INTENT_MEMORY;
+
+thinking
+**Investigating LLM intent constants usage**
+
+I'm checking if the defined intent-related constants are connected to any caching mechanisms for LLM requests or responses by searching their usage.
+exec
+/bin/zsh -lc 'rg -n "intent_|context_|response_" src' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 80ms:
+src/Billing/UsageTracker.php:124:	 * @param string $intent_type Intent identifier.
+src/Billing/UsageTracker.php:128:		public static function log_usage( $model, $input_tokens, $output_tokens, $intent_type, $timestamp = '' ) {
+src/Billing/UsageTracker.php:142:		$intent_type   = self::normalize_intent( $intent_type );
+src/Billing/UsageTracker.php:153:				'intent_type'   => $intent_type,
+src/Billing/UsageTracker.php:215:				"SELECT intent_type, model, input_tokens, output_tokens, created_at FROM {$table} WHERE created_at >= %s AND created_at <= %s ORDER BY created_at ASC LIMIT %d",
+src/Billing/UsageTracker.php:255:			$intent = self::normalize_intent( isset( $row['intent_type'] ) ? $row['intent_type'] : '' );
+src/Billing/UsageTracker.php:258:					'intent_type'    => $intent,
+src/Billing/UsageTracker.php:344:			intent_type varchar(64) NOT NULL,
+src/Billing/UsageTracker.php:352:			KEY intent_idx (intent_type),
+src/Rest/HealthController.php:43:		return $this->response_success(
+src/Rest/SettingsController.php:92:		return $this->response_success(
+src/Rest/SettingsController.php:115:			return $this->response_error(
+src/Rest/SettingsController.php:132:		return $this->response_success(
+src/Rest/SettingsController.php:153:			return $this->response_error(
+src/Rest/SettingsController.php:162:			return $this->response_error( AgentWPConfig::ERROR_CODE_ENCRYPTION_FAILED, __( 'API key storage service unavailable.', 'agentwp' ), 500 );
+src/Rest/SettingsController.php:169:			return $this->response_success(
+src/Rest/SettingsController.php:178:			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_KEY, __( 'API key format looks invalid.', 'agentwp' ), 400 );
+src/Rest/SettingsController.php:186:				return $this->response_error( (string) $openai_validation->get_error_code(), $openai_validation->get_error_message(), 400 );
+src/Rest/SettingsController.php:192:			return $this->response_error( AgentWPConfig::ERROR_CODE_ENCRYPTION_FAILED, $result->get_error_message(), 500 );
+src/Rest/SettingsController.php:198:		return $this->response_success(
+
+thinking
+**Investigating cache usage**
+
+The prefix constants appear unused outside the memory store, so I'll search for all uses of `TransientCacheInterface` next to understand if and where response caching occurs elsewhere.
+exec
+/bin/zsh -lc 'rg -n "TransientCacheInterface" -S src' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 76ms:
+src/Services/OrderSearch/OrderQueryService.php:14:use AgentWP\Contracts\TransientCacheInterface;
+src/Services/OrderSearch/OrderQueryService.php:39:	public const CACHE_PREFIX = AgentWPConfig::CACHE_PREFIX_ORDER_SEARCH; // used with TransientCacheInterface (adapter adds Plugin::TRANSIENT_PREFIX).
+src/Services/OrderSearch/OrderQueryService.php:56:	 * @var TransientCacheInterface
+src/Services/OrderSearch/OrderQueryService.php:58:	private TransientCacheInterface $resultCache;
+src/Services/OrderSearch/OrderQueryService.php:85:	 * @param TransientCacheInterface  $resultCache Transient cache for results.
+src/Services/OrderSearch/OrderQueryService.php:92:		TransientCacheInterface $resultCache,
+src/Infrastructure/WordPressTransientCache.php:11:use AgentWP\Contracts\TransientCacheInterface;
+src/Infrastructure/WordPressTransientCache.php:17:final class WordPressTransientCache implements TransientCacheInterface {
+src/Infrastructure/RateLimiting/RateLimiter.php:14:use AgentWP\Contracts\TransientCacheInterface;
+src/Infrastructure/RateLimiting/RateLimiter.php:55:	 * @var TransientCacheInterface
+src/Infrastructure/RateLimiting/RateLimiter.php:57:	private TransientCacheInterface $cache;
+src/Infrastructure/RateLimiting/RateLimiter.php:96:	 * @param TransientCacheInterface $cache  Transient cache.
+src/Infrastructure/RateLimiting/RateLimiter.php:103:		TransientCacheInterface $cache,
+src/Config/AgentWPConfig.php:207:	 * TransientCacheInterface, the underlying adapter adds Plugin::TRANSIENT_PREFIX.
+src/Providers/ServicesServiceProvider.php:29:use AgentWP\Contracts\TransientCacheInterface;
+src/Providers/ServicesServiceProvider.php:166:					$c->get( TransientCacheInterface::class ),
+src/Providers/InfrastructureServiceProvider.php:25:use AgentWP\Contracts\TransientCacheInterface;
+src/Providers/InfrastructureServiceProvider.php:113:			TransientCacheInterface::class,
+src/Providers/RestServiceProvider.php:18:use AgentWP\Contracts\TransientCacheInterface;
+src/Providers/RestServiceProvider.php:68:				$this->container->get( TransientCacheInterface::class ),
+
+thinking
+**Inspecting service provider for config prefix**
+
+I'm checking the service provider to see if it uses a config prefix, which will guide how to access configuration values properly.
+exec
+/bin/zsh -lc "sed -n '120,220p' src/Providers/ServicesServiceProvider.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 71ms:
+	 *
+	 * @return void
+	 */
+	private function registerOrderSearchService(): void {
+		// Register DateRangeParser with WordPress timezone from clock.
+		$this->container->singleton(
+			DateRangeParser::class,
+			function ( $c ) {
+				$clock    = $c->get( ClockInterface::class );
+				$timezone = $clock->now()->getTimezone();
+				return new DateRangeParser( $clock, $timezone );
+			}
+		);
+
+		// Register OrderSearchParser.
+		$this->container->singleton(
+			OrderSearchParser::class,
+			fn( $c ) => new OrderSearchParser(
+				$c->get( DateRangeParser::class )
+			)
+
+thinking
+**Checking cache strategy**
+
+Planning to verify if the REST service provider uses a transient cache.
+exec
+/bin/zsh -lc "sed -n '1,120p' src/Providers/RestServiceProvider.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 65ms:
+<?php
+/**
+ * REST service provider.
+ *
+ * @package AgentWP\Providers
+ */
+
+namespace AgentWP\Providers;
+
+use AgentWP\Infrastructure\RateLimiting\RateLimiter;
+use AgentWP\Rest\RestController;
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Container\ServiceProvider;
+use AgentWP\Error\Handler as ErrorHandler;
+use AgentWP\Contracts\ClockInterface;
+use AgentWP\Contracts\AtomicRateLimiterInterface;
+use AgentWP\Contracts\RateLimiterInterface;
+use AgentWP\Contracts\TransientCacheInterface;
+use AgentWP\Plugin\ResponseFormatter;
+use AgentWP\Plugin\RestRouteRegistrar;
+
+thinking
+**Reviewing cache key conventions**
+
+I'm planning to check README or docs for existing cache key conventions and search "cache key" across the code to decide on standard keys for transients and caching.
+exec
+/bin/zsh -lc 'rg -n "cache key|cache prefix|transient" docs src -g"*.md"' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 73ms:
+docs/ARCHITECTURE.md:415:AgentWP uses WooCommerce and WordPress core tables plus `wp_options` for settings and encrypted API keys. Transients are stored in `wp_options` via the WordPress transient API.
+docs/ARCHITECTURE.md:494:- Drafts are stored in transients (e.g., `agentwp_draft_{id}`) with short TTLs.
+docs/ARCHITECTURE.md:721:- Logging: request metadata stored in transients (24h TTL), no PII.
+docs/ARCHITECTURE.md:893:5) Drafts are stored in transients and surfaced in UI.
+docs/adr/0005-rest-rate-limiting.md:10:1. **Static `RestController::check_rate_limit()`**: A static method in the base controller that directly uses WordPress transients (`get_transient()`, `set_transient()`). This approach:
+docs/adr/0005-rest-rate-limiting.md:13:   - Hardcodes transient key format (`agentwp_rate_{user_id}`)
+docs/adr/0005-rest-rate-limiting.md:14:   - Duplicates transient logic that exists in `TransientCacheInterface`
+docs/adr/0005-rest-rate-limiting.md:68:- **Prevents race conditions**: Concrete `RateLimiter::checkAndIncrement()` uses transient-based locking
+docs/adr/0005-rest-rate-limiting.md:94:Rate limit state is stored in WordPress transients with the following key format:
+docs/adr/0005-rest-rate-limiting.md:100:- **Prefix**: Configurable, defaults to `rate_` (full transient key: `agentwp_rate_{user_id}`)
+docs/adr/0005-rest-rate-limiting.md:176:public function test_rate_limit_with_real_transients(): void {
+docs/adr/0005-rest-rate-limiting.md:228:- **Testable**: Rate limiting can be fully tested without touching transients
+docs/adr/0005-rest-rate-limiting.md:243:- **Storage**: Same underlying transient storage mechanism
+
+thinking
+**Checking architecture mentions**
+exec
+/bin/zsh -lc "sed -n '470,520p' docs/ARCHITECTURE.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 69ms:
+    string order_item_type
+  }
+
+  wp_woocommerce_order_itemmeta {
+    bigint meta_id PK
+    bigint order_item_id FK
+    string meta_key
+    longtext meta_value
+  }
+
+  wp_posts ||--o{ wp_postmeta : has
+  wp_users ||--o{ wp_usermeta : has
+  wp_posts ||--o{ wp_wc_order_stats : order_stats
+  wp_posts ||--o{ wp_wc_order_product_lookup : product_lookup
+  wp_posts ||--o{ wp_woocommerce_order_items : order_items
+  wp_woocommerce_order_items ||--o{ wp_woocommerce_order_itemmeta : item_meta
+```
+
+### Settings and Storage Rules
+- Settings and encrypted BYOK are stored in `wp_options`.
+
+thinking
+**Noticing transient key mismatch**
+
+The docs mention one transient key pattern but the code uses a different, more detailed pattern; this suggests the docs may be outdated and could benefit from alignment with code for clarity. I'll check ARCHITECTURE.md specifically for REST log or memory references near line 721 to confirm.
+exec
+/bin/zsh -lc "sed -n '700,740p' docs/ARCHITECTURE.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 72ms:
+Request schema:
+```json
+{
+  "reason": "string"
+}
+```
+
+Response schema:
+```json
+{
+  "success": true,
+  "data": {
+    "cancelled": true
+  }
+}
+```
+
+### Common API Rules
+- Authentication: `current_user_can('manage_woocommerce')` required.
+- Rate limiting: 60 requests/minute per user (429 with `Retry-After`).
+
+
+
+thinking
+**Planning cache key constants**
+
+I'm consolidating cache prefixes as `CACHE_PREFIX_*` constants in the config for predictable keys, considering adding both prefixes and full keys (like locks) with clear naming to standardize cache key conventions.
+thinking
+**Finalizing cache prefix constants and key formats**
+
+I'm defining new cache prefix constants for session, draft, and search backfill to standardize keys without changing their current formats, ensuring all keys combine plugin and config prefixes consistently while preserving compatibility across caches and transients.
+thinking
+**Verifying no double prefix on cache keys**
+
+I'm confirming that keys passed to TransientCacheInterface omit the plugin prefix to avoid double prefixing, and found code already uses config prefixes correctly, ensuring consistent key handling.
+exec
+/bin/zsh -lc "sed -n '1,200p' tests/Fakes/FakeTransientCache.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 65ms:
+<?php
+/**
+ * Fake transient cache for testing.
+ *
+ * @package AgentWP\Tests\Fakes
+ */
+
+namespace AgentWP\Tests\Fakes;
+
+use AgentWP\Contracts\TransientCacheInterface;
+
+/**
+ * In-memory transient cache implementation for testing.
+ */
+final class FakeTransientCache implements TransientCacheInterface {
+
+	/**
+	 * Cached values.
+	 *
+	 * @var array<string, mixed>
+
+thinking
+**Inspecting cache key usage in plugin config**
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Infrastructure/WordPressObjectCache.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 56ms:
+<?php
+/**
+ * WordPress object cache adapter.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Contracts\CacheInterface;
+
+/**
+ * Wraps WordPress object cache functions.
+ */
+final class WordPressObjectCache implements CacheInterface {
+
+	/**
+	 * Cache group.
+	 *
+	 * @var string
+
+
+thinking
+**Planning cache prefix constants**
+
+I'm adding new cache prefix constants to centralize transient and cache key prefixes across session, draft, and search backfill storage. I'll update related classes to use these constants for consistency without changing key outputs or breaking tests.
+thinking
+**Reviewing code style and prefix usage**
+
+I'm considering fixing indentation in WordPressTransientCache as cleanup since it’s already modified, and verifying consistent use of cache prefix constants across related files. I'll check uninstall logic to ensure transient cleanup remains complete after refactoring prefixes.
+exec
+/bin/zsh -lc "sed -n '1,200p' uninstall.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 67ms:
+<?php
+/**
+ * Plugin uninstall cleanup.
+ *
+ * @package AgentWP
+ */
+
+if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
+	exit;
+}
+
+global $wpdb;
+
+if ( ! $wpdb ) {
+	return;
+}
+
+/* phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPressVIPMinimum.Functions.RestrictedFunctions.switch_to_blog_switch_to_blog */
+
+$option_keys = array(
+
+
+thinking
+**Confirming uninstall cleanup prefix usage**
+
+The uninstall process relies on a hard-coded 'agentwp_' prefix for cleaning transients to avoid loading plugin classes. I'll ensure all plugin-generated transients consistently use this prefix for proper cleanup without modifying uninstall.
+thinking
+**Planning precise constant usage updates**
+
+I'm outlining adding new cache prefix constants to the config and updating multiple files to use these constants for key prefixes, ensuring consistent key formats without changing uninstall cleanup. I'll add necessary imports and carefully update key-building logic while optionally improving comments for clarity.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Config/AgentWPConfig.php
+@@ -216,4 +216,7 @@
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+apply_patch(auto_approved=true) exited 0 in 27ms:
+Success. Updated the following files:
+M src/Config/AgentWPConfig.php
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+
+
+thinking
+**Adding constants and updating storage**
+
+Added constants with mostly aligned names using tabs; next is updating the TransientDraftStorage implementation accordingly.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Infrastructure/TransientDraftStorage.php
+@@ -9,2 +9,3 @@
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+@@ -116,3 +117,3 @@
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+apply_patch(auto_approved=true) exited 0 in 23ms:
+Success. Updated the following files:
+M src/Infrastructure/TransientDraftStorage.php
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+
+
+thinking
+**Updating session handler**
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Infrastructure/PhpSessionHandler.php
+@@ -9,2 +9,3 @@
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+@@ -201,3 +202,3 @@
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+@@ -215,3 +216,3 @@
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+apply_patch(auto_approved=true) exited 0 in 40ms:
+Success. Updated the following files:
+M src/Infrastructure/PhpSessionHandler.php
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+
+
+thinking
+**Updating Search Index constant**
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Search/Index.php
+@@ -20,3 +20,3 @@
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+apply_patch(auto_approved=true) exited 0 in 41ms:
+Success. Updated the following files:
+M src/Search/Index.php
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+thinking
+**Reviewing cache config formatting**
+
+I'm checking the WordPressTransientCache indentation and considering updating related comments to mention new prefixes, ensuring no ordering or formatting issues remain.
+exec
+/bin/zsh -lc "sed -n '200,240p' src/Config/AgentWPConfig.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 72ms:
+	public const ERROR_CODE_ENCRYPTION_FAILED   = 'agentwp_encryption_failed';
+	public const ERROR_CODE_SERVICE_UNAVAILABLE = 'agentwp_service_unavailable';
+
+	/**
+	 * Cache key prefixes.
+	 *
+	 * These values are the logical prefixes/suffixes used by AgentWP. When using
+	 * TransientCacheInterface, the underlying adapter adds Plugin::TRANSIENT_PREFIX.
+	 * When using raw get_transient()/set_transient(), callers must include
+	 * Plugin::TRANSIENT_PREFIX themselves.
+	 */
+	public const CACHE_PREFIX_INTENT        = 'intent_';
+	public const CACHE_PREFIX_CONTEXT       = 'context_';
+	public const CACHE_PREFIX_RESPONSE      = 'response_';
+	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
+	public const CACHE_PREFIX_SESSION       = 'session_';
+	public const CACHE_PREFIX_DRAFT         = 'draft_';
+	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+thinking
+**Reviewing constant alignment and config comments**
+exec
+/bin/zsh -lc "sed -n '1,160p' src/Infrastructure/TransientDraftStorage.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 70ms:
+<?php
+/**
+ * Transient-based draft storage implementation.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Contracts\CurrentUserContextInterface;
+use AgentWP\Contracts\DraftStorageInterface;
+use AgentWP\Plugin;
+
+/**
+ * Stores drafts using WordPress transients.
+ */
+class TransientDraftStorage implements DraftStorageInterface {
+
+	/**
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+thinking
+**Updating session handler**
+exec
+/bin/zsh -lc "sed -n '1,220p' src/Infrastructure/PhpSessionHandler.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 47ms:
+<?php
+/**
+ * Session handler adapter backed by WordPress transients.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Contracts\SessionHandlerInterface;
+use AgentWP\Plugin;
+
+/**
+ * Provides session-like key/value storage without using PHP sessions.
+ */
+final class PhpSessionHandler implements SessionHandlerInterface {
+	/**
+	 * Default TTL for stored values (in seconds).
+	 */
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+thinking
+**Verifying config constants usage**
+
+I checked that the updated search index constant is properly imported and used via AgentWPConfig without redundancies, confirmed no further test or doc updates are needed, and verified no conflicts with other cache prefix constants or ad-hoc lock/draft prefixes elsewhere.
+exec
+/bin/zsh -lc 'rg -n "agentwp_" src | head' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 73ms:
+src/Billing/UsageTracker.php:17:	const TABLE          = 'agentwp_usage';
+src/Billing/UsageTracker.php:19:	const VERSION_OPTION = 'agentwp_usage_version';
+src/Billing/UsageTracker.php:21:	const PURGE_HOOK     = 'agentwp_usage_purge';
+src/Billing/UsageTracker.php:26:	 * Configurable via 'agentwp_config_usage_retention_days' filter.
+src/Billing/UsageTracker.php:37:	 * Configurable via 'agentwp_config_usage_query_max_rows' filter.
+src/Billing/UsageTracker.php:209:		// Configurable via 'agentwp_config_usage_query_max_rows' filter.
+src/Error/Handler.php:172:			do_action( 'agentwp_log_error', $log_entry );
+src/Plugin.php:21:	const TRANSIENT_PREFIX = 'agentwp_';
+src/Plugin.php:153:		do_action( 'agentwp_register_providers', $this->container );
+src/Plugin.php:175:		do_action( 'agentwp_boot_providers', $this->container );
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+
+thinking
+**Verifying prefix usage and cleanup coverage**
+
+Checked test mu-plugin uses string prefix directly but it's outside plugin namespace and low risk. Confirmed rest controller and rate limiter use prefix config properly. Confirmed uninstall/delete handles transient cleanup via prefix but not ephemeral object cache, which is outside spec. Plugin calls delete transients on uninstall/deactivation already.
+thinking
+**Confirming prefix constant usage and deferring tests**
+
+Decided not to update test mu-plugin with config constants as it's unnecessary. Found rest controller’s log_request can use defined cache prefix constants. Planned to run searches next to verify usage of new prefix constants but skipping tests due to no required commands.
+exec
+/bin/zsh -lc 'rg -n "CACHE_PREFIX_(SEARCH_BACKFILL|DRAFT|SESSION)" -S src' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 80ms:
+src/Infrastructure/PhpSessionHandler.php:203:		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+src/Infrastructure/PhpSessionHandler.php:217:		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+src/Config/AgentWPConfig.php:217:	public const CACHE_PREFIX_SESSION       = 'session_';
+src/Config/AgentWPConfig.php:218:	public const CACHE_PREFIX_DRAFT         = 'draft_';
+src/Config/AgentWPConfig.php:221:	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+src/Infrastructure/TransientDraftStorage.php:118:		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+src/Search/Index.php:21:	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+
+thinking
+**Reviewing cache key conventions**
+
+I'm assessing current cache key usage and prefixes across components to decide if refactoring or helpers are needed, focusing on ensuring consistent plugin and config prefix usage and considering searches for raw transient access that might deviate.
+thinking
+**Evaluating cache prefix standardization**
+
+I've confirmed most caches use consistent plugin and config prefixes, and considered unifying transient access via an interface but deemed it out of scope; next, I'll review minor style issues and decide whether to update tests or docs, leaning toward minimal changes to meet spec.
+exec
+/bin/zsh -lc "nl -ba src/Infrastructure/WordPressTransientCache.php | sed -n '120,200p'" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 74ms:
+   120		}
+   121	
+   122		/**
+   123		 * Get minimum cache TTL from config.
+   124		 *
+   125		 * Configurable via 'agentwp_config_cache_ttl_minimum' filter.
+   126		 *
+   127		 * @return int
+   128		 */
+   129		private function getMinimumTtl(): int {
+   130			return (int) AgentWPConfig::get( 'cache.ttl_minimum', AgentWPConfig::CACHE_TTL_MINIMUM );
+   131		}
+   132	
+   133		/**
+   134		 * {@inheritDoc}
+   135		 */
+   136		public function remember( string $key, callable $callback, int $expiration = 0 ): mixed {
+   137			$prefixed_key = $this->prefixKey( $key );
+   138	
+   139			// First check - fast path for existing values.
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+
+thinking
+**Considering fixing indentation despite unexpected changes**
+
+Indentation errors are clearly formatting issues and could be cleaned up opportunistically since the file is already modified, but caution is warranted because instructions advise stopping if noticing unexpected new changes; since these modifications originated from a previous agent in the same session, it's likely safe to proceed with cleanup.
+thinking
+**Avoiding unintended edits while verifying related code**
+
+I'm deciding not to fix indentation in WordPressTransientCache to avoid scope creep since it's from a previous agent and not part of the spec. Next, I'll search for all references to the new constant to confirm no duplicate keys or tests rely on specific strings before proceeding.
+exec
+/bin/zsh -lc 'rg -n "search_backfill_lock" -S src tests' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 86ms:
+tests/Unit/Search/BackfillTest.php:342:		$this->assertSame( 'agentwp_search_backfill_lock', Index::BACKFILL_LOCK );
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+
+thinking
+**Verifying cache key constants and imports**
+
+Confirmed the lock key constant matches the expected string in tests, and key-building constants remain unchanged. Checked imports of AgentWPConfig in relevant files and noted minor alignment issue in AgentWPConfig.php needing correction.
+thinking
+**Checking git status for modifications**
+exec
+/bin/zsh -lc 'git status --short' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 76ms:
+ M .logs/C05-02.gitcommit.txt
+ M .plans/C05-03.md
+ M .t2/handoff/C05-03.md
+ M .t2/state.json
+ M src/Config/AgentWPConfig.php
+ M src/Infrastructure/PhpSessionHandler.php
+ M src/Infrastructure/RateLimiting/RateLimiter.php
+ M src/Infrastructure/TransientDraftStorage.php
+ M src/Infrastructure/WooCommerceProductCategoryGateway.php
+ M src/Infrastructure/WordPressTransientCache.php
+ M src/Intent/MemoryStore.php
+ M src/Providers/InfrastructureServiceProvider.php
+ M src/Rest/RestController.php
+ M src/Search/Index.php
+ M src/Services/OrderSearch/OrderQueryService.php
+?? .logs/C05-03.copilot.impl.last.md
+?? .logs/C05-03.copilot.impl.raw.txt
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+
+thinking
+**Reviewing prior modifications for consistency**
+
+I'm verifying that key modified files use config constants and plugin prefixes correctly, confirming previous changes align with the spec and contain no errors before finalizing.
+thinking
+**Searching for transient usage outside src**
+
+I'm scanning the includes directory for transient-related calls to identify any caches or logs outside src that might need config-based prefix updates.
+exec
+/bin/zsh -lc 'rg -n "transient" includes src | head -n 200' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 81ms:
+src/Rest/RestController.php:333:		$logs    = get_transient( $key );
+src/Rest/RestController.php:358:		set_transient( $key, $logs, DAY_IN_SECONDS );
+src/Plugin.php:92:		self::delete_transients();
+src/Plugin.php:210:	 * Remove plugin transients.
+src/Plugin.php:214:	private static function delete_transients() {
+src/Plugin.php:217:		$transient_like = $wpdb->esc_like( self::TRANSIENT_PREFIX ) . '%';
+src/Plugin.php:223:				"_transient_{$transient_like}",
+src/Plugin.php:224:				"_transient_timeout_{$transient_like}"
+src/Plugin.php:232:					"_site_transient_{$transient_like}",
+src/Plugin.php:233:					"_site_transient_timeout_{$transient_like}"
+src/Providers/InfrastructureServiceProvider.php:107:	 * Register transient cache.
+src/Infrastructure/PhpSessionHandler.php:3: * Session handler adapter backed by WordPress transients.
+src/Infrastructure/PhpSessionHandler.php:144:		if ( '' !== $storeKey && function_exists( 'delete_transient' ) ) {
+src/Infrastructure/PhpSessionHandler.php:145:			delete_transient( $storeKey );
+src/Infrastructure/PhpSessionHandler.php:159:		if ( '' !== $storeKey && function_exists( 'get_transient' ) ) {
+src/Infrastructure/PhpSessionHandler.php:160:			$value = get_transient( $storeKey );
+src/Infrastructure/PhpSessionHandler.php:180:		if ( '' !== $storeKey && function_exists( 'set_transient' ) ) {
+src/Infrastructure/PhpSessionHandler.php:181:			set_transient( $storeKey, $store, $this->ttl );
+src/Infrastructure/PhpSessionHandler.php:189:	 * Resolve transient key used for persistence.
+src/Infrastructure/TransientDraftStorage.php:16: * Stores drafts using WordPress transients.
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+
+thinking
+**Reviewing cache key prefix consistency**
+
+I'm considering standardizing cache key constants with `use` statements and improving comments on prefix usage for transients, but this is optional since current usage is acceptable; also noticing some cache keys like order version options may lack prefix consistency but might fall outside the current scope.
+thinking
+**Inspecting options adapter for prefixing**
+exec
+/bin/zsh -lc 'rg -n "class .*Options" src/Infrastructure src/Contracts' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 72ms:
+src/Infrastructure/WordPressOptions.php:15:final class WordPressOptions implements OptionsInterface {
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Infrastructure/WordPressOptions.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 42ms:
+<?php
+/**
+ * WordPress options adapter.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Contracts\OptionsInterface;
+
+/**
+ * Wraps WordPress options functions.
+ */
+final class WordPressOptions implements OptionsInterface {
+
+	/**
+	 * Option name prefix.
+	 *
+	 * @var string
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+
+thinking
+**Verifying prefix usage consistency**
+
+Confirmed all key components consistently apply plugin and config prefixes as intended, with constructors defaulting correctly and no test changes needed; next is finalizing status and verification details.
+thinking
+**Checking cache prefix usage consistency**
+
+Confirming all cache keys consistently use config prefix constants, including WooCommerceProductCategoryGateway; next I'll verify other CacheInterface usages for uniform prefix application.
+exec
+/bin/zsh -lc 'rg -n "CacheInterface" -S src | head -n 200' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 76ms:
+src/Services/OrderSearch/OrderQueryService.php:11:use AgentWP\Contracts\CacheInterface;
+src/Services/OrderSearch/OrderQueryService.php:14:use AgentWP\Contracts\TransientCacheInterface;
+src/Services/OrderSearch/OrderQueryService.php:39:	public const CACHE_PREFIX = AgentWPConfig::CACHE_PREFIX_ORDER_SEARCH; // used with TransientCacheInterface (adapter adds Plugin::TRANSIENT_PREFIX).
+src/Services/OrderSearch/OrderQueryService.php:56:	 * @var TransientCacheInterface
+src/Services/OrderSearch/OrderQueryService.php:58:	private TransientCacheInterface $resultCache;
+src/Services/OrderSearch/OrderQueryService.php:63:	 * @var CacheInterface
+src/Services/OrderSearch/OrderQueryService.php:65:	private CacheInterface $orderCache;
+src/Services/OrderSearch/OrderQueryService.php:85:	 * @param TransientCacheInterface  $resultCache Transient cache for results.
+src/Services/OrderSearch/OrderQueryService.php:86:	 * @param CacheInterface           $orderCache  Object cache for orders.
+src/Services/OrderSearch/OrderQueryService.php:92:		TransientCacheInterface $resultCache,
+src/Services/OrderSearch/OrderQueryService.php:93:		CacheInterface $orderCache,
+src/Infrastructure/CacheableServiceDecorator.php:10:use AgentWP\Contracts\CacheInterface;
+src/Infrastructure/CacheableServiceDecorator.php:39:	 * @var CacheInterface
+src/Infrastructure/CacheableServiceDecorator.php:41:	private CacheInterface $cache;
+src/Infrastructure/CacheableServiceDecorator.php:61:	 * @param CacheInterface $cache      Cache implementation.
+src/Infrastructure/CacheableServiceDecorator.php:67:		CacheInterface $cache,
+src/Infrastructure/WordPressTransientCache.php:11:use AgentWP\Contracts\TransientCacheInterface;
+src/Infrastructure/WordPressTransientCache.php:17:final class WordPressTransientCache implements TransientCacheInterface {
+src/Infrastructure/RateLimiting/RateLimiter.php:14:use AgentWP\Contracts\TransientCacheInterface;
+src/Infrastructure/RateLimiting/RateLimiter.php:55:	 * @var TransientCacheInterface
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+thinking
+**Inspecting cache key usage**
+
+I'm checking if the cacheable service decorator uses keys to manage cached entries, which will inform how caching is structured and invalidated.
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Infrastructure/CacheableServiceDecorator.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 74ms:
+<?php
+/**
+ * Cacheable service decorator.
+ *
+ * @package AgentWP\Infrastructure
+ */
+
+namespace AgentWP\Infrastructure;
+
+use AgentWP\Contracts\CacheInterface;
+
+/**
+ * Decorator that adds caching capabilities to any service.
+ *
+ * Usage:
+ * ```php
+ * $decorator = new CacheableServiceDecorator(
+ *     $service,
+ *     $cache,
+ *     3600
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+
+thinking
+**Confirming no test runs but marking done**
+
+No tests were run and no verification commands were provided, so I'll mark the status as DONE but note that automated checks were not performed. The final response will include a summary plus a "How to verify" section stating that no commands were provided.
+thinking
+**Identifying test coverage for cache prefix constant**
+
+The cache prefix constant is used in code string concatenation, so I'll check the related unit test to confirm if it verifies this constant’s value or usage to ensure consistent coverage before finalizing changes.
+exec
+/bin/zsh -lc "sed -n '320,360p' tests/Unit/Search/BackfillTest.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 67ms:
+		$method = $this->get_method( 'is_backfill_complete' );
+
+		$this->assertFalse( $method->invoke( null, 'products', $state ) );
+	}
+
+	public function test_state_with_very_large_cursor(): void {
+		// Should still be in progress with a large cursor.
+		$state  = array( 'products' => PHP_INT_MAX );
+		$method = $this->get_method( 'is_backfill_complete' );
+
+		$this->assertFalse( $method->invoke( null, 'products', $state ) );
+	}
+
+	// ===========================================
+	// Scheduled Backfill Constants Tests
+	// ===========================================
+
+	public function test_backfill_hook_constant_exists(): void {
+		$this->assertSame( 'agentwp_search_backfill', Index::BACKFILL_HOOK );
+	}
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+thinking
+**Reviewing constant usage and preparing summary**
+
+The cache prefix constants for session, draft, and search backfill were added or updated, including their use in transient key builders and search lock. Next, I'll finalize a concise diff-based summary focusing on these specific changes.
+exec
+/bin/zsh -lc 'git diff --stat src/Config/AgentWPConfig.php src/Infrastructure/PhpSessionHandler.php src/Infrastructure/TransientDraftStorage.php src/Search/Index.php' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 79ms:
+ src/Config/AgentWPConfig.php                 | 19 ++++++++++++++++---
+ src/Infrastructure/PhpSessionHandler.php     |  8 +++++---
+ src/Infrastructure/TransientDraftStorage.php |  3 ++-
+ src/Search/Index.php                         |  3 ++-
+ 4 files changed, 25 insertions(+), 8 deletions(-)
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+
+
+thinking
+**Preparing final summary format**
+
+I'm outlining the final response structure with status, concise summary of changes, verification commands, and risks or follow-ups, respecting instructions not to dump large files and to include lists clearly.
+thinking
+**Finalizing summary details**
+
+I'm clarifying the structure to lead with a brief explanation of centralizing transient key prefixes, followed by labeled sections for status, summary of changes, how to verify (noting no exact commands provided), and risks/follow-ups including tests not run.
+codex
+Standardized transient key segments by centralizing session/draft/search backfill prefixes in `AgentWPConfig` and wiring those constants into the transient key builders, keeping the actual key strings unchanged so cleanup still works.
+
+Status: DONE
+
+Summary of changes:
+- Added cache prefix constants for sessions, drafts, and search backfill in `src/Config/AgentWPConfig.php` to make transient naming conventions explicit.
+- Updated transient key construction to use the new constants in `src/Infrastructure/PhpSessionHandler.php`, `src/Infrastructure/TransientDraftStorage.php`, and `src/Search/Index.php`, preserving existing key formats.
+
+How to verify (exact commands):
+- No verification commands provided.
+
+Risks / follow-ups:
+- Tests not run (no format/lint/test commands specified).
+file update:
+diff --git a/src/Config/AgentWPConfig.php b/src/Config/AgentWPConfig.php
+index 5ba1060a95f707f078f4dd068c653e4d51bb2b26..e849fd1cfd06f2d77cdbd3170b6a34f0ee0f6a7d
+--- a/src/Config/AgentWPConfig.php
++++ b/src/Config/AgentWPConfig.php
+@@ -214,8 +214,11 @@
+ 	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+ 	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+ 	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
++	public const CACHE_PREFIX_SESSION       = 'session_';
++	public const CACHE_PREFIX_DRAFT         = 'draft_';
+ 	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+ 	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
++	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
+ 
+ 	/**
+ 	 * Meta key constants.
+diff --git a/src/Infrastructure/PhpSessionHandler.php b/src/Infrastructure/PhpSessionHandler.php
+index b1b91698b660a978af17f50ef663cb94bf47e14f..ded2ec398b72104b470197d51ba61a5860a7f8bd
+--- a/src/Infrastructure/PhpSessionHandler.php
++++ b/src/Infrastructure/PhpSessionHandler.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\SessionHandlerInterface;
+ use AgentWP\Plugin;
+ 
+@@ -199,7 +200,7 @@
+ 			return '';
+ 		}
+ 
+-		return $this->prefix . 'session_' . $user_id;
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
+ 	}
+ 
+ 	/**
+@@ -213,7 +214,7 @@
+ 			return $storeKey;
+ 		}
+ 
+-		return $this->prefix . 'session_request';
++		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
+ 	}
+ 
+ 	/**
+diff --git a/src/Infrastructure/TransientDraftStorage.php b/src/Infrastructure/TransientDraftStorage.php
+index a0a3645f8f5c477b60f20be0e587aeb6ec171b4e..90018b9c0d97acad5392c43fa65f9abc98b59a3d
+--- a/src/Infrastructure/TransientDraftStorage.php
++++ b/src/Infrastructure/TransientDraftStorage.php
+@@ -7,6 +7,7 @@
+ 
+ namespace AgentWP\Infrastructure;
+ 
++use AgentWP\Config\AgentWPConfig;
+ use AgentWP\Contracts\CurrentUserContextInterface;
+ use AgentWP\Contracts\DraftStorageInterface;
+ use AgentWP\Plugin;
+@@ -114,7 +115,7 @@
+ 	 */
+ 	private function build_key( string $type, string $id ): string {
+ 		$user_id = $this->getCurrentUserId();
+-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
++		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
+ 	}
+ 
+ 	/**
+diff --git a/src/Search/Index.php b/src/Search/Index.php
+index 91d69a27aa7a7a4e0cf272e4eaaf7aa1bdc0609a..3609e3baa836334b6943548c7a2cfb2b5dc42cd3
+--- a/src/Search/Index.php
++++ b/src/Search/Index.php
+@@ -18,7 +18,7 @@
+ 	const VERSION_OPTION  = 'agentwp_search_index_version';
+ 	const STATE_OPTION    = 'agentwp_search_index_state';
+ 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+-	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . 'search_backfill_lock';
++	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+ 
+ 	// Backward-compat constants (tests + public API expectations).
+ 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
+
+tokens used
+108,527

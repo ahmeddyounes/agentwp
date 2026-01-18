@@ -7,7 +7,9 @@
 
 namespace AgentWP\Infrastructure;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\SessionHandlerInterface;
+use AgentWP\Plugin;
 
 /**
  * Provides session-like key/value storage without using PHP sessions.
@@ -52,7 +54,7 @@ final class PhpSessionHandler implements SessionHandlerInterface {
 	 * @param string $prefix Key prefix.
 	 * @param int    $ttl    TTL in seconds.
 	 */
-	public function __construct( string $prefix = 'agentwp_', int $ttl = self::DEFAULT_TTL ) {
+	public function __construct( string $prefix = Plugin::TRANSIENT_PREFIX, int $ttl = self::DEFAULT_TTL ) {
 		$this->prefix = $prefix;
 		$this->ttl    = max( 60, $ttl );
 	}
@@ -198,7 +200,7 @@ final class PhpSessionHandler implements SessionHandlerInterface {
 			return '';
 		}
 
-		return $this->prefix . 'session_' . $user_id;
+		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . $user_id;
 	}
 
 	/**
@@ -212,7 +214,7 @@ final class PhpSessionHandler implements SessionHandlerInterface {
 			return $storeKey;
 		}
 
-		return $this->prefix . 'session_request';
+		return $this->prefix . AgentWPConfig::CACHE_PREFIX_SESSION . 'request';
 	}
 
 	/**

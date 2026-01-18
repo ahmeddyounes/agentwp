@@ -9,6 +9,7 @@ namespace AgentWP\Infrastructure;
 
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\TransientCacheInterface;
+use AgentWP\Plugin;
 
 /**
  * Wraps WordPress transient functions.
@@ -27,7 +28,7 @@ final class WordPressTransientCache implements TransientCacheInterface {
 	 *
 	 * @param string $prefix Key prefix for all transients.
 	 */
-	public function __construct( string $prefix = 'agentwp_' ) {
+	public function __construct( string $prefix = Plugin::TRANSIENT_PREFIX ) {
 		$this->prefix = $prefix;
 	}
 

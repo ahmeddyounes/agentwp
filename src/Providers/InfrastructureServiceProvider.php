@@ -28,6 +28,7 @@ use AgentWP\Contracts\OpenAIKeyValidatorInterface;
 use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\Contracts\LoggerInterface;
 use AgentWP\Contracts\AuditLoggerInterface;
+use AgentWP\Plugin;
 use AgentWP\Contracts\WooCommerceConfigGatewayInterface;
 use AgentWP\Contracts\WooCommercePriceFormatterInterface;
 use AgentWP\Contracts\WooCommerceProductCategoryGatewayInterface;
@@ -110,7 +111,7 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 	private function registerTransientCache(): void {
 		$this->container->singleton(
 			TransientCacheInterface::class,
-			fn() => new WordPressTransientCache( 'agentwp_' )
+			fn() => new WordPressTransientCache( Plugin::TRANSIENT_PREFIX )
 		);
 	}
 
@@ -158,7 +159,7 @@ final class InfrastructureServiceProvider extends ServiceProvider {
 	private function registerSession(): void {
 		$this->container->singleton(
 			SessionHandlerInterface::class,
-			fn() => new PhpSessionHandler( 'agentwp_' )
+			fn() => new PhpSessionHandler( Plugin::TRANSIENT_PREFIX )
 		);
 	}
 

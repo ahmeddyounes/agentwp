@@ -10,7 +10,7 @@ namespace AgentWP\Intent;
 use AgentWP\Contracts\MemoryStoreInterface;
 
 final class MemoryStore implements MemoryStoreInterface {
-	const TRANSIENT_KEY_PREFIX = 'agentwp_intent_memory_';
+	const TRANSIENT_KEY_PREFIX = \AgentWP\Plugin::TRANSIENT_PREFIX . \AgentWP\Config\AgentWPConfig::CACHE_PREFIX_INTENT_MEMORY;
 
 	/**
 	 * @var int Max memory entries.

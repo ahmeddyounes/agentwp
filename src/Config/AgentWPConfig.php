@@ -202,10 +202,23 @@ final class AgentWPConfig {
 
 	/**
 	 * Cache key prefixes.
+	 *
+	 * These values are the logical prefixes/suffixes used by AgentWP. When using
+	 * TransientCacheInterface, the underlying adapter adds Plugin::TRANSIENT_PREFIX.
+	 * When using raw get_transient()/set_transient(), callers must include
+	 * Plugin::TRANSIENT_PREFIX themselves.
 	 */
-	public const CACHE_PREFIX_INTENT   = 'agentwp_intent_';
-	public const CACHE_PREFIX_CONTEXT  = 'agentwp_context_';
-	public const CACHE_PREFIX_RESPONSE = 'agentwp_response_';
+	public const CACHE_PREFIX_INTENT        = 'intent_';
+	public const CACHE_PREFIX_CONTEXT       = 'context_';
+	public const CACHE_PREFIX_RESPONSE      = 'response_';
+	public const CACHE_PREFIX_RATE_LIMIT    = 'rate_';
+	public const CACHE_PREFIX_REST_LOG      = 'rest_log_';
+	public const CACHE_PREFIX_INTENT_MEMORY = 'intent_memory_';
+	public const CACHE_PREFIX_SESSION       = 'session_';
+	public const CACHE_PREFIX_DRAFT         = 'draft_';
+	public const CACHE_PREFIX_ORDER_SEARCH  = 'order_search_';
+	public const CACHE_PREFIX_PRODUCT_CAT   = 'product_cat_';
+	public const CACHE_PREFIX_SEARCH_BACKFILL = 'search_backfill_';
 
 	/**
 	 * Meta key constants.

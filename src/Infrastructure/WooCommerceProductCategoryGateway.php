@@ -7,6 +7,7 @@
 
 namespace AgentWP\Infrastructure;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\CacheInterface;
 use AgentWP\Contracts\WooCommerceProductCategoryGatewayInterface;
 
@@ -18,7 +19,7 @@ final class WooCommerceProductCategoryGateway implements WooCommerceProductCateg
 	/**
 	 * Cache key prefix.
 	 */
-	private const CACHE_PREFIX = 'product_cat_';
+	private const CACHE_PREFIX = AgentWPConfig::CACHE_PREFIX_PRODUCT_CAT; // used with CacheInterface (object cache group is already namespaced).
 
 	/**
 	 * Cache TTL in seconds.

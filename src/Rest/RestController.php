@@ -329,7 +329,7 @@ abstract class RestController extends WP_REST_Controller {
 	 */
 	public static function log_request( $request, $status, $error_code = '' ) {
 		$user_id = get_current_user_id();
-		$key     = Plugin::TRANSIENT_PREFIX . 'rest_log_' . ( $user_id ? $user_id : 'guest' );
+		$key     = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_REST_LOG . ( $user_id ? $user_id : 'guest' );
 		$logs    = get_transient( $key );
 		$logs    = is_array( $logs ) ? $logs : array();
 

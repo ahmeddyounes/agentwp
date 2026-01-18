@@ -7,6 +7,7 @@
 
 namespace AgentWP\Infrastructure;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\CurrentUserContextInterface;
 use AgentWP\Contracts\DraftStorageInterface;
 use AgentWP\Plugin;
@@ -114,7 +115,7 @@ class TransientDraftStorage implements DraftStorageInterface {
 	 */
 	private function build_key( string $type, string $id ): string {
 		$user_id = $this->getCurrentUserId();
-		return Plugin::TRANSIENT_PREFIX . $type . '_draft_' . $user_id . '_' . $id;
+		return Plugin::TRANSIENT_PREFIX . $type . '_' . AgentWPConfig::CACHE_PREFIX_DRAFT . $user_id . '_' . $id;
 	}
 
 	/**

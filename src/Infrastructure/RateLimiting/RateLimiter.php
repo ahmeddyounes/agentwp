@@ -104,7 +104,7 @@ final class RateLimiter implements AtomicRateLimiterInterface {
 		ClockInterface $clock,
 		int $limit = self::DEFAULT_LIMIT,
 		int $window = self::DEFAULT_WINDOW,
-		string $prefix = 'rate_'
+		string $prefix = AgentWPConfig::CACHE_PREFIX_RATE_LIMIT
 	) {
 		$this->cache  = $cache;
 		$this->clock  = $clock;
