@@ -9,13 +9,14 @@ namespace AgentWP\Infrastructure\RateLimiting;
 
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\ClockInterface;
+use AgentWP\Contracts\AtomicRateLimiterInterface;
 use AgentWP\Contracts\RateLimiterInterface;
 use AgentWP\Contracts\TransientCacheInterface;
 
 /**
  * Transient-based rate limiter for API requests.
  */
-final class RateLimiter implements RateLimiterInterface {
+final class RateLimiter implements AtomicRateLimiterInterface {
 
 	/**
 	 * Default rate limit per window.
@@ -162,16 +163,13 @@ final class RateLimiter implements RateLimiterInterface {
 	}
 
 	/**
-	 * Check rate limit and increment if within limits (atomic operation).
+	 * {@inheritDoc}
 	 *
-	 * This method uses a lock to perform an atomic check-and-increment to prevent
+	 * Uses a lock to perform an atomic check-and-increment to prevent
 	 * race conditions where multiple concurrent requests could exceed the rate limit.
 	 *
 	 * Fail-open design: If storage is unavailable or lock cannot be acquired,
 	 * the request is allowed to proceed to avoid blocking legitimate traffic.
-	 *
-	 * @param int $userId The user ID.
-	 * @return bool True if within limits (and incremented), false if exceeded.
 	 */
 	public function checkAndIncrement( int $userId ): bool {
 		$key     = $this->getKey( $userId );

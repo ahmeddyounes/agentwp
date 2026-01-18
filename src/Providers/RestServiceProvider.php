@@ -13,6 +13,7 @@ use AgentWP\Config\AgentWPConfig;
 use AgentWP\Container\ServiceProvider;
 use AgentWP\Error\Handler as ErrorHandler;
 use AgentWP\Contracts\ClockInterface;
+use AgentWP\Contracts\AtomicRateLimiterInterface;
 use AgentWP\Contracts\RateLimiterInterface;
 use AgentWP\Contracts\TransientCacheInterface;
 use AgentWP\Plugin\ResponseFormatter;
@@ -74,6 +75,12 @@ final class RestServiceProvider extends ServiceProvider {
 		// Also register concrete class.
 		$this->container->singleton(
 			RateLimiter::class,
+			fn() => $this->container->get( RateLimiterInterface::class )
+		);
+
+		// Register atomic interface (same instance, allows type-hinting on atomic operations).
+		$this->container->singleton(
+			AtomicRateLimiterInterface::class,
 			fn() => $this->container->get( RateLimiterInterface::class )
 		);
 	}
