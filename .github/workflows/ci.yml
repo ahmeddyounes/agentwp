@@ -135,3 +135,165 @@ jobs:
       - name: Build frontend
         if: hashFiles('react/package.json') != ''
         run: npm run build
+
+  release-artifacts:
+    name: release-artifacts
+    runs-on: ubuntu-latest
+    env:
+      PLUGIN_SLUG: agentwp
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        if: hashFiles('composer.json') != ''
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          tools: composer
+
+      - name: Setup Node
+        if: hashFiles('react/package.json') != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: react/package-lock.json
+
+      - name: Install PHP dependencies (production)
+        if: hashFiles('composer.json') != ''
+        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
+
+      - name: Build frontend assets
+        if: hashFiles('react/package.json') != ''
+        run: |
+          if [ -f react/package-lock.json ]; then
+            npm ci --prefix react
+          else
+            npm install --prefix react
+          fi
+          npm --prefix react run build --if-present
+
+      - name: Create release package (dry-run)
+        run: |
+          mkdir -p dist/package/${PLUGIN_SLUG}
+          rsync -a \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.idea' \
+            --exclude '.logs' \
+            --exclude '.plans' \
+            --exclude '.t2' \
+            --exclude 'docker' \
+            --exclude 'docker-compose.yml' \
+            --exclude 'docs' \
+            --exclude 'react' \
+            --exclude 'scripts' \
+            --exclude 'node_modules' \
+            --exclude '**/node_modules' \
+            --exclude 'tests' \
+            --exclude 'coverage' \
+            --exclude 'tasks.csv' \
+            --exclude 'setup.sh' \
+            --exclude '.env.example' \
+            ./ dist/package/${PLUGIN_SLUG}/
+
+      - name: Validate UI build manifest
+        run: |
+          MANIFEST_PATH="dist/package/${PLUGIN_SLUG}/assets/build/.vite/manifest.json"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "::error::UI build manifest not found at $MANIFEST_PATH"
+            echo "This indicates the frontend build did not complete successfully."
+            exit 1
+          fi
+          echo "✓ UI build manifest exists at $MANIFEST_PATH"
+
+      - name: Validate asset directories
+        run: |
+          ERRORS=0
+
+          ASSETS_DIR="dist/package/${PLUGIN_SLUG}/assets/build/assets"
+          if [ ! -d "$ASSETS_DIR" ]; then
+            echo "::error::Built assets directory not found at $ASSETS_DIR"
+            ERRORS=$((ERRORS + 1))
+          else
+            JS_COUNT=$(find "$ASSETS_DIR" -name "*.js" | wc -l)
+            CSS_COUNT=$(find "$ASSETS_DIR" -name "*.css" | wc -l)
+            if [ "$JS_COUNT" -eq 0 ]; then
+              echo "::error::No JavaScript files found in $ASSETS_DIR"
+              ERRORS=$((ERRORS + 1))
+            else
+              echo "✓ Found $JS_COUNT JavaScript file(s)"
+            fi
+            if [ "$CSS_COUNT" -eq 0 ]; then
+              echo "::warning::No CSS files found in $ASSETS_DIR (may be expected)"
+            else
+              echo "✓ Found $CSS_COUNT CSS file(s)"
+            fi
+          fi
+
+          INDEX_HTML="dist/package/${PLUGIN_SLUG}/assets/build/index.html"
+          if [ ! -f "$INDEX_HTML" ]; then
+            echo "::error::Build entry point not found at $INDEX_HTML"
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✓ Build entry point exists at $INDEX_HTML"
+          fi
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::$ERRORS validation error(s) found"
+            exit 1
+          fi
+
+      - name: Check for forbidden folders
+        run: |
+          PACKAGE_DIR="dist/package/${PLUGIN_SLUG}"
+          ERRORS=0
+
+          # Check for node_modules anywhere in the package
+          if find "$PACKAGE_DIR" -type d -name "node_modules" | grep -q .; then
+            echo "::error::node_modules directory found in release package:"
+            find "$PACKAGE_DIR" -type d -name "node_modules"
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✓ No node_modules directories found"
+          fi
+
+          # Check for .git directory
+          if [ -d "$PACKAGE_DIR/.git" ]; then
+            echo "::error::.git directory found in release package"
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✓ No .git directory found"
+          fi
+
+          # Check for tests directory
+          if [ -d "$PACKAGE_DIR/tests" ]; then
+            echo "::error::tests directory found in release package"
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✓ No tests directory found"
+          fi
+
+          # Check for react source directory
+          if [ -d "$PACKAGE_DIR/react" ]; then
+            echo "::error::react source directory found in release package"
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✓ No react source directory found"
+          fi
+
+          # Check for .github directory
+          if [ -d "$PACKAGE_DIR/.github" ]; then
+            echo "::error::.github directory found in release package"
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✓ No .github directory found"
+          fi
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::$ERRORS forbidden folder(s) found in release package"
+            exit 1
+          fi
+
+          echo "✓ All forbidden folder checks passed"
