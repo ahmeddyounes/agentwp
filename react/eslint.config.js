@@ -4,6 +4,31 @@ import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11yPlugin from 'eslint-plugin-jsx-a11y';
 import prettierConfig from 'eslint-config-prettier';
+import globals from 'globals';
+
+const browserGlobals = {
+  ...globals.browser,
+  ...globals.es2021,
+};
+
+const nodeGlobals = {
+  ...globals.node,
+  ...globals.nodeBuiltin,
+  ...globals.es2021,
+};
+
+const testGlobals = {
+  ...browserGlobals,
+  describe: 'readonly',
+  it: 'readonly',
+  test: 'readonly',
+  expect: 'readonly',
+  beforeAll: 'readonly',
+  afterAll: 'readonly',
+  beforeEach: 'readonly',
+  afterEach: 'readonly',
+  vi: 'readonly',
+};
 
 export default tseslint.config(
   js.configs.recommended,
@@ -23,68 +48,6 @@ export default tseslint.config(
         ecmaFeatures: {
           jsx: true,
         },
-      },
-      globals: {
-        window: 'readonly',
-        document: 'readonly',
-        navigator: 'readonly',
-        console: 'readonly',
-        setTimeout: 'readonly',
-        clearTimeout: 'readonly',
-        setInterval: 'readonly',
-        clearInterval: 'readonly',
-        fetch: 'readonly',
-        localStorage: 'readonly',
-        sessionStorage: 'readonly',
-        HTMLElement: 'readonly',
-        Element: 'readonly',
-        Node: 'readonly',
-        Event: 'readonly',
-        KeyboardEvent: 'readonly',
-        MouseEvent: 'readonly',
-        CustomEvent: 'readonly',
-        MutationObserver: 'readonly',
-        ResizeObserver: 'readonly',
-        IntersectionObserver: 'readonly',
-        requestAnimationFrame: 'readonly',
-        cancelAnimationFrame: 'readonly',
-        URL: 'readonly',
-        URLSearchParams: 'readonly',
-        FormData: 'readonly',
-        Blob: 'readonly',
-        File: 'readonly',
-        FileReader: 'readonly',
-        AbortController: 'readonly',
-        AbortSignal: 'readonly',
-        Response: 'readonly',
-        Headers: 'readonly',
-        SpeechRecognition: 'readonly',
-        webkitSpeechRecognition: 'readonly',
-        SpeechSynthesisUtterance: 'readonly',
-        speechSynthesis: 'readonly',
-        AudioContext: 'readonly',
-        webkitAudioContext: 'readonly',
-        MediaRecorder: 'readonly',
-        Notification: 'readonly',
-        Worker: 'readonly',
-        SharedWorker: 'readonly',
-        ServiceWorker: 'readonly',
-        performance: 'readonly',
-        Promise: 'readonly',
-        Map: 'readonly',
-        Set: 'readonly',
-        WeakMap: 'readonly',
-        WeakSet: 'readonly',
-        Symbol: 'readonly',
-        Proxy: 'readonly',
-        Reflect: 'readonly',
-        globalThis: 'readonly',
-        process: 'readonly',
-        module: 'readonly',
-        require: 'readonly',
-        exports: 'readonly',
-        __dirname: 'readonly',
-        __filename: 'readonly',
       },
     },
     settings: {
@@ -152,20 +115,19 @@ export default tseslint.config(
       eqeqeq: ['error', 'always', { null: 'ignore' }],
     },
   },
+  // App/browser environment
+  {
+    files: ['src/**/*.{js,jsx,ts,tsx}', 'components/**/*.{js,jsx,ts,tsx}'],
+    languageOptions: {
+      globals: browserGlobals,
+    },
+  },
   // Node/CommonJS scripts configuration
   {
     files: ['scripts/**/*.cjs'],
     languageOptions: {
       sourceType: 'commonjs',
-      globals: {
-        console: 'readonly',
-        process: 'readonly',
-        require: 'readonly',
-        module: 'readonly',
-        exports: 'readonly',
-        __dirname: 'readonly',
-        __filename: 'readonly',
-      },
+      globals: nodeGlobals,
     },
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
@@ -175,24 +137,18 @@ export default tseslint.config(
       ],
     },
   },
+  // Node/ESM config files (Vite/Vitest)
+  {
+    files: ['vite.config.ts', 'vitest.config.ts'],
+    languageOptions: {
+      globals: nodeGlobals,
+    },
+  },
   // Test files configuration
   {
     files: ['tests/**/*.{js,jsx,ts,tsx}'],
     languageOptions: {
-      globals: {
-        describe: 'readonly',
-        it: 'readonly',
-        test: 'readonly',
-        expect: 'readonly',
-        beforeAll: 'readonly',
-        afterAll: 'readonly',
-        beforeEach: 'readonly',
-        afterEach: 'readonly',
-        jest: 'readonly',
-        vi: 'readonly',
-        global: 'readonly',
-        globalThis: 'readonly',
-      },
+      globals: testGlobals,
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',

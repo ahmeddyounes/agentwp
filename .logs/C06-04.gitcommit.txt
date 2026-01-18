@@ -1,0 +1,12 @@
+[main 0e8a497] C06-04: implement
+ 11 files changed, 9315 insertions(+), 93 deletions(-)
+ create mode 100644 .logs/C06-03.gitcommit.txt
+ create mode 100644 .logs/C06-04.codex.impl.last.md
+ create mode 100644 .logs/C06-04.codex.impl.raw.txt
+ create mode 100644 .plans/C06-04.md
+ create mode 100644 .t2/handoff/C06-04.md
+ create mode 100644 docs/MULTISITE.md
+ create mode 100644 src/Plugin/Uninstall.php
+ create mode 100644 tests/Unit/Plugin/UninstallTest.php
+
+→ No staged files match any configured task.
