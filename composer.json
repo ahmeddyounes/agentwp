@@ -32,7 +32,8 @@
     "phpunit": "vendor/bin/phpunit",
     "phpcs": "vendor/bin/phpcs",
     "phpstan": "php -d memory_limit=1G vendor/bin/phpstan analyse --no-progress",
-    "openapi:validate": "php scripts/openapi-validate.php"
+    "openapi:validate": "php scripts/openapi-validate.php",
+    "docs:check-links": "php scripts/check-doc-links.php"
   },
   "config": {
     "allow-plugins": {

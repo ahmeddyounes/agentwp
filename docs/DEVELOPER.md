@@ -199,6 +199,16 @@ The pipeline is wired via `ServicesServiceProvider`. When WooCommerce is not ava
 - UI source lives in `react/` and is bundled with Vite.
 - WordPress integration tests use `@wordpress/env` and Playwright from the repository root.
 
+### Documentation link checking
+
+To verify that all relative links in documentation files are valid:
+
+```bash
+composer run docs:check-links
+```
+
+This scans all `docs/**/*.md` files for relative markdown links and fails if any targets are missing or renamed. Run this after renaming or deleting documentation files to catch broken links.
+
 ### Local CI validation
 
 To reproduce CI checks locally before pushing, run the validation script from the repository root:
