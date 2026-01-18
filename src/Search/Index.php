@@ -19,6 +19,9 @@ class Index {
 	const STATE_OPTION    = 'agentwp_search_index_state';
 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
 	const BACKFILL_LOCK   = Plugin::TRANSIENT_PREFIX . AgentWPConfig::CACHE_PREFIX_SEARCH_BACKFILL . 'lock';
+	const BACKFILL_HEARTBEAT_OPTION = 'agentwp_search_index_backfill_heartbeat';
+	const BACKFILL_LOCK_TTL         = 120; // Seconds.
+	const BACKFILL_STUCK_THRESHOLD  = 900; // Seconds.
 
 	// Backward-compat constants (tests + public API expectations).
 	const DEFAULT_LIMIT   = AgentWPConfig::SEARCH_DEFAULT_LIMIT;
@@ -81,11 +84,13 @@ class Index {
 
 		self::$hooks_registered = true;
 
+		add_filter( 'cron_schedules', array( __CLASS__, 'add_cron_interval' ) ); // phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- Short interval needed for backfill.
+
 		// Table creation runs via init hook.
 		// ensure_table() uses an option check to skip work when already current.
 		add_action( 'init', array( __CLASS__, 'ensure_table' ) );
 
-		// Backfill runs via scheduled cron event to avoid blocking admin requests.
+		// Backfill runs via scheduled cron event to avoid blocking live requests.
 		// Schedule the event if not already scheduled.
 		add_action( 'init', array( __CLASS__, 'schedule_backfill' ) );
 		add_action( self::BACKFILL_HOOK, array( __CLASS__, 'run_scheduled_backfill' ) );
@@ -860,10 +865,170 @@ class Index {
 	private static $backfill_ran = false;
 
 	/**
+	 * Track backfill lock token.
+	 *
+	 * @var string
+	 */
+	private static $backfill_lock_token = '';
+
+	/**
+	 * Get backfill types.
+	 *
+	 * @return array<int, string>
+	 */
+	private static function get_backfill_types(): array {
+		return array( 'products', 'orders', 'customers' );
+	}
+
+	/**
+	 * Check if all backfill types are complete.
+	 *
+	 * @param array $state Current state.
+	 * @return bool
+	 */
+	private static function is_backfill_fully_complete( array $state ): bool {
+		foreach ( self::get_backfill_types() as $type ) {
+			if ( ! self::is_backfill_complete( $type, $state ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Determine if a stored lock is still valid.
+	 *
+	 * @param mixed $lock Lock value.
+	 * @param int   $now  Current timestamp.
+	 * @return bool
+	 */
+	private static function is_active_lock( $lock, int $now ): bool {
+		if ( is_array( $lock ) && isset( $lock['expires_at'] ) ) {
+			return (int) $lock['expires_at'] > $now;
+		}
+
+		if ( is_numeric( $lock ) ) {
+			return ( (int) $lock + self::BACKFILL_LOCK_TTL ) > $now;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Determine if a stored lock has expired.
+	 *
+	 * @param mixed $lock Lock value.
+	 * @param int   $now  Current timestamp.
+	 * @return bool
+	 */
+	private static function is_stale_lock( $lock, int $now ): bool {
+		if ( is_array( $lock ) && isset( $lock['expires_at'] ) ) {
+			return (int) $lock['expires_at'] <= $now;
+		}
+
+		if ( is_numeric( $lock ) ) {
+			return ( (int) $lock + self::BACKFILL_LOCK_TTL ) <= $now;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Generate a lock token.
+	 *
+	 * @return string
+	 */
+	private static function generate_lock_token(): string {
+		if ( function_exists( 'wp_generate_uuid4' ) ) {
+			return wp_generate_uuid4();
+		}
+
+		return uniqid( 'agentwp_backfill_', true );
+	}
+
+	/**
+	 * Attempt to add the backfill lock.
+	 *
+	 * @param array $payload Lock payload.
+	 * @param int   $ttl Lock TTL in seconds.
+	 * @return bool
+	 */
+	private static function add_backfill_lock( array $payload, int $ttl ): bool {
+		if (
+			function_exists( 'wp_using_ext_object_cache' )
+			&& function_exists( 'wp_cache_add' )
+			&& wp_using_ext_object_cache()
+		) {
+			// phpcs:ignore WordPressVIPMinimum.Performance.LowExpiryCacheTime.CacheTimeUndetermined -- Backfill lock intentionally uses short TTL.
+			return wp_cache_add( self::BACKFILL_LOCK, $payload, 'transient', $ttl );
+		}
+
+		$existing = get_transient( self::BACKFILL_LOCK );
+		if ( false !== $existing ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPressVIPMinimum.Performance.LowExpiryCacheTime.CacheTimeUndetermined -- Backfill lock intentionally uses short TTL.
+		return set_transient( self::BACKFILL_LOCK, $payload, $ttl );
+	}
+
+	/**
+	 * Get backfill heartbeat info.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private static function get_backfill_heartbeat(): array {
+		$heartbeat = get_option( self::BACKFILL_HEARTBEAT_OPTION, array() );
+		return is_array( $heartbeat ) ? $heartbeat : array();
+	}
+
+	/**
+	 * Update backfill heartbeat.
+	 *
+	 * @param array $state Current backfill state.
+	 * @return void
+	 */
+	private static function update_backfill_heartbeat( array $state ): void {
+		update_option(
+			self::BACKFILL_HEARTBEAT_OPTION,
+			array(
+				'last_run' => time(),
+				'state'    => array_intersect_key( $state, array_flip( self::get_backfill_types() ) ),
+			),
+			false
+		);
+	}
+
+	/**
+	 * Determine if the scheduled backfill appears stuck.
+	 *
+	 * @param array $state Current state.
+	 * @return bool
+	 */
+	private static function is_backfill_stuck( array $state ): bool {
+		if ( self::is_backfill_fully_complete( $state ) ) {
+			return false;
+		}
+
+		$heartbeat = self::get_backfill_heartbeat();
+		if ( empty( $heartbeat['last_run'] ) ) {
+			return false;
+		}
+
+		$last_run = (int) $heartbeat['last_run'];
+		if ( $last_run <= 0 ) {
+			return false;
+		}
+
+		return ( time() - $last_run ) >= self::BACKFILL_STUCK_THRESHOLD;
+	}
+
+	/**
 	 * Schedule the backfill cron event if not already scheduled.
 	 *
 	 * Uses a one-minute interval to process backfill incrementally without
-	 * blocking normal admin requests.
+	 * blocking normal requests.
 	 *
 	 * @return void
 	 */
@@ -874,13 +1039,7 @@ class Index {
 
 		// Check if backfill is already complete.
 		$state        = self::get_state();
-		$all_complete = true;
-		foreach ( array( 'products', 'orders', 'customers' ) as $type ) {
-			if ( ! self::is_backfill_complete( $type, $state ) ) {
-				$all_complete = false;
-				break;
-			}
-		}
+		$all_complete = self::is_backfill_fully_complete( $state );
 
 		// If backfill is complete, unschedule and return.
 		if ( $all_complete ) {
@@ -888,13 +1047,21 @@ class Index {
 			return;
 		}
 
-		// Already scheduled, nothing to do.
-		if ( wp_next_scheduled( self::BACKFILL_HOOK ) ) {
-			return;
+		$next_scheduled = wp_next_scheduled( self::BACKFILL_HOOK );
+		$now            = time();
+
+		if ( $next_scheduled && $next_scheduled < ( $now - self::BACKFILL_STUCK_THRESHOLD ) ) {
+			self::unschedule_backfill();
+			$next_scheduled = false;
+		} elseif ( $next_scheduled && self::is_backfill_stuck( $state ) ) {
+			self::unschedule_backfill();
+			$next_scheduled = false;
 		}
 
-		// Register a custom one-minute interval if not present.
-		add_filter( 'cron_schedules', array( __CLASS__, 'add_cron_interval' ) ); // phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- Short interval needed for backfill.
+		// Already scheduled and not stale, nothing to do.
+		if ( $next_scheduled ) {
+			return;
+		}
 
 		// phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- Short interval needed for backfill.
 		wp_schedule_event( time() + 30, 'agentwp_one_minute', self::BACKFILL_HOOK );
@@ -942,16 +1109,39 @@ class Index {
 	 * @return bool True if lock acquired, false if already locked.
 	 */
 	private static function acquire_backfill_lock() {
+		$now        = time();
 		$lock_value = get_transient( self::BACKFILL_LOCK );
 
-		if ( false !== $lock_value ) {
+		if ( self::is_active_lock( $lock_value, $now ) ) {
 			return false;
 		}
 
-		// Set lock with 60 second TTL (covers the time window + buffer).
-		$result = set_transient( self::BACKFILL_LOCK, time(), 60 );
+		if ( self::is_stale_lock( $lock_value, $now ) ) {
+			delete_transient( self::BACKFILL_LOCK );
+		}
 
-		return $result;
+		$token   = self::generate_lock_token();
+		$payload = array(
+			'token'      => $token,
+			'issued_at'  => $now,
+			'expires_at' => $now + self::BACKFILL_LOCK_TTL,
+		);
+
+		if ( self::add_backfill_lock( $payload, self::BACKFILL_LOCK_TTL ) ) {
+			self::$backfill_lock_token = $token;
+			return true;
+		}
+
+		$lock_value = get_transient( self::BACKFILL_LOCK );
+		if ( self::is_stale_lock( $lock_value, $now ) ) {
+			delete_transient( self::BACKFILL_LOCK );
+			if ( self::add_backfill_lock( $payload, self::BACKFILL_LOCK_TTL ) ) {
+				self::$backfill_lock_token = $token;
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -960,7 +1150,20 @@ class Index {
 	 * @return void
 	 */
 	private static function release_backfill_lock() {
-		delete_transient( self::BACKFILL_LOCK );
+		if ( '' === self::$backfill_lock_token ) {
+			return;
+		}
+
+		$lock_value = get_transient( self::BACKFILL_LOCK );
+		if (
+			is_array( $lock_value )
+			&& isset( $lock_value['token'] )
+			&& hash_equals( (string) $lock_value['token'], (string) self::$backfill_lock_token )
+		) {
+			delete_transient( self::BACKFILL_LOCK );
+		}
+
+		self::$backfill_lock_token = '';
 	}
 
 	/**
@@ -979,19 +1182,15 @@ class Index {
 
 		try {
 			self::maybe_backfill();
+			$state = self::get_state();
+			self::update_backfill_heartbeat( $state );
 		} finally {
 			self::release_backfill_lock();
 		}
 
 		// Check if backfill is now complete and unschedule if so.
 		$state        = self::get_state();
-		$all_complete = true;
-		foreach ( array( 'products', 'orders', 'customers' ) as $type ) {
-			if ( ! self::is_backfill_complete( $type, $state ) ) {
-				$all_complete = false;
-				break;
-			}
-		}
+		$all_complete = self::is_backfill_fully_complete( $state );
 
 		if ( $all_complete ) {
 			self::unschedule_backfill();
@@ -1018,30 +1217,25 @@ class Index {
 		$state = self::get_state();
 
 		// Early exit if all types are complete.
-		$all_complete = true;
-		foreach ( array( 'products', 'orders', 'customers' ) as $type ) {
-			if ( ! self::is_backfill_complete( $type, $state ) ) {
-				$all_complete = false;
-				break;
-			}
-		}
+		$all_complete = self::is_backfill_fully_complete( $state );
 
 		if ( $all_complete ) {
 			return;
 		}
 
-		$start = microtime( true );
+		$start    = microtime( true );
+		$deadline = $start + self::getBackfillWindow();
 
-		foreach ( array( 'products', 'orders', 'customers' ) as $type ) {
+		foreach ( self::get_backfill_types() as $type ) {
 			if ( self::is_backfill_complete( $type, $state ) ) {
 				continue;
 			}
 
-			$state = self::backfill_type( $type, $state );
-
-			if ( microtime( true ) - $start >= self::getBackfillWindow() ) {
+			if ( microtime( true ) >= $deadline ) {
 				break;
 			}
+
+			$state = self::backfill_type( $type, $state, $deadline );
 		}
 
 		update_option( self::STATE_OPTION, $state, false );
@@ -1054,7 +1248,11 @@ class Index {
 	 * @param array  $state Current state.
 	 * @return array
 	 */
-	private static function backfill_type( $type, array $state ) {
+	private static function backfill_type( $type, array $state, $deadline = null ) {
+		if ( null !== $deadline && microtime( true ) >= $deadline ) {
+			return $state;
+		}
+
 		$cursor = isset( $state[ $type ] ) ? (int) $state[ $type ] : 0;
 		$ids    = self::fetch_ids( $type, $cursor, self::getBackfillLimit() );
 
@@ -1063,7 +1261,12 @@ class Index {
 			return $state;
 		}
 
+		$last_processed = $cursor;
 		foreach ( $ids as $id ) {
+			if ( null !== $deadline && microtime( true ) >= $deadline ) {
+				break;
+			}
+
 			if ( 'products' === $type ) {
 				self::index_product( $id );
 			} elseif ( 'orders' === $type ) {
@@ -1071,9 +1274,13 @@ class Index {
 			} elseif ( 'customers' === $type ) {
 				self::index_customer( $id );
 			}
+
+			$last_processed = max( $last_processed, $id );
 		}
 
-		$state[ $type ] = max( $ids );
+		if ( $last_processed !== $cursor ) {
+			$state[ $type ] = $last_processed;
+		}
 		return $state;
 	}
 
@@ -1149,7 +1356,7 @@ class Index {
 		$state = get_option( self::STATE_OPTION, array() );
 		$state = is_array( $state ) ? $state : array();
 
-		foreach ( array( 'products', 'orders', 'customers' ) as $type ) {
+		foreach ( self::get_backfill_types() as $type ) {
 			if ( ! isset( $state[ $type ] ) ) {
 				$state[ $type ] = 0;
 			}

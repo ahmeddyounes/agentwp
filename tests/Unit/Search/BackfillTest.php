@@ -50,6 +50,7 @@ class BackfillTest extends TestCase {
 			'hooks_registered' => false,
 			'table_verified'   => false,
 			'backfill_ran'     => false,
+			'backfill_lock_token' => '',
 		);
 
 		foreach ( $properties as $name => $default ) {
@@ -391,7 +392,7 @@ class BackfillTest extends TestCase {
 			'get_transient',
 			array(
 				'args'   => array( Index::BACKFILL_LOCK ),
-				'return' => false,
+				'return_in_order' => array( false, false ),
 			)
 		);
 
@@ -399,7 +400,7 @@ class BackfillTest extends TestCase {
 		WP_Mock::userFunction(
 			'set_transient',
 			array(
-				'args'   => array( Index::BACKFILL_LOCK, WP_Mock\Functions::type( 'int' ), 60 ),
+				'args'   => array( Index::BACKFILL_LOCK, WP_Mock\Functions::type( 'array' ), Index::BACKFILL_LOCK_TTL ),
 				'return' => true,
 			)
 		);
@@ -416,7 +417,11 @@ class BackfillTest extends TestCase {
 			'get_transient',
 			array(
 				'args'   => array( Index::BACKFILL_LOCK ),
-				'return' => time(),
+				'return' => array(
+					'token'      => 'lock-token',
+					'issued_at'  => time(),
+					'expires_at' => time() + Index::BACKFILL_LOCK_TTL,
+				),
 			)
 		);
 
@@ -427,6 +432,20 @@ class BackfillTest extends TestCase {
 	}
 
 	public function test_release_lock_calls_delete_transient(): void {
+		$this->set_static_property( 'backfill_lock_token', 'lock-token' );
+
+		WP_Mock::userFunction(
+			'get_transient',
+			array(
+				'args'   => array( Index::BACKFILL_LOCK ),
+				'return' => array(
+					'token'      => 'lock-token',
+					'issued_at'  => time(),
+					'expires_at' => time() + Index::BACKFILL_LOCK_TTL,
+				),
+			)
+		);
+
 		// Mock delete_transient to verify it's called.
 		WP_Mock::userFunction(
 			'delete_transient',
@@ -441,6 +460,207 @@ class BackfillTest extends TestCase {
 		$release_method->invoke( null );
 
 		// WP_Mock will verify delete_transient was called once.
+		$this->assertTrue( true );
+	}
+
+	public function test_release_lock_skips_when_token_mismatch(): void {
+		$this->set_static_property( 'backfill_lock_token', 'lock-token' );
+
+		WP_Mock::userFunction(
+			'get_transient',
+			array(
+				'args'   => array( Index::BACKFILL_LOCK ),
+				'return' => array(
+					'token'      => 'other-token',
+					'issued_at'  => time(),
+					'expires_at' => time() + Index::BACKFILL_LOCK_TTL,
+				),
+			)
+		);
+
+		WP_Mock::userFunction(
+			'delete_transient',
+			array(
+				'args'  => array( Index::BACKFILL_LOCK ),
+				'times' => 0,
+			)
+		);
+
+		$release_method = $this->get_method( 'release_backfill_lock' );
+		$release_method->invoke( null );
+
+		$this->assertTrue( true );
+	}
+
+	// ===========================================
+	// Scheduling Tests
+	// ===========================================
+
+	public function test_schedule_backfill_skips_when_complete(): void {
+		WP_Mock::userFunction(
+			'get_option',
+			array(
+				'args'   => array( Index::STATE_OPTION, array() ),
+				'return' => array(
+					'products'  => -1,
+					'orders'    => -1,
+					'customers' => -1,
+				),
+			)
+		);
+
+		WP_Mock::userFunction(
+			'wp_next_scheduled',
+			array(
+				'args'   => array( Index::BACKFILL_HOOK ),
+				'return' => false,
+			)
+		);
+
+		WP_Mock::userFunction(
+			'wp_unschedule_event',
+			array(
+				'times' => 0,
+			)
+		);
+
+		WP_Mock::userFunction(
+			'wp_schedule_event',
+			array(
+				'times' => 0,
+			)
+		);
+
+		Index::schedule_backfill();
+		$this->assertTrue( true );
+	}
+
+	public function test_schedule_backfill_schedules_when_needed(): void {
+		WP_Mock::userFunction(
+			'get_option',
+			array(
+				'args'   => array( Index::STATE_OPTION, array() ),
+				'return' => array(),
+			)
+		);
+
+		WP_Mock::userFunction(
+			'wp_next_scheduled',
+			array(
+				'args'   => array( Index::BACKFILL_HOOK ),
+				'return' => false,
+			)
+		);
+
+		WP_Mock::userFunction(
+			'wp_schedule_event',
+			array(
+				'args'   => array( WP_Mock\Functions::type( 'int' ), 'agentwp_one_minute', Index::BACKFILL_HOOK ),
+				'return' => true,
+				'times'  => 1,
+			)
+		);
+
+		Index::schedule_backfill();
+		$this->assertTrue( true );
+	}
+
+	public function test_schedule_backfill_reschedules_when_stale(): void {
+		$stale = time() - ( Index::BACKFILL_STUCK_THRESHOLD + 5 );
+
+		WP_Mock::userFunction(
+			'get_option',
+			array(
+				'args'   => array( Index::STATE_OPTION, array() ),
+				'return' => array(
+					'products'  => 0,
+					'orders'    => 0,
+					'customers' => 0,
+				),
+			)
+		);
+
+		WP_Mock::userFunction(
+			'wp_next_scheduled',
+			array(
+				'args'            => array( Index::BACKFILL_HOOK ),
+				'return_in_order' => array( $stale, $stale, false ),
+			)
+		);
+
+		WP_Mock::userFunction(
+			'wp_unschedule_event',
+			array(
+				'args'  => array( $stale, Index::BACKFILL_HOOK ),
+				'times' => 1,
+			)
+		);
+
+		WP_Mock::userFunction(
+			'wp_schedule_event',
+			array(
+				'args'   => array( WP_Mock\Functions::type( 'int' ), 'agentwp_one_minute', Index::BACKFILL_HOOK ),
+				'return' => true,
+				'times'  => 1,
+			)
+		);
+
+		Index::schedule_backfill();
+		$this->assertTrue( true );
+	}
+
+	public function test_schedule_backfill_reschedules_when_heartbeat_stale(): void {
+		$future = time() + 30;
+		$stale  = time() - ( Index::BACKFILL_STUCK_THRESHOLD + 5 );
+
+		WP_Mock::userFunction(
+			'get_option',
+			array(
+				'args'   => array( Index::STATE_OPTION, array() ),
+				'return' => array(
+					'products'  => 0,
+					'orders'    => 0,
+					'customers' => 0,
+				),
+			)
+		);
+
+		WP_Mock::userFunction(
+			'get_option',
+			array(
+				'args'   => array( Index::BACKFILL_HEARTBEAT_OPTION, array() ),
+				'return' => array(
+					'last_run' => $stale,
+				),
+			)
+		);
+
+		WP_Mock::userFunction(
+			'wp_next_scheduled',
+			array(
+				'args'            => array( Index::BACKFILL_HOOK ),
+				'return_in_order' => array( $future, $future, false ),
+			)
+		);
+
+		WP_Mock::userFunction(
+			'wp_unschedule_event',
+			array(
+				'args'  => array( $future, Index::BACKFILL_HOOK ),
+				'times' => 1,
+			)
+		);
+
+		WP_Mock::userFunction(
+			'wp_schedule_event',
+			array(
+				'args'   => array( WP_Mock\Functions::type( 'int' ), 'agentwp_one_minute', Index::BACKFILL_HOOK ),
+				'return' => true,
+				'times'  => 1,
+			)
+		);
+
+		Index::schedule_backfill();
 		$this->assertTrue( true );
 	}
 

@@ -1,0 +1,10 @@
+[main 9950bb3] C06-01: implement
+ 7 files changed, 512 insertions(+), 2 deletions(-)
+ create mode 100644 .logs/C05-04.gitcommit.txt
+ create mode 100644 .logs/C06-01.codex.impl.last.md
+ create mode 100644 .logs/C06-01.codex.impl.raw.txt
+ create mode 100644 .plans/C06-01.md
+ create mode 100644 .t2/handoff/C06-01.md
+ create mode 100644 docs/adr/0009-background-job-scheduling.md
+
+→ No staged files match any configured task.

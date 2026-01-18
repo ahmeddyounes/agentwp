@@ -51,13 +51,13 @@ The index is updated automatically via WordPress hooks:
 When the plugin is installed on a site with existing data, a background backfill process indexes existing records:
 
 1. **Activation**: Creates the table and initializes backfill state
-2. **Background processing**: On each admin page load, indexes a batch of records
+2. **Background processing**: A WP-Cron job (`agentwp_search_backfill`) runs every minute and indexes a batch of records
 3. **Completion**: Marked when all types have been processed
 
 Backfill parameters:
 - **Batch size**: 200 records per type per cycle
-- **Time window**: 350ms maximum per page load
-- **Execution context**: Admin requests only (no frontend overhead)
+- **Time window**: 350ms maximum per cron run
+- **Execution context**: WP-Cron only (no frontend overhead)
 
 ### Search Query Flow
 
@@ -105,6 +105,15 @@ State values:
 - `N` (positive) = Cursor position (last processed ID)
 - `-1` = Complete
 
+Backfill heartbeat is tracked in `agentwp_search_index_backfill_heartbeat`:
+
+```php
+[
+    'last_run' => 1700000000, // Unix timestamp of most recent run
+    'state'    => [ 'products' => 150, 'orders' => 0, 'customers' => -1 ],
+]
+```
+
 ## Troubleshooting
 
 ### Search Returns No Results
@@ -114,7 +123,7 @@ State values:
    $state = get_option('agentwp_search_index_state');
    var_dump($state);
    ```
-   If any type shows `0`, backfill hasn't started. Visit any admin page to trigger it.
+   If any type shows `0`, backfill hasn't started. Ensure WP-Cron is running to trigger it.
 
 2. **Check table exists**:
    ```sql
@@ -138,13 +147,20 @@ If backfill state shows a positive number but doesn't progress:
 
 1. **Check for PHP errors**: Look in error logs for issues with `wc_get_product()` or `wc_get_order()` calls
 
-2. **Force reset**:
+2. **Verify heartbeat**:
+   ```php
+   $heartbeat = get_option('agentwp_search_index_backfill_heartbeat');
+   var_dump($heartbeat);
+   ```
+   If `last_run` is older than 15 minutes, WP-Cron may not be executing. Ensure a real cron is calling `wp-cron.php` when `DISABLE_WP_CRON` is set.
+
+3. **Force reset**:
    ```php
    delete_option('agentwp_search_index_state');
-   // Next admin page load will restart from ID 0
+   // Next cron run will restart from ID 0
    ```
 
-3. **Manual re-index**: For a specific product:
+4. **Manual re-index**: For a specific product:
    ```php
    \AgentWP\Search\Index::index_product($product_id);
    ```
@@ -178,7 +194,7 @@ If search results don't match actual data:
    $state = get_option('agentwp_search_index_state', []);
    $state['products'] = 0;
    update_option('agentwp_search_index_state', $state, false);
-   // Next admin loads will re-index
+   // Next cron runs will re-index
    ```
 
 3. **Clear and rebuild**:
@@ -197,8 +213,10 @@ The backfill system includes several safeguards:
 | Limit | Value | Purpose |
 |-------|-------|---------|
 | Batch size | 200 records | Prevents memory issues |
-| Time window | 350ms | Limits page load impact |
-| Admin-only | Yes | No frontend overhead |
+| Time window | 350ms | Limits cron run impact |
+| Lock TTL | 120s | Prevents concurrent backfill runs |
+| Stuck recovery | 15 min | Reschedules if no progress detected |
+| WP-Cron only | Yes | No frontend overhead |
 | Single run | Per request | Prevents race conditions |
 
 ### Index Size Estimates
@@ -210,7 +228,7 @@ Approximate storage per record:
 
 For a store with 10,000 products, 50,000 orders, 20,000 customers:
 - Index size: ~45 MB
-- Backfill time: ~5-10 minutes (at 200 records per admin page load)
+- Backfill time: depends on cron frequency; at one run per minute, 10,000 products alone take ~50 minutes (plus orders/customers).
 
 ### Query Performance
 
