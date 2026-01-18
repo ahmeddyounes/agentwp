@@ -14,6 +14,24 @@ use WP_REST_Server;
 
 /**
  * Normalizes REST API responses for AgentWP endpoints.
+ *
+ * Error handling strategy:
+ * - WP_Error: Only returned from permission callbacks (WordPress requirement).
+ *   This class transforms WP_Error into our canonical error format.
+ * - WP_REST_Response: Controller callbacks use RestController::response_error()
+ *   which already produces canonical format. This class passes them through.
+ *
+ * Canonical error response format:
+ * {
+ *   "success": false,
+ *   "data": [],
+ *   "error": {
+ *     "code": "error_code",
+ *     "message": "Human readable message",
+ *     "type": "validation_error|auth_error|rate_limit|network_error|api_error|unknown",
+ *     "meta": {}
+ *   }
+ * }
  */
 final class ResponseFormatter {
 
@@ -120,6 +138,10 @@ final class ResponseFormatter {
 	/**
 	 * Format a WP_Error into a normalized response.
 	 *
+	 * WP_Error is only used by permission callbacks (WordPress requirement).
+	 * This transforms the WP_Error into our canonical format matching
+	 * RestController::response_error() output.
+	 *
 	 * @param WP_Error $error The error.
 	 * @return array{response: WP_REST_Response, status: int, error_code: string}
 	 */
@@ -127,13 +149,12 @@ final class ResponseFormatter {
 		$errorCode = (string) $error->get_error_code();
 		$message   = $error->get_error_message();
 		$data      = $error->get_error_data();
-		$status    = ( is_array( $data ) && isset( $data['status'] ) ) ? intval( $data['status'] ) : 500;
-		$type      = $this->categorizeError( $errorCode, $status, $message, is_array( $data ) ? $data : array() );
+		$dataArray = is_array( $data ) ? $data : array();
+		$status    = isset( $dataArray['status'] ) ? intval( $dataArray['status'] ) : 500;
+		$type      = $this->categorizeError( $errorCode, $status, $message, $dataArray );
 
-		$errorMeta = array();
-		if ( is_array( $data ) && isset( $data['retry_after'] ) ) {
-			$errorMeta['retry_after'] = intval( $data['retry_after'] );
-		}
+		// Build meta from error data, excluding 'status' which is used for HTTP status.
+		$meta = array_diff_key( $dataArray, array( 'status' => true ) );
 
 		$response = rest_ensure_response(
 			array(
@@ -143,7 +164,7 @@ final class ResponseFormatter {
 					'code'    => $errorCode,
 					'message' => $message,
 					'type'    => $type,
-					'meta'    => $errorMeta,
+					'meta'    => $meta,
 				),
 			)
 		);
@@ -151,8 +172,9 @@ final class ResponseFormatter {
 		if ( $response instanceof WP_REST_Response ) {
 			$response->set_status( $status );
 
-			if ( is_array( $data ) && isset( $data['retry_after'] ) ) {
-				$response->header( 'Retry-After', (string) intval( $data['retry_after'] ) );
+			// Set Retry-After header for rate-limited responses.
+			if ( isset( $meta['retry_after'] ) ) {
+				$response->header( 'Retry-After', (string) intval( $meta['retry_after'] ) );
 			}
 		}
 
@@ -164,7 +186,11 @@ final class ResponseFormatter {
 	}
 
 	/**
-	 * Format a WP_REST_Response that may contain an error.
+	 * Extract error code from a WP_REST_Response if it's already formatted.
+	 *
+	 * Controllers using RestController::response_error() produce responses in our
+	 * canonical format {success: false, data: [], error: {code, message, type}}.
+	 * This method extracts the error code for logging without re-formatting.
 	 *
 	 * @param WP_REST_Response $response The response.
 	 * @return array{response: WP_REST_Response, status: int, error_code: string}
@@ -174,48 +200,7 @@ final class ResponseFormatter {
 		$body      = $response->get_data();
 		$errorCode = '';
 
-		// Check for error format.
-		if ( is_array( $body ) && isset( $body['code'], $body['message'] ) ) {
-			$errorCode = (string) $body['code'];
-			$message   = (string) $body['message'];
-			$data      = isset( $body['data'] ) && is_array( $body['data'] ) ? $body['data'] : array();
-			$status    = isset( $data['status'] ) ? intval( $data['status'] ) : $status;
-			$type      = $this->categorizeError( $errorCode, $status, $message, $data );
-
-			$errorMeta = array();
-			if ( isset( $data['retry_after'] ) ) {
-				$errorMeta['retry_after'] = intval( $data['retry_after'] );
-			}
-
-			$formatted = rest_ensure_response(
-				array(
-					'success' => false,
-					'data'    => array(),
-					'error'   => array(
-						'code'    => $errorCode,
-						'message' => $message,
-						'type'    => $type,
-						'meta'    => $errorMeta,
-					),
-				)
-			);
-
-			if ( $formatted instanceof WP_REST_Response ) {
-				$formatted->set_status( $status );
-
-				if ( isset( $data['retry_after'] ) ) {
-					$formatted->header( 'Retry-After', (string) intval( $data['retry_after'] ) );
-				}
-			}
-
-			return array(
-				'response'   => $formatted,
-				'status'     => $status,
-				'error_code' => $errorCode,
-			);
-		}
-
-		// Check for already formatted error.
+		// Extract error code from already-formatted response for logging.
 		if ( is_array( $body ) && isset( $body['error']['code'] ) ) {
 			$errorCode = (string) $body['error']['code'];
 		}

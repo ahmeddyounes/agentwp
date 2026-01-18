@@ -260,36 +260,40 @@ abstract class RestController extends WP_REST_Controller {
 	/**
 	 * Build error response.
 	 *
+	 * This is the canonical method for returning errors from controller callbacks.
+	 * WP_Error should only be used in permission callbacks (WordPress requirement).
+	 *
 	 * @param string $code Error code.
 	 * @param string $message Error message.
 	 * @param int    $status HTTP status.
-	 * @param array  $meta Optional error metadata.
+	 * @param array  $meta Optional error metadata (e.g., retry_after for rate limits).
 	 * @return WP_REST_Response
 	 */
 	protected function response_error( $code, $message, $status = 400, array $meta = array() ) {
 		$type = class_exists( 'AgentWP\\Error\\Handler' )
 			? ErrorHandler::categorize( $code, $status, $message, $meta )
 			: 'unknown';
-		$error = array(
-			'code'    => $code,
-			'message' => $message,
-			'type'    => $type,
-		);
-
-		if ( ! empty( $meta ) ) {
-			$error['meta'] = $meta;
-		}
 
 		$response = rest_ensure_response(
 			array(
 				'success' => false,
 				'data'    => array(),
-				'error'   => $error,
+				'error'   => array(
+					'code'    => $code,
+					'message' => $message,
+					'type'    => $type,
+					'meta'    => $meta,
+				),
 			)
 		);
 
 		if ( $response instanceof WP_REST_Response ) {
 			$response->set_status( $status );
+
+			// Set Retry-After header for rate-limited responses.
+			if ( isset( $meta['retry_after'] ) ) {
+				$response->header( 'Retry-After', (string) intval( $meta['retry_after'] ) );
+			}
 		}
 
 		return $response;
