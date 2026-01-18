@@ -8,7 +8,7 @@ const DEBOUNCE_MS = 300;
 const MIN_QUERY_LENGTH = 2;
 
 type SearchResponseData = components['schemas']['SearchResponseData'];
-type SearchResult = components['schemas']['SearchResult'];
+type SearchResult = components['schemas']['SearchResultItem'];
 
 const mapSearchResult = (
   item: SearchResult,

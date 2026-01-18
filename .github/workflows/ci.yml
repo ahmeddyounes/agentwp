@@ -92,6 +92,17 @@ jobs:
             npm install
           fi
 
+      - name: Check OpenAPI types are up to date
+        if: hashFiles('react/package.json') != ''
+        run: |
+          npm run generate:types
+          if git diff --exit-code src/types/api.ts; then
+            echo "✓ OpenAPI types are up to date"
+          else
+            echo "✗ OpenAPI types are out of date. Run 'npm run generate:types' and commit."
+            exit 1
+          fi
+
       - name: TypeScript Check
         if: hashFiles('react/package.json') != ''
         run: npm run typecheck

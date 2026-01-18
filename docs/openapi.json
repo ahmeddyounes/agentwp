@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AgentWP REST API",
-    "version": "0.1.0",
-    "description": "OpenAPI specification for AgentWP REST endpoints."
+    "version": "0.2.0",
+    "description": "OpenAPI specification for AgentWP REST endpoints. Updated for Phase 3 DTO refactoring."
   },
   "x-generated-from": "Endpoint annotations in src/Rest and src/API controllers.",
   "servers": [
@@ -193,7 +193,8 @@
                 "day",
                 "week",
                 "month"
-              ]
+              ],
+              "default": "month"
             }
           }
         ],
@@ -258,14 +259,16 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 500
             }
           },
           {
             "name": "types",
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Comma-separated list of types to search (products, orders, customers)"
             }
           }
         ],
@@ -482,7 +485,8 @@
           "input": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 10000
+            "maxLength": 10000,
+            "description": "Alias for prompt (backwards compatibility)"
           },
           "context": {
             "type": "object",
@@ -660,7 +664,8 @@
             ]
           },
           "dark_mode": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Alternative to theme (sets theme to dark if true, light if false)"
           },
           "demo_mode": {
             "type": "boolean"
@@ -675,7 +680,8 @@
             "type": "string",
             "minLength": 20,
             "maxLength": 256,
-            "pattern": "^sk-"
+            "pattern": "^sk-",
+            "description": "OpenAI API key (must start with sk-). Empty string or null to delete."
           }
         }
       },
@@ -705,11 +711,54 @@
           }
         }
       },
+      "UsageBreakdownItem": {
+        "type": "object",
+        "properties": {
+          "intent_type": {
+            "type": "string"
+          },
+          "total_tokens": {
+            "type": "integer"
+          },
+          "total_cost_usd": {
+            "type": "number"
+          }
+        }
+      },
+      "UsageDailyTrend": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Date in Y-m-d format"
+          },
+          "total_tokens": {
+            "type": "integer"
+          },
+          "total_cost_usd": {
+            "type": "number"
+          }
+        }
+      },
       "UsageResponseData": {
         "type": "object",
         "properties": {
           "period": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ]
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date-time"
           },
           "total_tokens": {
             "type": "integer"
@@ -718,21 +767,16 @@
             "type": "number"
           },
           "breakdown_by_intent": {
-            "type": "object",
-            "additionalProperties": true
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageBreakdownItem"
+            }
           },
           "daily_trend": {
             "type": "array",
             "items": {
-              "type": "object",
-              "additionalProperties": true
+              "$ref": "#/components/schemas/UsageDailyTrend"
             }
-          },
-          "period_start": {
-            "type": "string"
-          },
-          "period_end": {
-            "type": "string"
           }
         }
       },
@@ -784,32 +828,54 @@
           }
         }
       },
-      "SearchResult": {
+      "SearchResultItem": {
         "type": "object",
         "properties": {
           "id": {
             "type": "integer"
           },
           "type": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "products",
+              "orders",
+              "customers"
+            ]
           },
           "primary": {
-            "type": "string"
+            "type": "string",
+            "description": "Primary display text"
           },
           "secondary": {
-            "type": "string"
+            "type": "string",
+            "description": "Secondary display text"
           },
           "query": {
-            "type": "string"
+            "type": "string",
+            "description": "Structured query string for navigation"
           }
         }
       },
-      "SearchResults": {
+      "SearchResultsGrouped": {
         "type": "object",
-        "additionalProperties": {
-          "type": "array",
-          "items": {
-            "$ref": "#/components/schemas/SearchResult"
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchResultItem"
+            }
+          },
+          "orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchResultItem"
+            }
+          },
+          "customers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchResultItem"
+            }
           }
         }
       },
@@ -820,7 +886,7 @@
             "type": "string"
           },
           "results": {
-            "$ref": "#/components/schemas/SearchResults"
+            "$ref": "#/components/schemas/SearchResultsGrouped"
           }
         }
       },
@@ -843,13 +909,15 @@
         "type": "object",
         "properties": {
           "raw_input": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "parsed_intent": {
             "type": "string"
           },
           "timestamp": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "was_successful": {
             "type": "boolean"
@@ -863,13 +931,15 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HistoryEntry"
-            }
+            },
+            "maxItems": 50
           },
           "favorites": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HistoryEntry"
-            }
+            },
+            "maxItems": 50
           },
           "updated": {
             "type": "boolean"
@@ -898,13 +968,15 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HistoryEntry"
-            }
+            },
+            "maxItems": 50
           },
           "favorites": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HistoryEntry"
-            }
+            },
+            "maxItems": 50
           }
         }
       },
@@ -928,6 +1000,7 @@
         "required": [
           "theme"
         ],
+        "additionalProperties": false,
         "properties": {
           "theme": {
             "type": "string",
@@ -942,7 +1015,11 @@
         "type": "object",
         "properties": {
           "theme": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "light",
+              "dark"
+            ]
           },
           "updated": {
             "type": "boolean"

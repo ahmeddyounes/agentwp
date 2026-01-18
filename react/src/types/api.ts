@@ -471,6 +471,7 @@ export interface components {
     IntentRequest:
       | {
           prompt?: string;
+          /** @description Alias for prompt (backwards compatibility) */
           input?: string;
           context?: {
             [key: string]: unknown;
@@ -529,10 +530,12 @@ export interface components {
       hotkey?: string;
       /** @enum {string} */
       theme?: 'light' | 'dark';
+      /** @description Alternative to theme (sets theme to dark if true, light if false) */
       dark_mode?: boolean;
       demo_mode?: boolean;
     };
     ApiKeyRequest: {
+      /** @description OpenAI API key (must start with sk-). Empty string or null to delete. */
       api_key?: string;
     };
     ApiKeyResponseData: {
@@ -543,18 +546,31 @@ export interface components {
       success: boolean;
       data: components['schemas']['ApiKeyResponseData'];
     };
-    UsageResponseData: {
-      period?: string;
+    UsageBreakdownItem: {
+      intent_type?: string;
       total_tokens?: number;
       total_cost_usd?: number;
-      breakdown_by_intent?: {
-        [key: string]: unknown;
-      };
-      daily_trend?: {
-        [key: string]: unknown;
-      }[];
+    };
+    UsageDailyTrend: {
+      /**
+       * Format: date
+       * @description Date in Y-m-d format
+       */
+      date?: string;
+      total_tokens?: number;
+      total_cost_usd?: number;
+    };
+    UsageResponseData: {
+      /** @enum {string} */
+      period?: 'day' | 'week' | 'month';
+      /** Format: date-time */
       period_start?: string;
+      /** Format: date-time */
       period_end?: string;
+      total_tokens?: number;
+      total_cost_usd?: number;
+      breakdown_by_intent?: components['schemas']['UsageBreakdownItem'][];
+      daily_trend?: components['schemas']['UsageDailyTrend'][];
     };
     UsageResponse: {
       success: boolean;
@@ -571,19 +587,25 @@ export interface components {
       success: boolean;
       data: components['schemas']['HealthResponseData'];
     };
-    SearchResult: {
+    SearchResultItem: {
       id?: number;
-      type?: string;
+      /** @enum {string} */
+      type?: 'products' | 'orders' | 'customers';
+      /** @description Primary display text */
       primary?: string;
+      /** @description Secondary display text */
       secondary?: string;
+      /** @description Structured query string for navigation */
       query?: string;
     };
-    SearchResults: {
-      [key: string]: components['schemas']['SearchResult'][];
+    SearchResultsGrouped: {
+      products?: components['schemas']['SearchResultItem'][];
+      orders?: components['schemas']['SearchResultItem'][];
+      customers?: components['schemas']['SearchResultItem'][];
     };
     SearchResponseData: {
       query?: string;
-      results?: components['schemas']['SearchResults'];
+      results?: components['schemas']['SearchResultsGrouped'];
     };
     SearchResponse: {
       success: boolean;
@@ -592,6 +614,7 @@ export interface components {
     HistoryEntry: {
       raw_input?: string;
       parsed_intent?: string;
+      /** Format: date-time */
       timestamp?: string;
       was_successful?: boolean;
     };
@@ -617,7 +640,8 @@ export interface components {
       theme: 'light' | 'dark';
     };
     ThemeResponseData: {
-      theme?: string;
+      /** @enum {string} */
+      theme?: 'light' | 'dark';
       updated?: boolean;
     };
     ThemeResponse: {
