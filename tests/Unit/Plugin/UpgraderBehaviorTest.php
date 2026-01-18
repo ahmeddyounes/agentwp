@@ -144,27 +144,24 @@ class UpgraderBehaviorTest extends TestCase {
 	}
 
 	public function test_pending_steps_calculated_for_version_range(): void {
-		// Upgrading from 0.1.0 should include 0.1.1 and 0.1.2.
+		// Upgrading from 0.1.0 should include 0.2.0.
 		$steps = Upgrader::get_pending_steps( '0.1.0', '1.0.0' );
 
-		$this->assertContains( '0.1.1', $steps );
-		$this->assertContains( '0.1.2', $steps );
+		$this->assertContains( '0.2.0', $steps );
 	}
 
 	public function test_pending_steps_excludes_already_applied_versions(): void {
-		// Upgrading from 0.1.1 should NOT include 0.1.1.
-		$steps = Upgrader::get_pending_steps( '0.1.1', '1.0.0' );
+		// Upgrading from 0.2.0 should NOT include 0.2.0.
+		$steps = Upgrader::get_pending_steps( '0.2.0', '1.0.0' );
 
-		$this->assertNotContains( '0.1.1', $steps );
-		$this->assertContains( '0.1.2', $steps );
+		$this->assertNotContains( '0.2.0', $steps );
 	}
 
 	public function test_pending_steps_excludes_future_versions(): void {
-		// Upgrading to 0.1.1 should NOT include 0.1.2.
-		$steps = Upgrader::get_pending_steps( '0.1.0', '0.1.1' );
+		// Upgrading to 0.1.0 should NOT include 0.2.0.
+		$steps = Upgrader::get_pending_steps( '0.1.0', '0.1.0' );
 
-		$this->assertContains( '0.1.1', $steps );
-		$this->assertNotContains( '0.1.2', $steps );
+		$this->assertNotContains( '0.2.0', $steps );
 	}
 
 	public function test_upgrade_steps_are_version_sorted(): void {
@@ -309,10 +306,10 @@ class UpgraderBehaviorTest extends TestCase {
 	// Upgrade Step Structure Tests
 	// ===========================================
 
-	public function test_upgrade_step_0_1_1_initializes_memory_options(): void {
+	public function test_upgrade_step_0_2_0_initializes_memory_options(): void {
 		// Verify the step exists and references SettingsManager constants.
 		$reflection = new ReflectionClass( Upgrader::class );
-		$method     = $reflection->getMethod( 'upgrade_to_0_1_1' );
+		$method     = $reflection->getMethod( 'upgrade_to_0_2_0' );
 		$method->setAccessible( true );
 
 		// Get method source.
@@ -333,10 +330,10 @@ class UpgraderBehaviorTest extends TestCase {
 		$this->assertStringContainsString( 'add_option', $source );
 	}
 
-	public function test_upgrade_step_0_1_2_runs_schema_migrations(): void {
+	public function test_upgrade_step_0_2_0_runs_schema_migrations(): void {
 		// Verify the step exists and calls SchemaManager.
 		$reflection = new ReflectionClass( Upgrader::class );
-		$method     = $reflection->getMethod( 'upgrade_to_0_1_2' );
+		$method     = $reflection->getMethod( 'upgrade_to_0_2_0' );
 		$method->setAccessible( true );
 
 		// Get method source.
@@ -405,7 +402,7 @@ class UpgraderBehaviorTest extends TestCase {
 	}
 
 	public function test_same_version_no_steps(): void {
-		$steps = Upgrader::get_pending_steps( '0.1.1', '0.1.1' );
+		$steps = Upgrader::get_pending_steps( '0.2.0', '0.2.0' );
 
 		$this->assertSame( array(), $steps );
 	}
@@ -420,7 +417,6 @@ class UpgraderBehaviorTest extends TestCase {
 		$steps = Upgrader::get_pending_steps( '0.0.1', '2.0.0' );
 
 		// Should include all defined steps.
-		$this->assertContains( '0.1.1', $steps );
-		$this->assertContains( '0.1.2', $steps );
+		$this->assertContains( '0.2.0', $steps );
 	}
 }

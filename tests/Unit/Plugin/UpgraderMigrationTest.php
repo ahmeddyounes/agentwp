@@ -100,36 +100,36 @@ class UpgraderMigrationTest extends TestCase {
 	}
 
 	// ===========================================
-	// 0.1.1 Upgrade Step Structure Tests
+	// 0.2.0 Upgrade Step Structure Tests
 	// ===========================================
 
-	public function test_upgrade_0_1_1_step_exists(): void {
+	public function test_upgrade_0_2_0_step_exists(): void {
 		$reflection = new ReflectionClass( Upgrader::class );
 		$method     = $reflection->getMethod( 'get_upgrade_steps' );
 		$method->setAccessible( true );
 
 		$steps = $method->invoke( null );
 
-		$this->assertArrayHasKey( '0.1.1', $steps );
+		$this->assertArrayHasKey( '0.2.0', $steps );
 	}
 
-	public function test_upgrade_0_1_1_method_exists(): void {
+	public function test_upgrade_0_2_0_method_exists(): void {
 		$reflection = new ReflectionClass( Upgrader::class );
 
-		$this->assertTrue( $reflection->hasMethod( 'upgrade_to_0_1_1' ) );
+		$this->assertTrue( $reflection->hasMethod( 'upgrade_to_0_2_0' ) );
 	}
 
-	public function test_upgrade_0_1_1_method_is_private_static(): void {
+	public function test_upgrade_0_2_0_method_is_private_static(): void {
 		$reflection = new ReflectionClass( Upgrader::class );
-		$method     = $reflection->getMethod( 'upgrade_to_0_1_1' );
+		$method     = $reflection->getMethod( 'upgrade_to_0_2_0' );
 
 		$this->assertTrue( $method->isPrivate() );
 		$this->assertTrue( $method->isStatic() );
 	}
 
-	public function test_upgrade_0_1_1_method_returns_void(): void {
+	public function test_upgrade_0_2_0_method_returns_void(): void {
 		$reflection = new ReflectionClass( Upgrader::class );
-		$method     = $reflection->getMethod( 'upgrade_to_0_1_1' );
+		$method     = $reflection->getMethod( 'upgrade_to_0_2_0' );
 		$returnType = $method->getReturnType();
 
 		$this->assertNotNull( $returnType );
@@ -172,92 +172,30 @@ class UpgraderMigrationTest extends TestCase {
 	// Pending Steps Detection Tests
 	// ===========================================
 
-	public function test_pending_steps_includes_0_1_1_when_upgrading_from_0_1_0(): void {
+	public function test_pending_steps_includes_0_2_0_when_upgrading_from_0_1_0(): void {
 		$steps = Upgrader::get_pending_steps( '0.1.0', '1.0.0' );
 
-		$this->assertContains( '0.1.1', $steps );
+		$this->assertContains( '0.2.0', $steps );
 	}
 
-	public function test_pending_steps_excludes_0_1_1_when_already_at_0_1_1(): void {
-		$steps = Upgrader::get_pending_steps( '0.1.1', '1.0.0' );
-
-		$this->assertNotContains( '0.1.1', $steps );
-	}
-
-	public function test_pending_steps_excludes_0_1_1_when_upgrading_from_higher_version(): void {
+	public function test_pending_steps_excludes_0_2_0_when_already_at_0_2_0(): void {
 		$steps = Upgrader::get_pending_steps( '0.2.0', '1.0.0' );
 
-		$this->assertNotContains( '0.1.1', $steps );
+		$this->assertNotContains( '0.2.0', $steps );
 	}
 
-	// ===========================================
-	// 0.1.2 Upgrade Step Structure Tests
-	// ===========================================
+	public function test_pending_steps_excludes_0_2_0_when_upgrading_from_higher_version(): void {
+		$steps = Upgrader::get_pending_steps( '0.3.0', '1.0.0' );
 
-	public function test_upgrade_0_1_2_step_exists(): void {
-		$reflection = new ReflectionClass( Upgrader::class );
-		$method     = $reflection->getMethod( 'get_upgrade_steps' );
-		$method->setAccessible( true );
-
-		$steps = $method->invoke( null );
-
-		$this->assertArrayHasKey( '0.1.2', $steps );
+		$this->assertNotContains( '0.2.0', $steps );
 	}
 
-	public function test_upgrade_0_1_2_method_exists(): void {
-		$reflection = new ReflectionClass( Upgrader::class );
-
-		$this->assertTrue( $reflection->hasMethod( 'upgrade_to_0_1_2' ) );
-	}
-
-	public function test_upgrade_0_1_2_method_is_private_static(): void {
-		$reflection = new ReflectionClass( Upgrader::class );
-		$method     = $reflection->getMethod( 'upgrade_to_0_1_2' );
-
-		$this->assertTrue( $method->isPrivate() );
-		$this->assertTrue( $method->isStatic() );
-	}
-
-	public function test_upgrade_0_1_2_method_returns_void(): void {
-		$reflection = new ReflectionClass( Upgrader::class );
-		$method     = $reflection->getMethod( 'upgrade_to_0_1_2' );
-		$returnType = $method->getReturnType();
-
-		$this->assertNotNull( $returnType );
-		$this->assertSame( 'void', $returnType->getName() );
-	}
-
-	// ===========================================
-	// 0.1.2 Pending Steps Detection Tests
-	// ===========================================
-
-	public function test_pending_steps_includes_0_1_2_when_upgrading_from_0_1_1(): void {
-		$steps = Upgrader::get_pending_steps( '0.1.1', '1.0.0' );
-
-		$this->assertContains( '0.1.2', $steps );
-	}
-
-	public function test_pending_steps_excludes_0_1_2_when_already_at_0_1_2(): void {
-		$steps = Upgrader::get_pending_steps( '0.1.2', '1.0.0' );
-
-		$this->assertNotContains( '0.1.2', $steps );
-	}
-
-	public function test_pending_steps_excludes_0_1_2_when_upgrading_from_higher_version(): void {
-		$steps = Upgrader::get_pending_steps( '0.2.0', '1.0.0' );
-
-		$this->assertNotContains( '0.1.2', $steps );
-	}
-
-	public function test_upgrade_steps_order_0_1_1_before_0_1_2(): void {
+	public function test_upgrade_steps_include_0_2_0_in_order(): void {
 		$steps = Upgrader::get_pending_steps( '0.1.0', '1.0.0' );
 
-		$index_0_1_1 = array_search( '0.1.1', $steps, true );
-		$index_0_1_2 = array_search( '0.1.2', $steps, true );
+		$index_0_2_0 = array_search( '0.2.0', $steps, true );
 
-		$this->assertNotFalse( $index_0_1_1 );
-		$this->assertNotFalse( $index_0_1_2 );
-		$this->assertLessThan( $index_0_1_2, $index_0_1_1 );
+		$this->assertNotFalse( $index_0_2_0 );
 	}
 
 	// ===========================================

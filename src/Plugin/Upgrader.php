@@ -179,8 +179,7 @@ class Upgrader {
 	 */
 	private static function get_upgrade_steps(): array {
 		$steps = array(
-			'0.1.1' => array( __CLASS__, 'upgrade_to_0_1_1' ),
-			'0.1.2' => array( __CLASS__, 'upgrade_to_0_1_2' ),
+			'0.2.0' => array( __CLASS__, 'upgrade_to_0_2_0' ),
 		);
 
 		// Sort by version to ensure correct execution order.
@@ -190,14 +189,13 @@ class Upgrader {
 	}
 
 	/**
-	 * Upgrade to 0.1.1: Initialize memory options for existing installations.
+	 * Upgrade to 0.2.0: Initialize memory options and ensure schema tables.
 	 *
-	 * Adds default values for agentwp_memory_limit and agentwp_memory_ttl
-	 * which were introduced in this version.
+	 * This consolidates pre-release migrations into the 0.2.0 release step.
 	 *
 	 * @return void
 	 */
-	private static function upgrade_to_0_1_1(): void {
+	private static function upgrade_to_0_2_0(): void {
 		// Initialize memory limit if not set.
 		if ( false === get_option( SettingsManager::OPTION_MEMORY_LIMIT, false ) ) {
 			add_option(
@@ -217,18 +215,8 @@ class Upgrader {
 				false
 			);
 		}
-	}
 
-	/**
-	 * Upgrade to 0.1.2: Run schema migrations via SchemaManager.
-	 *
-	 * Ensures all database tables (usage tracking, search index) are
-	 * created and up-to-date. This centralizes schema management and
-	 * ensures existing installations get any new or updated tables.
-	 *
-	 * @return void
-	 */
-	private static function upgrade_to_0_1_2(): void {
+		// Ensure schema tables exist and are current.
 		if ( class_exists( 'AgentWP\\Plugin\\SchemaManager' ) ) {
 			SchemaManager::create_tables();
 		}
