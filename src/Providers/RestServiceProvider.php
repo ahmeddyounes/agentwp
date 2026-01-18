@@ -9,6 +9,7 @@ namespace AgentWP\Providers;
 
 use AgentWP\API\RateLimiter;
 use AgentWP\API\RestController;
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Container\ServiceProvider;
 use AgentWP\Error\Handler as ErrorHandler;
 use AgentWP\Contracts\ClockInterface;
@@ -52,6 +53,11 @@ final class RestServiceProvider extends ServiceProvider {
 	/**
 	 * Register rate limiter.
 	 *
+	 * Configuration is read from AgentWPConfig with filter support.
+	 * Operators can tune via filters:
+	 * - 'agentwp_config_rate_limit_requests' (int): Max requests per window (default 30)
+	 * - 'agentwp_config_rate_limit_window' (int): Window duration in seconds (default 60)
+	 *
 	 * @return void
 	 */
 	private function registerRateLimiter(): void {
@@ -60,8 +66,8 @@ final class RestServiceProvider extends ServiceProvider {
 			fn() => new RateLimiter(
 				$this->container->get( TransientCacheInterface::class ),
 				$this->container->get( ClockInterface::class ),
-				30,  // limit
-				60   // window
+				(int) AgentWPConfig::get( 'rate_limit.requests', AgentWPConfig::RATE_LIMIT_REQUESTS ),
+				(int) AgentWPConfig::get( 'rate_limit.window', AgentWPConfig::RATE_LIMIT_WINDOW )
 			)
 		);
 

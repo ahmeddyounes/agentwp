@@ -129,6 +129,43 @@ final class AgentWPConfig {
 	public const ORDER_STATUS_MAX_BULK = 50;
 
 	/**
+	 * Rate limiter settings.
+	 */
+	public const RATE_LIMIT_REQUESTS  = 30;   // Max requests per window
+	public const RATE_LIMIT_WINDOW    = 60;   // Window duration in seconds
+	public const RATE_LIMIT_LOCK_TIMEOUT = 5; // Lock timeout in seconds
+	public const RATE_LIMIT_LOCK_ATTEMPTS = 10; // Max lock acquisition attempts
+	public const RATE_LIMIT_LOCK_DELAY_US = 10000; // Delay between lock attempts (microseconds)
+
+	/**
+	 * Cache lock settings.
+	 */
+	public const CACHE_LOCK_TIMEOUT    = 30;    // Lock timeout in seconds
+	public const CACHE_LOCK_ATTEMPTS   = 50;    // Max lock acquisition attempts
+	public const CACHE_LOCK_DELAY_US   = 20000; // Delay between lock attempts (microseconds)
+	public const CACHE_TTL_MINIMUM     = 300;   // Minimum cache TTL (5 minutes)
+
+	/**
+	 * Search index settings.
+	 */
+	public const SEARCH_DEFAULT_LIMIT  = 5;     // Default search result limit
+	public const SEARCH_BACKFILL_LIMIT = 200;   // Batch size for backfill
+	public const SEARCH_BACKFILL_WINDOW = 0.35; // Time window in seconds for backfill
+
+	/**
+	 * Usage tracking settings.
+	 */
+	public const USAGE_RETENTION_DAYS  = 90;    // Days to retain usage data
+	public const USAGE_QUERY_MAX_ROWS  = 50000; // Max rows for usage queries
+
+	/**
+	 * History and favorites limits.
+	 */
+	public const HISTORY_LIMIT         = 50;    // Max history entries
+	public const FAVORITES_LIMIT       = 50;    // Max favorites entries
+	public const REST_LOG_LIMIT        = 50;    // Max REST log entries
+
+	/**
 	 * REST error codes - Authentication/Authorization.
 	 */
 	public const ERROR_CODE_FORBIDDEN        = 'agentwp_forbidden';
@@ -235,6 +272,33 @@ final class AgentWPConfig {
 			'confidence.threshold.low'       => self::CONFIDENCE_THRESHOLD_LOW,
 			'intent.similarity_threshold'    => self::INTENT_SIMILARITY_THRESHOLD,
 			'intent.minimum_threshold'       => self::INTENT_MINIMUM_THRESHOLD,
+			// Stream response limits.
+			'stream.max_content_length'      => self::STREAM_MAX_CONTENT_LENGTH,
+			'stream.max_tool_calls'          => self::STREAM_MAX_TOOL_CALLS,
+			'stream.max_raw_chunks'          => self::STREAM_MAX_RAW_CHUNKS,
+			'stream.max_tool_arg_length'     => self::STREAM_MAX_TOOL_ARG_LENGTH,
+			// Rate limiter configuration.
+			'rate_limit.requests'            => self::RATE_LIMIT_REQUESTS,
+			'rate_limit.window'              => self::RATE_LIMIT_WINDOW,
+			'rate_limit.lock_timeout'        => self::RATE_LIMIT_LOCK_TIMEOUT,
+			'rate_limit.lock_attempts'       => self::RATE_LIMIT_LOCK_ATTEMPTS,
+			'rate_limit.lock_delay_us'       => self::RATE_LIMIT_LOCK_DELAY_US,
+			// Cache lock settings.
+			'cache.lock_timeout'             => self::CACHE_LOCK_TIMEOUT,
+			'cache.lock_attempts'            => self::CACHE_LOCK_ATTEMPTS,
+			'cache.lock_delay_us'            => self::CACHE_LOCK_DELAY_US,
+			'cache.ttl_minimum'              => self::CACHE_TTL_MINIMUM,
+			// Search index settings.
+			'search.default_limit'           => self::SEARCH_DEFAULT_LIMIT,
+			'search.backfill_limit'          => self::SEARCH_BACKFILL_LIMIT,
+			'search.backfill_window'         => self::SEARCH_BACKFILL_WINDOW,
+			// Usage tracking settings.
+			'usage.retention_days'           => self::USAGE_RETENTION_DAYS,
+			'usage.query_max_rows'           => self::USAGE_QUERY_MAX_ROWS,
+			// History and logging limits.
+			'history.limit'                  => self::HISTORY_LIMIT,
+			'favorites.limit'                => self::FAVORITES_LIMIT,
+			'rest.log_limit'                 => self::REST_LOG_LIMIT,
 		);
 
 		$value = isset( $map[ $key ] ) ? $map[ $key ] : $default;

@@ -7,20 +7,34 @@
 
 namespace AgentWP\DTO;
 
+use AgentWP\Config\AgentWPConfig;
+
 /**
  * DTO for history update requests.
  */
 final class HistoryRequestDTO extends RequestDTO {
 
 	/**
-	 * Maximum history entries.
+	 * Get maximum history entries.
+	 *
+	 * Configurable via 'agentwp_config_history_limit' filter.
+	 *
+	 * @return int
 	 */
-	private const HISTORY_LIMIT = 50;
+	private static function getHistoryLimit(): int {
+		return (int) AgentWPConfig::get( 'history.limit', AgentWPConfig::HISTORY_LIMIT );
+	}
 
 	/**
-	 * Maximum favorites entries.
+	 * Get maximum favorites entries.
+	 *
+	 * Configurable via 'agentwp_config_favorites_limit' filter.
+	 *
+	 * @return int
 	 */
-	private const FAVORITES_LIMIT = 50;
+	private static function getFavoritesLimit(): int {
+		return (int) AgentWPConfig::get( 'favorites.limit', AgentWPConfig::FAVORITES_LIMIT );
+	}
 
 	/**
 	 * Cached normalized history entries.
@@ -65,12 +79,12 @@ final class HistoryRequestDTO extends RequestDTO {
 				'history'   => array(
 					'type'     => 'array',
 					'items'    => $entry_schema,
-					'maxItems' => self::HISTORY_LIMIT,
+					'maxItems' => self::getHistoryLimit(),
 				),
 				'favorites' => array(
 					'type'     => 'array',
 					'items'    => $entry_schema,
-					'maxItems' => self::FAVORITES_LIMIT,
+					'maxItems' => self::getFavoritesLimit(),
 				),
 			),
 		);
@@ -85,7 +99,7 @@ final class HistoryRequestDTO extends RequestDTO {
 		if ( null === $this->normalized_history ) {
 			$this->normalized_history = $this->normalizeEntries(
 				$this->getArray( 'history' ),
-				self::HISTORY_LIMIT
+				self::getHistoryLimit()
 			);
 		}
 
@@ -101,7 +115,7 @@ final class HistoryRequestDTO extends RequestDTO {
 		if ( null === $this->normalized_favorites ) {
 			$this->normalized_favorites = $this->normalizeEntries(
 				$this->getArray( 'favorites' ),
-				self::FAVORITES_LIMIT
+				self::getFavoritesLimit()
 			);
 		}
 

@@ -19,7 +19,6 @@ use WP_REST_Response;
 
 abstract class RestController extends WP_REST_Controller {
 	const REST_NAMESPACE = 'agentwp/v1';
-	const LOG_LIMIT      = 50;
 
 	/**
 	 * Initialize the REST namespace.
@@ -330,8 +329,9 @@ abstract class RestController extends WP_REST_Controller {
 		);
 
 		$logs[] = $entry;
-		if ( count( $logs ) > self::LOG_LIMIT ) {
-			$logs = array_slice( $logs, -1 * self::LOG_LIMIT );
+		$logLimit = (int) AgentWPConfig::get( 'rest.log_limit', AgentWPConfig::REST_LOG_LIMIT );
+		if ( count( $logs ) > $logLimit ) {
+			$logs = array_slice( $logs, -1 * $logLimit );
 		}
 
 		set_transient( $key, $logs, DAY_IN_SECONDS );

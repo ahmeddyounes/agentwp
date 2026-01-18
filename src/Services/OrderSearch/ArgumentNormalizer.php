@@ -7,22 +7,13 @@
 
 namespace AgentWP\Services\OrderSearch;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\DTO\OrderQuery;
 
 /**
  * Normalizes and sanitizes order search arguments.
  */
 final class ArgumentNormalizer {
-
-	/**
-	 * Default limit.
-	 */
-	public const DEFAULT_LIMIT = 10;
-
-	/**
-	 * Maximum limit.
-	 */
-	public const MAX_LIMIT = 50;
 
 	/**
 	 * Maximum query string length.
@@ -33,6 +24,28 @@ final class ArgumentNormalizer {
 	 * Maximum email length.
 	 */
 	public const MAX_EMAIL_LENGTH = 254;
+
+	/**
+	 * Get default limit.
+	 *
+	 * Configurable via 'agentwp_config_order_search_default_limit' filter.
+	 *
+	 * @return int
+	 */
+	private static function getDefaultLimit(): int {
+		return (int) AgentWPConfig::get( 'order_search.default_limit', AgentWPConfig::ORDER_SEARCH_DEFAULT_LIMIT );
+	}
+
+	/**
+	 * Get max limit.
+	 *
+	 * Configurable via 'agentwp_config_order_search_max_limit' filter.
+	 *
+	 * @return int
+	 */
+	private static function getMaxLimit(): int {
+		return (int) AgentWPConfig::get( 'order_search.max_limit', AgentWPConfig::ORDER_SEARCH_MAX_LIMIT );
+	}
 
 	/**
 	 * Order search parser.
@@ -168,12 +181,15 @@ final class ArgumentNormalizer {
 	private function normalizeLimit( $limit ): int {
 		$limit = absint( $limit );
 
+		$defaultLimit = self::getDefaultLimit();
+		$maxLimit     = self::getMaxLimit();
+
 		if ( 0 === $limit ) {
-			return self::DEFAULT_LIMIT;
+			return $defaultLimit;
 		}
 
-		if ( $limit > self::MAX_LIMIT ) {
-			return self::MAX_LIMIT;
+		if ( $limit > $maxLimit ) {
+			return $maxLimit;
 		}
 
 		return $limit;

@@ -7,6 +7,7 @@
 
 namespace AgentWP\Services;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\CustomerServiceInterface;
 use AgentWP\Contracts\OrderRepositoryInterface;
 use AgentWP\Contracts\WooCommerceConfigGatewayInterface;
@@ -19,10 +20,50 @@ use AgentWP\DTO\OrderQuery;
 use AgentWP\DTO\ServiceResult;
 
 class CustomerService implements CustomerServiceInterface {
-	const RECENT_LIMIT  = 5;
-	const TOP_LIMIT     = 5;
-	const ORDER_BATCH   = 200;
-	const MAX_ORDER_IDS = 2000;
+
+	/**
+	 * Get recent customers limit.
+	 *
+	 * Configurable via 'agentwp_config_customer_recent_limit' filter.
+	 *
+	 * @return int
+	 */
+	private static function getRecentLimit(): int {
+		return (int) AgentWPConfig::get( 'customer.recent_limit', AgentWPConfig::CUSTOMER_RECENT_LIMIT );
+	}
+
+	/**
+	 * Get top customers limit.
+	 *
+	 * Configurable via 'agentwp_config_customer_top_limit' filter.
+	 *
+	 * @return int
+	 */
+	private static function getTopLimit(): int {
+		return (int) AgentWPConfig::get( 'customer.top_limit', AgentWPConfig::CUSTOMER_TOP_LIMIT );
+	}
+
+	/**
+	 * Get order batch size.
+	 *
+	 * Configurable via 'agentwp_config_customer_order_batch' filter.
+	 *
+	 * @return int
+	 */
+	private static function getOrderBatch(): int {
+		return (int) AgentWPConfig::get( 'customer.order_batch', AgentWPConfig::CUSTOMER_ORDER_BATCH );
+	}
+
+	/**
+	 * Get max order IDs limit.
+	 *
+	 * Configurable via 'agentwp_config_customer_max_order_ids' filter.
+	 *
+	 * @return int
+	 */
+	private static function getMaxOrderIds(): int {
+		return (int) AgentWPConfig::get( 'customer.max_order_ids', AgentWPConfig::CUSTOMER_MAX_ORDER_IDS );
+	}
 
 	/**
 	 * WooCommerce configuration gateway.
@@ -133,7 +174,7 @@ class CustomerService implements CustomerServiceInterface {
 				'recent_orders'     => $recent_orders,
 				'orders_truncated'  => $order_data['truncated'],
 				'orders_sampled'    => count( $order_ids ),
-				'orders_limit'      => self::MAX_ORDER_IDS,
+				'orders_limit'      => self::getMaxOrderIds(),
 			)
 		);
 
@@ -175,7 +216,7 @@ class CustomerService implements CustomerServiceInterface {
 	private function collect_order_ids( array $normalized, array $statuses ) {
 		$order_ids = array();
 		$truncated = false;
-		$remaining = self::MAX_ORDER_IDS;
+		$remaining = self::getMaxOrderIds();
 
 		if ( $normalized['customer_id'] > 0 ) {
 			$order_ids = array_merge(
@@ -189,7 +230,7 @@ class CustomerService implements CustomerServiceInterface {
 					$truncated
 				)
 			);
-			$remaining = max( 0, self::MAX_ORDER_IDS - count( $order_ids ) );
+			$remaining = max( 0, self::getMaxOrderIds() - count( $order_ids ) );
 		}
 
 		if ( '' !== $normalized['email'] && 0 === $normalized['customer_id'] && $remaining > 0 ) {
@@ -210,8 +251,8 @@ class CustomerService implements CustomerServiceInterface {
 		$order_ids = array_filter( array_unique( $order_ids ) );
 		sort( $order_ids );
 
-		if ( count( $order_ids ) > self::MAX_ORDER_IDS ) {
-			$order_ids = array_slice( $order_ids, 0, self::MAX_ORDER_IDS );
+		if ( count( $order_ids ) > self::getMaxOrderIds() ) {
+			$order_ids = array_slice( $order_ids, 0, self::getMaxOrderIds() );
 			$truncated = true;
 		}
 
@@ -234,7 +275,7 @@ class CustomerService implements CustomerServiceInterface {
 
 		$ids   = array();
 		$page  = 1;
-		$limit = min( self::ORDER_BATCH, $remaining );
+		$limit = min( self::getOrderBatch(), $remaining );
 		if ( $limit <= 0 ) {
 			$truncated = true;
 			return $ids;
@@ -286,7 +327,7 @@ class CustomerService implements CustomerServiceInterface {
 		}
 
 		$orders = array();
-		$chunks = array_chunk( $order_ids, self::ORDER_BATCH );
+		$chunks = array_chunk( $order_ids, self::getOrderBatch() );
 
 		foreach ( $chunks as $chunk ) {
 			foreach ( $chunk as $order_id ) {
@@ -421,7 +462,7 @@ class CustomerService implements CustomerServiceInterface {
 			customerId: $normalized['customer_id'] > 0 ? $normalized['customer_id'] : null,
 			email: '' !== $normalized['email'] && 0 === $normalized['customer_id'] ? $normalized['email'] : null,
 			status: implode( ',', $statuses ),
-			limit: self::RECENT_LIMIT,
+			limit: self::getRecentLimit(),
 			orderBy: 'date',
 			order: 'DESC'
 		);
@@ -622,7 +663,7 @@ class CustomerService implements CustomerServiceInterface {
 			}
 		);
 
-		return array_slice( array_values( $totals ), 0, self::TOP_LIMIT );
+		return array_slice( array_values( $totals ), 0, self::getTopLimit() );
 	}
 
 	/**
@@ -647,7 +688,7 @@ class CustomerService implements CustomerServiceInterface {
 			}
 		);
 
-		return array_slice( array_values( $totals ), 0, self::TOP_LIMIT );
+		return array_slice( array_values( $totals ), 0, self::getTopLimit() );
 	}
 
 	/**

@@ -7,6 +7,7 @@
 
 namespace AgentWP\Infrastructure;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\TransientCacheInterface;
 
 /**
@@ -85,19 +86,48 @@ final class WordPressTransientCache implements TransientCacheInterface {
 	}
 
 	/**
-	 * Lock timeout in seconds.
+	 * Get lock timeout in seconds from config.
+	 *
+	 * Configurable via 'agentwp_config_cache_lock_timeout' filter.
+	 *
+	 * @return int
 	 */
-	private const LOCK_TIMEOUT = 30;
+	private function getLockTimeout(): int {
+		return (int) AgentWPConfig::get( 'cache.lock_timeout', AgentWPConfig::CACHE_LOCK_TIMEOUT );
+	}
 
 	/**
-	 * Maximum lock acquisition attempts.
+	 * Get max lock attempts from config.
+	 *
+	 * Configurable via 'agentwp_config_cache_lock_attempts' filter.
+	 *
+	 * @return int
 	 */
-	private const MAX_LOCK_ATTEMPTS = 50;
+	private function getMaxLockAttempts(): int {
+		return (int) AgentWPConfig::get( 'cache.lock_attempts', AgentWPConfig::CACHE_LOCK_ATTEMPTS );
+	}
 
 	/**
-	 * Delay between lock attempts in microseconds.
+	 * Get lock retry delay in microseconds from config.
+	 *
+	 * Configurable via 'agentwp_config_cache_lock_delay_us' filter.
+	 *
+	 * @return int
 	 */
-	private const LOCK_RETRY_DELAY_US = 20000;
+	private function getLockRetryDelayUs(): int {
+		return (int) AgentWPConfig::get( 'cache.lock_delay_us', AgentWPConfig::CACHE_LOCK_DELAY_US );
+	}
+
+	/**
+	 * Get minimum cache TTL from config.
+	 *
+	 * Configurable via 'agentwp_config_cache_ttl_minimum' filter.
+	 *
+	 * @return int
+	 */
+	private function getMinimumTtl(): int {
+		return (int) AgentWPConfig::get( 'cache.ttl_minimum', AgentWPConfig::CACHE_TTL_MINIMUM );
+	}
 
 	/**
 	 * {@inheritDoc}
@@ -119,16 +149,19 @@ final class WordPressTransientCache implements TransientCacheInterface {
 			}
 
 			// Cache miss - use locking to prevent stampede.
-			$lockAcquired = false;
+		$lockAcquired = false;
+		$maxAttempts  = $this->getMaxLockAttempts();
+		$lockTimeout  = $this->getLockTimeout();
+		$retryDelay   = $this->getLockRetryDelayUs();
 
-		for ( $i = 0; $i < self::MAX_LOCK_ATTEMPTS; $i++ ) {
-			if ( $this->add( $key . '_lock', 1, self::LOCK_TIMEOUT ) ) {
+		for ( $i = 0; $i < $maxAttempts; $i++ ) {
+			if ( $this->add( $key . '_lock', 1, $lockTimeout ) ) {
 				$lockAcquired = true;
 				break;
 			}
 
 			// Wait and check if another process populated the cache.
-			usleep( self::LOCK_RETRY_DELAY_US );
+			usleep( $retryDelay );
 			$raw = get_transient( $prefixed_key );
 			if ( is_array( $raw ) && isset( $raw['__wrapped__'] ) ) {
 				return $raw['value'];
@@ -166,26 +199,27 @@ final class WordPressTransientCache implements TransientCacheInterface {
 	/**
 	 * {@inheritDoc}
 	 */
-		public function add( string $key, mixed $value, int $expiration = 0 ): bool {
-			$prefixed_key = $this->prefixKey( $key );
-			$is_lock_key  = str_ends_with( $key, '_lock' );
+	public function add( string $key, mixed $value, int $expiration = 0 ): bool {
+		$prefixed_key = $this->prefixKey( $key );
+		$is_lock_key  = str_ends_with( $key, '_lock' );
+		$minimumTtl   = $this->getMinimumTtl();
 
-			if ( $expiration > 0 && $expiration < 300 && ! $is_lock_key ) {
-				$expiration = 300;
-			}
+		if ( $expiration > 0 && $expiration < $minimumTtl && ! $is_lock_key ) {
+			$expiration = $minimumTtl;
+		}
 
-			// Wrap value to distinguish false from not-found.
-			$wrapped = array(
-				'__wrapped__' => true,
-				'value'       => $value,
+		// Wrap value to distinguish false from not-found.
+		$wrapped = array(
+			'__wrapped__' => true,
+			'value'       => $value,
 		);
 
-			// If object cache supports atomic add, use it.
-			if ( wp_using_ext_object_cache() ) {
-				// wp_cache_add returns false if key already exists.
-				// phpcs:ignore WordPressVIPMinimum.Performance.LowExpiryCacheTime.CacheTimeUndetermined -- Lock keys may intentionally use short TTLs.
-				return wp_cache_add( $prefixed_key, $wrapped, 'transient', $expiration );
-			}
+		// If object cache supports atomic add, use it.
+		if ( wp_using_ext_object_cache() ) {
+			// wp_cache_add returns false if key already exists.
+			// phpcs:ignore WordPressVIPMinimum.Performance.LowExpiryCacheTime.CacheTimeUndetermined -- Lock keys may intentionally use short TTLs.
+			return wp_cache_add( $prefixed_key, $wrapped, 'transient', $expiration );
+		}
 
 		// For database-backed transients, check existence first then set.
 		// This has a small race window but is the best we can do without object cache.
@@ -194,8 +228,8 @@ final class WordPressTransientCache implements TransientCacheInterface {
 			return false;
 		}
 
-			return set_transient( $prefixed_key, $wrapped, $expiration );
-		}
+		return set_transient( $prefixed_key, $wrapped, $expiration );
+	}
 
 	/**
 	 * Prefix a key.

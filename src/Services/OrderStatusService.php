@@ -7,6 +7,7 @@
 
 namespace AgentWP\Services;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\AuditLoggerInterface;
 use AgentWP\Contracts\DraftManagerInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
@@ -16,7 +17,17 @@ use AgentWP\DTO\ServiceResult;
 
 class OrderStatusService implements OrderStatusServiceInterface {
 	const DRAFT_TYPE = 'status';
-	const MAX_BULK   = 50;
+
+	/**
+	 * Get max bulk order updates.
+	 *
+	 * Configurable via 'agentwp_config_order_status_max_bulk' filter.
+	 *
+	 * @return int
+	 */
+	private static function getMaxBulk(): int {
+		return (int) AgentWPConfig::get( 'order_status.max_bulk', AgentWPConfig::ORDER_STATUS_MAX_BULK );
+	}
 
 	private DraftManagerInterface $draftManager;
 	private PolicyInterface $policy;
@@ -140,10 +151,10 @@ class OrderStatusService implements OrderStatusServiceInterface {
 			return ServiceResult::invalidInput( 'No orders specified.' );
 		}
 
-		if ( count( $order_ids ) > self::MAX_BULK ) {
+		if ( count( $order_ids ) > self::getMaxBulk() ) {
 			return ServiceResult::failure(
 				ServiceResult::CODE_LIMIT_EXCEEDED,
-				'Too many orders. Max ' . self::MAX_BULK . '.',
+				'Too many orders. Max ' . self::getMaxBulk() . '.',
 				400
 			);
 		}

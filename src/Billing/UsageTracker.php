@@ -8,6 +8,7 @@
 namespace AgentWP\Billing;
 
 use AgentWP\AI\Model;
+use AgentWP\Config\AgentWPConfig;
 use DateInterval;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -16,9 +17,30 @@ class UsageTracker {
 	const TABLE          = 'agentwp_usage';
 	const VERSION        = '1.0';
 	const VERSION_OPTION = 'agentwp_usage_version';
-	const RETENTION_DAYS = 90;
 	const TOKEN_SCALE    = 1000000;
 	const PURGE_HOOK     = 'agentwp_usage_purge';
+
+	/**
+	 * Get retention days from config.
+	 *
+	 * Configurable via 'agentwp_config_usage_retention_days' filter.
+	 *
+	 * @return int
+	 */
+	private static function getRetentionDays(): int {
+		return (int) AgentWPConfig::get( 'usage.retention_days', AgentWPConfig::USAGE_RETENTION_DAYS );
+	}
+
+	/**
+	 * Get max rows for queries from config.
+	 *
+	 * Configurable via 'agentwp_config_usage_query_max_rows' filter.
+	 *
+	 * @return int
+	 */
+	private static function getMaxQueryRows(): int {
+		return (int) AgentWPConfig::get( 'usage.query_max_rows', AgentWPConfig::USAGE_QUERY_MAX_ROWS );
+	}
 
 	/**
 	 * Register hooks.
@@ -184,8 +206,8 @@ class UsageTracker {
 
 			$table = self::get_table_name();
 		// Limit results to prevent memory exhaustion from large datasets.
-		// 50,000 rows covers ~500 requests/day for 90 days with headroom.
-		$max_rows = 50000;
+		// Configurable via 'agentwp_config_usage_query_max_rows' filter.
+		$max_rows = self::getMaxQueryRows();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- On-demand reporting query with a hard row limit.
 			$rows     = $wpdb->get_results(
 			$wpdb->prepare(
@@ -454,7 +476,7 @@ class UsageTracker {
 					break;
 			}
 
-			$cutoff = $now->sub( new DateInterval( 'P' . self::RETENTION_DAYS . 'D' ) );
+			$cutoff = $now->sub( new DateInterval( 'P' . self::getRetentionDays() . 'D' ) );
 			if ( $start < $cutoff ) {
 				$start = $cutoff->setTime( 0, 0, 0 );
 			}
@@ -477,13 +499,14 @@ class UsageTracker {
 			return;
 		}
 
+		$retentionDays = self::getRetentionDays();
 		try {
 			$cutoff = ( new DateTimeImmutable( 'now', new DateTimeZone( 'UTC' ) ) )
-				->sub( new DateInterval( 'P' . self::RETENTION_DAYS . 'D' ) )
+				->sub( new DateInterval( 'P' . $retentionDays . 'D' ) )
 				->format( 'Y-m-d H:i:s' );
 		} catch ( \Exception $e ) {
 			// Fallback to simple timestamp math.
-			$cutoff = gmdate( 'Y-m-d H:i:s', time() - ( self::RETENTION_DAYS * 86400 ) );
+			$cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $retentionDays * 86400 ) );
 		}
 
 		$table = self::get_table_name();

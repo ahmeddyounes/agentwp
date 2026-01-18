@@ -10,6 +10,7 @@
 namespace AgentWP\Intent\Handlers;
 
 use AgentWP\AI\Response;
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
 use AgentWP\Contracts\ToolExecutorInterface;
@@ -26,9 +27,15 @@ use AgentWP\Contracts\ToolRegistryInterface;
 abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecutorInterface {
 
 	/**
-	 * Maximum number of interaction turns before giving up.
+	 * Get maximum number of interaction turns before giving up.
+	 *
+	 * Configurable via 'agentwp_config_agentic_max_turns' filter.
+	 *
+	 * @return int
 	 */
-	protected const MAX_TURNS = 5;
+	protected static function getMaxTurns(): int {
+		return (int) AgentWPConfig::get( 'agentic.max_turns', AgentWPConfig::AGENTIC_MAX_TURNS );
+	}
 
 	/**
 	 * @var AIClientFactoryInterface
@@ -164,7 +171,8 @@ abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecuto
 		array $tools,
 		array $context
 	): Response {
-		for ( $turn = 0; $turn < static::MAX_TURNS; $turn++ ) {
+		$maxTurns = static::getMaxTurns();
+		for ( $turn = 0; $turn < $maxTurns; $turn++ ) {
 			$response = $client->chat( $messages, $tools );
 
 			if ( ! $response->is_success() ) {

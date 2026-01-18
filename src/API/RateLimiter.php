@@ -7,6 +7,7 @@
 
 namespace AgentWP\API;
 
+use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\ClockInterface;
 use AgentWP\Contracts\RateLimiterInterface;
 use AgentWP\Contracts\TransientCacheInterface;
@@ -28,18 +29,24 @@ final class RateLimiter implements RateLimiterInterface {
 
 	/**
 	 * Lock timeout in seconds.
+	 *
+	 * @var int
 	 */
-	private const LOCK_TIMEOUT = 5;
+	private int $lockTimeout;
 
 	/**
 	 * Maximum lock acquisition attempts.
+	 *
+	 * @var int
 	 */
-	private const MAX_LOCK_ATTEMPTS = 10;
+	private int $maxLockAttempts;
 
 	/**
 	 * Delay between lock attempts in microseconds.
+	 *
+	 * @var int
 	 */
-	private const LOCK_RETRY_DELAY_US = 10000;
+	private int $lockRetryDelayUs;
 
 	/**
 	 * Transient cache.
@@ -85,6 +92,21 @@ final class RateLimiter implements RateLimiterInterface {
 	 * @param int                     $window Window duration in seconds.
 	 * @param string                  $prefix Key prefix.
 	 */
+	/**
+	 * Create a new RateLimiter.
+	 *
+	 * Lock settings are read from AgentWPConfig with filter support.
+	 * Operators can tune via filters:
+	 * - 'agentwp_config_rate_limit_lock_timeout' (int): Lock timeout in seconds (default 5)
+	 * - 'agentwp_config_rate_limit_lock_attempts' (int): Max lock attempts (default 10)
+	 * - 'agentwp_config_rate_limit_lock_delay_us' (int): Delay between attempts in μs (default 10000)
+	 *
+	 * @param TransientCacheInterface $cache  Transient cache.
+	 * @param ClockInterface          $clock  Clock for time operations.
+	 * @param int                     $limit  Maximum requests per window.
+	 * @param int                     $window Window duration in seconds.
+	 * @param string                  $prefix Key prefix.
+	 */
 	public function __construct(
 		TransientCacheInterface $cache,
 		ClockInterface $clock,
@@ -97,6 +119,11 @@ final class RateLimiter implements RateLimiterInterface {
 		$this->limit  = $limit;
 		$this->window = $window;
 		$this->prefix = $prefix;
+
+		// Load lock settings from centralized config with filter support.
+		$this->lockTimeout      = (int) AgentWPConfig::get( 'rate_limit.lock_timeout', AgentWPConfig::RATE_LIMIT_LOCK_TIMEOUT );
+		$this->maxLockAttempts  = (int) AgentWPConfig::get( 'rate_limit.lock_attempts', AgentWPConfig::RATE_LIMIT_LOCK_ATTEMPTS );
+		$this->lockRetryDelayUs = (int) AgentWPConfig::get( 'rate_limit.lock_delay_us', AgentWPConfig::RATE_LIMIT_LOCK_DELAY_US );
 	}
 
 	/**
@@ -162,12 +189,12 @@ final class RateLimiter implements RateLimiterInterface {
 		// Try to acquire lock with retry.
 		$lockAcquired = false;
 		try {
-			for ( $i = 0; $i < self::MAX_LOCK_ATTEMPTS; $i++ ) {
-				if ( $this->cache->add( $lockKey, 1, self::LOCK_TIMEOUT ) ) {
+			for ( $i = 0; $i < $this->maxLockAttempts; $i++ ) {
+				if ( $this->cache->add( $lockKey, 1, $this->lockTimeout ) ) {
 					$lockAcquired = true;
 					break;
 				}
-				usleep( self::LOCK_RETRY_DELAY_US );
+				usleep( $this->lockRetryDelayUs );
 			}
 		} catch ( \Throwable $e ) {
 			// Storage unavailable - fail open to avoid blocking legitimate traffic.

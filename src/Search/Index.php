@@ -7,6 +7,8 @@
 
 namespace AgentWP\Search;
 
+use AgentWP\Config\AgentWPConfig;
+
 // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom search index relies on direct SQL; caching/invalidation is managed by the index lifecycle.
 
 class Index {
@@ -14,11 +16,41 @@ class Index {
 	const VERSION         = '1.0';
 	const VERSION_OPTION  = 'agentwp_search_index_version';
 	const STATE_OPTION    = 'agentwp_search_index_state';
-	const DEFAULT_LIMIT   = 5;
-	const BACKFILL_LIMIT  = 200;
-	const BACKFILL_WINDOW = 0.35;
 	const BACKFILL_HOOK   = 'agentwp_search_backfill';
 	const BACKFILL_LOCK   = 'agentwp_search_backfill_lock';
+
+	/**
+	 * Get default search limit from config.
+	 *
+	 * Configurable via 'agentwp_config_search_default_limit' filter.
+	 *
+	 * @return int
+	 */
+	private static function getDefaultLimit(): int {
+		return (int) AgentWPConfig::get( 'search.default_limit', AgentWPConfig::SEARCH_DEFAULT_LIMIT );
+	}
+
+	/**
+	 * Get backfill batch limit from config.
+	 *
+	 * Configurable via 'agentwp_config_search_backfill_limit' filter.
+	 *
+	 * @return int
+	 */
+	private static function getBackfillLimit(): int {
+		return (int) AgentWPConfig::get( 'search.backfill_limit', AgentWPConfig::SEARCH_BACKFILL_LIMIT );
+	}
+
+	/**
+	 * Get backfill time window from config.
+	 *
+	 * Configurable via 'agentwp_config_search_backfill_window' filter.
+	 *
+	 * @return float
+	 */
+	private static function getBackfillWindow(): float {
+		return (float) AgentWPConfig::get( 'search.backfill_window', AgentWPConfig::SEARCH_BACKFILL_WINDOW );
+	}
 
 	/**
 	 * Track if hooks have been registered.
@@ -156,10 +188,14 @@ class Index {
 	 *
 	 * @param string $query Search query.
 	 * @param array  $types Types to search.
-	 * @param int    $limit Result limit.
+	 * @param int    $limit Result limit (uses config default if not specified).
 	 * @return array
 	 */
-	public static function search( $query, array $types, $limit = self::DEFAULT_LIMIT ) {
+	public static function search( $query, array $types, $limit = 0 ) {
+		// Use configured default if no limit specified.
+		if ( $limit <= 0 ) {
+			$limit = self::getDefaultLimit();
+		}
 		$limit  = min( 100, max( 1, absint( $limit ) ) );
 		$query  = sanitize_text_field( (string) $query );
 		$query  = trim( $query );
@@ -996,7 +1032,7 @@ class Index {
 
 			$state = self::backfill_type( $type, $state );
 
-			if ( microtime( true ) - $start >= self::BACKFILL_WINDOW ) {
+			if ( microtime( true ) - $start >= self::getBackfillWindow() ) {
 				break;
 			}
 		}
@@ -1013,7 +1049,7 @@ class Index {
 	 */
 	private static function backfill_type( $type, array $state ) {
 		$cursor = isset( $state[ $type ] ) ? (int) $state[ $type ] : 0;
-		$ids    = self::fetch_ids( $type, $cursor, self::BACKFILL_LIMIT );
+		$ids    = self::fetch_ids( $type, $cursor, self::getBackfillLimit() );
 
 		if ( empty( $ids ) ) {
 			$state[ $type ] = -1;
