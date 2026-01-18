@@ -244,6 +244,28 @@
         }
       }
     },
+    "/agentwp/v1/diagnostics": {
+      "get": {
+        "summary": "Diagnostics snapshot",
+        "security": [
+          {
+            "nonceAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Diagnostics payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agentwp/v1/search": {
       "get": {
         "summary": "Search indexed resources",
@@ -792,6 +814,168 @@
           },
           "data": {
             "$ref": "#/components/schemas/UsageResponseData"
+          }
+        }
+      },
+      "DiagnosticsRestLogEntry": {
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "route": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "query_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "body_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DiagnosticsRestLogs": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsRestLogEntry"
+            }
+          }
+        }
+      },
+      "DiagnosticsRateLimit": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "limit": {
+            "type": "integer",
+            "nullable": true
+          },
+          "window": {
+            "type": "integer",
+            "nullable": true
+          },
+          "remaining": {
+            "type": "integer",
+            "nullable": true
+          },
+          "retry_after": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "DiagnosticsConfigFlags": {
+        "type": "object",
+        "properties": {
+          "demo_mode": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": "string"
+          }
+        }
+      },
+      "DiagnosticsSearchIndexState": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "string"
+          },
+          "state": {
+            "type": "object",
+            "properties": {
+              "products": {
+                "type": "integer"
+              },
+              "orders": {
+                "type": "integer"
+              },
+              "customers": {
+                "type": "integer"
+              }
+            }
+          },
+          "complete": {
+            "type": "object",
+            "properties": {
+              "products": {
+                "type": "boolean"
+              },
+              "orders": {
+                "type": "boolean"
+              },
+              "customers": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "DiagnosticsResponseData": {
+        "type": "object",
+        "properties": {
+          "health": {
+            "$ref": "#/components/schemas/HealthResponseData"
+          },
+          "rest_logs": {
+            "$ref": "#/components/schemas/DiagnosticsRestLogs"
+          },
+          "rate_limit": {
+            "$ref": "#/components/schemas/DiagnosticsRateLimit"
+          },
+          "config": {
+            "$ref": "#/components/schemas/DiagnosticsConfigFlags"
+          },
+          "search_index": {
+            "$ref": "#/components/schemas/DiagnosticsSearchIndexState"
+          }
+        }
+      },
+      "DiagnosticsResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DiagnosticsResponseData"
           }
         }
       },

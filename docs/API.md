@@ -165,6 +165,78 @@ await fetch('/wp-json/agentwp/v1/health', {
 });
 ```
 
+### GET /diagnostics
+Admin-only diagnostics snapshot (health, recent REST logs, rate limit, config flags, search index state).
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "health": {
+      "status": "ok",
+      "time": "2026-01-17T12:00:00Z",
+      "timestamp": 1768694400000,
+      "version": "1.0.0"
+    },
+    "rest_logs": {
+      "limit": 50,
+      "total": 1,
+      "entries": [
+        {
+          "time": "2026-01-17T11:58:00Z",
+          "route": "/agentwp/v1/settings",
+          "method": "GET",
+          "status": 200,
+          "error": "",
+          "user_id": 7,
+          "query_keys": [],
+          "body_keys": []
+        }
+      ]
+    },
+    "rate_limit": {
+      "enabled": true,
+      "limit": 30,
+      "window": 60,
+      "remaining": 28,
+      "retry_after": 12
+    },
+    "config": {
+      "demo_mode": false,
+      "model": "gpt-4o-mini"
+    },
+    "search_index": {
+      "version": "1.0",
+      "expected_version": "1.0",
+      "state": {
+        "products": 120,
+        "orders": -1,
+        "customers": 0
+      },
+      "complete": {
+        "products": false,
+        "orders": true,
+        "customers": false
+      }
+    }
+  }
+}
+```
+
+cURL:
+```bash
+curl -X GET "https://example.com/wp-json/agentwp/v1/diagnostics" \
+  -H "X-WP-Nonce: <nonce>"
+```
+
+JavaScript:
+```js
+await fetch('/wp-json/agentwp/v1/diagnostics', {
+  headers: { 'X-WP-Nonce': window.agentwpSettings?.nonce },
+});
+```
+
 ### GET /search
 Search orders, customers, or products.
 
