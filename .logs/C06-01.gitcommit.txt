@@ -1,11 +1,22 @@
-[main 558df69] C06-01: implement
- 9 files changed, 483 insertions(+), 61 deletions(-)
- create mode 100644 .logs/C05-07.gitcommit.txt
- create mode 100644 .logs/C06-01.claude.impl.last.md
- create mode 100644 .logs/C06-01.claude.impl.raw.txt
- create mode 100644 .plans/C06-01.md
- create mode 100644 .t2/handoff/C06-01.md
- create mode 100644 tests/Unit/API/FakeRateLimiterTest.php
- create mode 100644 tests/Unit/API/RateLimiterTest.php
+[main 16fa950] C06-01: implement
+ 11 files changed, 1408 insertions(+), 27 deletions(-)
+ create mode 100644 .logs/C06-01.codex.impl.last.md
+ create mode 100644 .logs/C06-01.codex.impl.raw.txt
+ create mode 100644 react/scripts/check-openapi-types.cjs
 
-→ No staged files match any configured task.
+[STARTED] Backing up original state...
+[COMPLETED] Backed up original state in git stash (cfed55f)
+[STARTED] Running tasks for staged files...
+[STARTED] package.json — 2 files
+[STARTED] *.{ts,tsx,js,jsx} — 0 files
+[STARTED] *.{json,md,css} — 1 file
+[SKIPPED] *.{ts,tsx,js,jsx} — no files
+[STARTED] prettier --write
+[COMPLETED] prettier --write
+[COMPLETED] *.{json,md,css} — 1 file
+[COMPLETED] package.json — 2 files
+[COMPLETED] Running tasks for staged files...
+[STARTED] Applying modifications from tasks...
+[COMPLETED] Applying modifications from tasks...
+[STARTED] Cleaning up temporary files...
+[COMPLETED] Cleaning up temporary files...

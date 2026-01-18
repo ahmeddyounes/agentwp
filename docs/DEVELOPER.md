@@ -418,6 +418,14 @@ do_action(
 
 AgentWP uses an attribute-based handler registration pattern with dependency injection via service providers. Handlers declare which intents they handle using the `#[HandlesIntent]` PHP attribute, and the service provider wires them into the container with the `intent.handler` tag.
 
+### Contributor checklist (intent handler)
+
+- [ ] Create a handler in `src/Intent/Handlers` and annotate it with `#[HandlesIntent(...)]` (ADR 0002).
+- [ ] Extend `AbstractAgenticHandler` or `BaseHandler` and implement `handle()` / `execute_tool()` as appropriate.
+- [ ] Register the handler in a service provider and tag it with `intent.handler`.
+- [ ] If the handler uses tools, follow the tool checklist below (Phase 4 decision).
+- [ ] If you introduce or modify hooks, update `docs/EXTENSIONS.md`.
+
 ### Architecture overview
 
 The handler registration flow:
@@ -582,6 +590,18 @@ Call the `/intent` endpoint or use the Command Deck to test:
 Draft a shipment delay email for order 1234
 ```
 
+## Adding a new tool (Phase 4 decision)
+
+AgentWP follows the Phase 4 tooling decision: tools are defined as schema classes and executed by handlers (see ADR 0008).
+
+### Contributor checklist (tool)
+
+- [ ] Create a schema class in `src/AI/Functions` extending `AbstractFunction` (name, description, parameters).
+- [ ] Register the schema in `IntentServiceProvider::registerToolRegistry()`.
+- [ ] Add the tool name in the handler's `getToolNames()` and implement execution in `execute_tool()`.
+- [ ] Cast/validate argument types in execution code (OpenAI returns primitives).
+- [ ] If you introduce or modify hooks, update `docs/EXTENSIONS.md`.
+
 ## Extension guide: custom intent scorer
 
 You can extend AgentWP's intent classification by adding custom scorers via the `agentwp_intent_scorers` filter. Scorers evaluate user input and return a confidence score for matching intents.
@@ -690,6 +710,14 @@ All REST controllers must be placed in:
 - **Directory**: `src/Rest/`
 - **Namespace**: `AgentWP\Rest`
 - **Base class**: Extend `AgentWP\Rest\RestController`
+
+### Contributor checklist (REST endpoint)
+
+- [ ] Create a Request DTO in `src/DTO` and validate via `$dto->isValid()` (ADR 0007).
+- [ ] Implement the controller in `src/Rest/`, extend `RestController`, and resolve dependencies via `$this->resolve()`/`$this->resolveRequired()` (ADR 0001).
+- [ ] Register the controller in `RestServiceProvider` and tag it with `rest.controller`.
+- [ ] Add `@openapi` annotation(s), update `docs/openapi.json`, and run `composer run openapi:validate`.
+- [ ] If you introduce or modify hooks, update `docs/EXTENSIONS.md`.
 
 ### Step-by-step guide
 
