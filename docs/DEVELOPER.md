@@ -199,6 +199,40 @@ The pipeline is wired via `ServicesServiceProvider`. When WooCommerce is not ava
 - UI source lives in `react/` and is bundled with Vite.
 - WordPress integration tests use `@wordpress/env` and Playwright from the repository root.
 
+### Local CI validation
+
+To reproduce CI checks locally before pushing, run the validation script from the repository root:
+
+```bash
+./scripts/validate.sh
+```
+
+This single command runs all the checks that CI runs:
+
+**PHP checks:**
+- PHPCS (WordPress coding standards)
+- PHPUnit tests
+- PHPStan static analysis
+- OpenAPI spec validation
+
+**Node/React checks:**
+- OpenAPI types generation check
+- TypeScript type checking
+- ESLint
+- Prettier formatting check
+- Vitest tests with coverage
+- Production build
+
+You can also run checks selectively:
+
+```bash
+./scripts/validate.sh --php    # Run only PHP checks
+./scripts/validate.sh --node   # Run only Node/React checks
+./scripts/validate.sh --help   # Show help
+```
+
+The script will install dependencies if needed and report a summary of passed/failed checks at the end.
+
 ### Building UI assets
 
 To build the React UI for production (the exact assets WordPress will enqueue):
