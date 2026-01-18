@@ -9,6 +9,7 @@ namespace AgentWP\Rest;
 
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Container\ContainerInterface;
+use AgentWP\Contracts\AtomicRateLimiterInterface;
 use AgentWP\Contracts\RateLimiterInterface;
 use AgentWP\Error\Handler as ErrorHandler;
 use AgentWP\Plugin;
@@ -142,6 +143,9 @@ abstract class RestController extends WP_REST_Controller {
 	/**
 	 * Check rate limit using the injected RateLimiterInterface service.
 	 *
+	 * Uses atomic checkAndIncrement() when the limiter implements
+	 * AtomicRateLimiterInterface, otherwise falls back to check() + increment().
+	 *
 	 * @return true|WP_Error True if within limits, WP_Error if exceeded.
 	 */
 	protected function check_rate_limit_via_service() {
@@ -156,6 +160,23 @@ abstract class RestController extends WP_REST_Controller {
 			return true;
 		}
 
+		// Prefer atomic check-and-increment to prevent race conditions.
+		if ( $rateLimiter instanceof AtomicRateLimiterInterface ) {
+			if ( ! $rateLimiter->checkAndIncrement( $user_id ) ) {
+				$retryAfter = $rateLimiter->getRetryAfter( $user_id );
+				return new WP_Error(
+					AgentWPConfig::ERROR_CODE_RATE_LIMITED,
+					__( 'Rate limit exceeded. Please retry later.', 'agentwp' ),
+					array(
+						'status'      => 429,
+						'retry_after' => $retryAfter,
+					)
+				);
+			}
+			return true;
+		}
+
+		// Fallback to non-atomic check + increment.
 		if ( ! $rateLimiter->check( $user_id ) ) {
 			$retryAfter = $rateLimiter->getRetryAfter( $user_id );
 			return new WP_Error(

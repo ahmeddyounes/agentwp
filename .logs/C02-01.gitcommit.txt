@@ -1,11 +1,6 @@
-[main 9163cfe] C02-01: implement
- 9 files changed, 289 insertions(+), 269 deletions(-)
- create mode 100644 .logs/C01-05.gitcommit.txt
- create mode 100644 .logs/C02-01.claude.after1.last.md
- create mode 100644 .logs/C02-01.claude.after1.raw.txt
- create mode 100644 .logs/C02-01.claude.impl.last.md
- create mode 100644 .logs/C02-01.claude.impl.raw.txt
- create mode 100644 .plans/C02-01.md
- create mode 100644 .t2/handoff/C02-01.md
+[main 8422ffe] C02-01: implement
+ 9 files changed, 183 insertions(+), 46 deletions(-)
+ create mode 100644 .logs/C01-07.gitcommit.txt
+ create mode 100644 src/Contracts/AtomicRateLimiterInterface.php
 
 → No staged files match any configured task.
