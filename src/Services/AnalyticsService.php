@@ -15,7 +15,6 @@ use AgentWP\DTO\AnalyticsChartDTO;
 use AgentWP\DTO\DateRange;
 use AgentWP\DTO\OrderQuery;
 use AgentWP\DTO\ServiceResult;
-use DateTime;
 use DateTimeImmutable;
 use DateTimeZone;
 
@@ -67,17 +66,20 @@ class AnalyticsService implements AnalyticsServiceInterface {
 	 */
 	public function get_stats( string $period = '7d' ): ServiceResult {
 		$days = $this->resolve_days( $period );
-		$now  = new DateTime( 'now', new DateTimeZone( 'UTC' ) );
+		$now  = $this->clock->now();
 
-		$current_end   = $now->format( 'Y-m-d 23:59:59' );
-		$current_start = $now->modify( "-{$days} days" )->format( 'Y-m-d 00:00:00' );
+		$current_end   = $now->format( 'Y-m-d' ) . ' 23:59:59';
+		$current_start = $now->modify( "-{$days} days" )->format( 'Y-m-d' ) . ' 00:00:00';
 
 		// Previous period (same length, immediately before).
-		$prev_end_dt   = new DateTime( $current_start, new DateTimeZone( 'UTC' ) );
-		$prev_end      = $prev_end_dt->modify( '-1 second' )->format( 'Y-m-d 23:59:59' );
-		$prev_start    = $prev_end_dt->modify( "-{$days} days" )->modify( '+1 second' )->format( 'Y-m-d 00:00:00' );
+		$prev_end_dt = new DateTimeImmutable( $current_start, $this->get_timezone() );
+		$prev_end_dt = $prev_end_dt->modify( '-1 second' );
+		$prev_end    = $prev_end_dt->format( 'Y-m-d' ) . ' 23:59:59';
 
-		$current_data = $this->query_period( $current_start, $current_end );
+		$prev_start_dt = $prev_end_dt->modify( "-{$days} days" )->modify( '+1 second' );
+		$prev_start    = $prev_start_dt->format( 'Y-m-d' ) . ' 00:00:00';
+
+		$current_data  = $this->query_period( $current_start, $current_end );
 		$previous_data = $this->query_period( $prev_start, $prev_end );
 
 		// Build response data array.
@@ -168,11 +170,10 @@ class AnalyticsService implements AnalyticsServiceInterface {
 	 */
 	private function generate_date_labels( $days ) {
 		$labels = array();
-		$now    = new DateTime( 'now', new DateTimeZone( 'UTC' ) );
+		$now    = $this->clock->now();
 
 		// Go back $days and step forward
-		$start = clone $now;
-		$start->modify( '-' . ( $days - 1 ) . ' days' );
+		$start = $now->modify( '-' . ( $days - 1 ) . ' days' );
 
 		for ( $i = 0; $i < $days; $i++ ) {
 			if ( $days <= 7 ) {
@@ -180,7 +181,7 @@ class AnalyticsService implements AnalyticsServiceInterface {
 			} else {
 				$labels[] = $start->format( 'M j' ); // Jan 1
 			}
-			$start->modify( '+1 day' );
+			$start = $start->modify( '+1 day' );
 		}
 		return $labels;
 	}
@@ -271,7 +272,7 @@ class AnalyticsService implements AnalyticsServiceInterface {
 	 */
 	private function buildDateRange( string $start, string $end ): ?DateRange {
 		try {
-			$tz      = new DateTimeZone( 'UTC' );
+			$tz      = $this->get_timezone();
 			$startDt = new DateTimeImmutable( $start, $tz );
 			$endDt   = new DateTimeImmutable( $end, $tz );
 			return new DateRange( $startDt, $endDt );
@@ -289,15 +290,14 @@ class AnalyticsService implements AnalyticsServiceInterface {
 	 */
 	private function map_daily_totals( $daily_data, $days ) {
 		$data = array();
-		$now  = new DateTime( 'now', new DateTimeZone( 'UTC' ) );
+		$now  = $this->clock->now();
 
-		$start = clone $now;
-		$start->modify( '-' . ( $days - 1 ) . ' days' );
+		$start = $now->modify( '-' . ( $days - 1 ) . ' days' );
 
 		for ( $i = 0; $i < $days; $i++ ) {
 			$date_key = $start->format( 'Y-m-d' );
 			$data[]   = isset( $daily_data[ $date_key ] ) ? $daily_data[ $date_key ] : 0;
-			$start->modify( '+1 day' );
+			$start    = $start->modify( '+1 day' );
 		}
 		return $data;
 	}
@@ -313,55 +313,53 @@ class AnalyticsService implements AnalyticsServiceInterface {
 	public function get_report_by_period( string $period, ?string $start_date = null, ?string $end_date = null ): ServiceResult {
 		$tz = $this->get_timezone();
 
-		$now   = new DateTime( 'now', $tz );
-		$start = clone $now;
-		$end   = clone $now;
+		$now   = $this->clock->now( $tz );
+		$start = $now;
+		$end   = $now;
 
 		switch ( $period ) {
 			case 'today':
-				$start->setTime( 0, 0, 0 );
-				$end->setTime( 23, 59, 59 );
+				$start = $start->setTime( 0, 0, 0 );
+				$end   = $end->setTime( 23, 59, 59 );
 				break;
 			case 'yesterday':
-				$start->modify( '-1 day' )->setTime( 0, 0, 0 );
-				$end->modify( '-1 day' )->setTime( 23, 59, 59 );
+				$start = $start->modify( '-1 day' )->setTime( 0, 0, 0 );
+				$end   = $end->modify( '-1 day' )->setTime( 23, 59, 59 );
 				break;
 			case 'this_week':
-				$start->modify( 'monday this week' )->setTime( 0, 0, 0 );
-				$end->setTime( 23, 59, 59 );
+				$start = $start->modify( 'monday this week' )->setTime( 0, 0, 0 );
+				$end   = $end->setTime( 23, 59, 59 );
 				break;
 			case 'last_week':
-				$start->modify( 'monday last week' )->setTime( 0, 0, 0 );
-				$end->modify( 'sunday last week' )->setTime( 23, 59, 59 );
+				$start = $start->modify( 'monday last week' )->setTime( 0, 0, 0 );
+				$end   = $end->modify( 'sunday last week' )->setTime( 23, 59, 59 );
 				break;
 			case 'this_month':
-				$start->modify( 'first day of this month' )->setTime( 0, 0, 0 );
-				$end->modify( 'last day of this month' )->setTime( 23, 59, 59 );
+				$start = $start->modify( 'first day of this month' )->setTime( 0, 0, 0 );
+				$end   = $end->modify( 'last day of this month' )->setTime( 23, 59, 59 );
 				break;
 			case 'last_month':
-				$start->modify( 'first day of last month' )->setTime( 0, 0, 0 );
-				$end->modify( 'last day of last month' )->setTime( 23, 59, 59 );
+				$start = $start->modify( 'first day of last month' )->setTime( 0, 0, 0 );
+				$end   = $end->modify( 'last day of last month' )->setTime( 23, 59, 59 );
 				break;
 			case 'custom':
 				try {
 					if ( ! empty( $start_date ) ) {
-						$start = new DateTime( $start_date, $tz );
-						$start->setTime( 0, 0, 0 );
+						$start = ( new DateTimeImmutable( $start_date, $tz ) )->setTime( 0, 0, 0 );
 					}
 					if ( ! empty( $end_date ) ) {
-						$end = new DateTime( $end_date, $tz );
-						$end->setTime( 23, 59, 59 );
+						$end = ( new DateTimeImmutable( $end_date, $tz ) )->setTime( 23, 59, 59 );
 					}
 				} catch ( \Exception $e ) {
 					// Fallback to today if date parsing fails.
-					$start->setTime( 0, 0, 0 );
-					$end->setTime( 23, 59, 59 );
+					$start = $start->setTime( 0, 0, 0 );
+					$end   = $end->setTime( 23, 59, 59 );
 				}
 				break;
 			default:
 				// Default to today.
-				$start->setTime( 0, 0, 0 );
-				$end->setTime( 23, 59, 59 );
+				$start = $start->setTime( 0, 0, 0 );
+				$end   = $end->setTime( 23, 59, 59 );
 				break;
 		}
 
