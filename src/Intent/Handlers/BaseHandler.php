@@ -32,9 +32,9 @@ abstract class BaseHandler implements Handler {
 	/**
 	 * Get the intent this handler can process.
 	 *
-	 * @deprecated 2.0.0 Use the #[HandlesIntent] attribute instead for intent declaration.
-	 *             This method will be removed when all handlers use attributes.
-	 *             Migration: Add #[HandlesIntent(Intent::YOUR_INTENT)] to your handler class.
+	 * @deprecated 0.1.0 Use the #[HandlesIntent] attribute instead for intent declaration.
+	 *             Planned removal: 1.0.0. Migration: Add #[HandlesIntent(Intent::YOUR_INTENT)]
+	 *             to your handler class.
 	 * @see \AgentWP\Intent\Attributes\HandlesIntent
 	 *
 	 * @return string The intent identifier.

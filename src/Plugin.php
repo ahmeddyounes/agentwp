@@ -21,7 +21,7 @@ class Plugin {
 	/**
 	 * Option keys - delegated to SettingsManager for single source of truth.
 	 *
-	 * @deprecated Use SettingsManager constants directly.
+	 * @deprecated 0.1.0 Use SettingsManager constants directly.
 	 */
 	const OPTION_SETTINGS          = SettingsManager::OPTION_SETTINGS;
 	const OPTION_API_KEY           = SettingsManager::OPTION_API_KEY;
@@ -208,7 +208,7 @@ class Plugin {
 	/**
 	 * Default settings values.
 	 *
-	 * @deprecated Use SettingsManager::getDefaults() directly.
+	 * @deprecated 0.1.0 Use SettingsManager::getDefaults() directly.
 	 * @return array
 	 */
 	public static function get_default_settings() {
@@ -218,7 +218,7 @@ class Plugin {
 	/**
 	 * Default usage stats values.
 	 *
-	 * @deprecated Use SettingsManager::getDefaultUsageStats() directly.
+	 * @deprecated 0.1.0 Use SettingsManager::getDefaultUsageStats() directly.
 	 * @return array
 	 */
 	public static function get_default_usage_stats() {

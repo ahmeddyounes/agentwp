@@ -1004,6 +1004,66 @@ This generates `react/src/types/api.ts` from `docs/openapi.json` using [openapi-
 
 The generated types are deterministic and should be regenerated when the OpenAPI spec changes.
 
+## Deprecation policy
+
+AgentWP follows semantic versioning. The `@deprecated` annotation format ensures deprecation metadata is credible and actionable.
+
+### Annotation format
+
+All `@deprecated` PHPDoc annotations must include the version when the deprecation was introduced:
+
+```php
+/**
+ * @deprecated X.Y.Z Reason and migration path.
+ */
+```
+
+**Format:**
+- `X.Y.Z` - The version when the deprecation was introduced (must match a released or current `AGENTWP_VERSION`)
+- For planned removals, include: `Planned removal: X.Y.Z`
+
+**Examples:**
+
+```php
+/**
+ * @deprecated 0.1.0 Use SettingsManager constants directly.
+ */
+const OPTION_SETTINGS = SettingsManager::OPTION_SETTINGS;
+
+/**
+ * @deprecated 0.1.0 Use the #[HandlesIntent] attribute instead.
+ *             Planned removal: 1.0.0. Migration: Add #[HandlesIntent(Intent::YOUR_INTENT)]
+ *             to your handler class.
+ */
+public function getIntent(): string { ... }
+```
+
+### Version requirements
+
+1. **Version must exist**: The deprecation version must be `≤ AGENTWP_VERSION`. Never reference future versions for when something *became* deprecated.
+2. **Planned removal is optional**: If included, the planned removal version should follow semver (typically the next major version).
+3. **Migration path required**: Every deprecation must explain what to use instead.
+
+### Deprecation lifecycle
+
+| Phase | Description |
+|-------|-------------|
+| Deprecated | Feature marked with `@deprecated`. Still functional. |
+| Warning | (Optional) `_deprecated_function()` or similar emits runtime notice. |
+| Removed | Feature removed in a future major version. |
+
+### Current deprecations
+
+| Item | Deprecated | Planned Removal | Migration |
+|------|------------|-----------------|-----------|
+| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | Use `SettingsManager::OPTION_*` |
+| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | Use `SettingsManager::getDefaults()` |
+| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | Use `SettingsManager::getDefaultUsageStats()` |
+| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | Use `AgentWPConfig::OPENAI_API_BASE_URL` |
+| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | Use `AgentWPConfig::STREAM_MAX_*` |
+| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | Use `#[HandlesIntent]` attribute |
+| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | Use `handle_order_created()`/`handle_order_updated()` |
+
 ## Related documentation
 
 | Document | Purpose |

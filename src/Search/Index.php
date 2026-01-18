@@ -191,7 +191,7 @@ class Index {
 	 * @param \WP_Post $post Post instance.
 	 * @param bool    $update Whether this is an existing post being updated.
 	 * @return void
-	 * @deprecated Use handle_order_created/handle_order_updated for HPOS compatibility.
+	 * @deprecated 0.1.0 Use handle_order_created/handle_order_updated for HPOS compatibility.
 	 */
 	public static function handle_order_save( $post_id, $post, $update ) {
 		unset( $update );
