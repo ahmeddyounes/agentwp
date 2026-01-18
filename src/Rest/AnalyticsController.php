@@ -9,6 +9,8 @@ namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
 use AgentWP\Contracts\AnalyticsServiceInterface;
+use AgentWP\DTO\ServiceResult;
+use WP_REST_Response;
 use WP_REST_Server;
 
 class AnalyticsController extends RestController {
@@ -44,18 +46,37 @@ class AnalyticsController extends RestController {
 	 * Get analytics data.
 	 *
 	 * @param \WP_REST_Request<array<string, mixed>> $request Request object.
-	 * @return \WP_REST_Response
+	 * @return WP_REST_Response
 	 */
 	public function get_analytics( $request ) {
 		$period = $request->get_param( 'period' );
 
 		$service = $this->resolveRequired( AnalyticsServiceInterface::class, 'Analytics service' );
-		if ( $service instanceof \WP_REST_Response ) {
+		if ( $service instanceof WP_REST_Response ) {
 			return $service;
 		}
 
-		$data = $service->get_stats( $period );
+		$result = $service->get_stats( $period );
 
-		return $this->response_success( $data );
+		return $this->response_from_service_result( $result );
+	}
+
+	/**
+	 * Convert a ServiceResult to a WP_REST_Response.
+	 *
+	 * @param ServiceResult $result Service result.
+	 * @return WP_REST_Response
+	 */
+	protected function response_from_service_result( ServiceResult $result ): WP_REST_Response {
+		if ( $result->isSuccess() ) {
+			return $this->response_success( $result->data, $result->httpStatus );
+		}
+
+		return $this->response_error(
+			$result->code,
+			$result->message,
+			$result->httpStatus,
+			$result->data
+		);
 	}
 }

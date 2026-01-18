@@ -13,6 +13,7 @@ use AgentWP\Contracts\OrderRepositoryInterface;
 use AgentWP\Contracts\WooCommerceOrderGatewayInterface;
 use AgentWP\DTO\DateRange;
 use AgentWP\DTO\OrderQuery;
+use AgentWP\DTO\ServiceResult;
 use DateTime;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -61,9 +62,9 @@ class AnalyticsService implements AnalyticsServiceInterface {
 	 * Get analytics data for a specific period.
 	 *
 	 * @param string $period Period identifier ('7d', '30d', '90d').
-	 * @return array Analytics data matching frontend expectation.
+	 * @return ServiceResult Result with analytics data matching frontend expectation.
 	 */
-	public function get_stats( string $period = '7d' ): array {
+	public function get_stats( string $period = '7d' ): ServiceResult {
 		$days = $this->resolve_days( $period );
 		$now  = new DateTime( 'now', new DateTimeZone( 'UTC' ) );
 
@@ -78,32 +79,35 @@ class AnalyticsService implements AnalyticsServiceInterface {
 		$current_data = $this->query_period( $current_start, $current_end );
 		$previous_data = $this->query_period( $prev_start, $prev_end );
 
-		return array(
-			'label'    => "Last {$days} days",
-			'labels'   => $this->generate_date_labels( $days ),
-			'current'  => $this->map_daily_totals( $current_data['daily'], $days ),
-			'previous' => $this->map_daily_totals( $previous_data['daily'], $days ),
-			'metrics'  => array(
-				'labels'   => array( 'Revenue', 'Orders', 'Avg Order', 'Refunds' ),
-				'current'  => array(
-					$current_data['total_sales'],
-					$current_data['order_count'],
-					$current_data['order_count'] > 0 ? round( $current_data['total_sales'] / $current_data['order_count'], 2 ) : 0,
-					$current_data['total_refunds'],
+		return ServiceResult::success(
+			"Analytics retrieved for last {$days} days.",
+			array(
+				'label'    => "Last {$days} days",
+				'labels'   => $this->generate_date_labels( $days ),
+				'current'  => $this->map_daily_totals( $current_data['daily'], $days ),
+				'previous' => $this->map_daily_totals( $previous_data['daily'], $days ),
+				'metrics'  => array(
+					'labels'   => array( 'Revenue', 'Orders', 'Avg Order', 'Refunds' ),
+					'current'  => array(
+						$current_data['total_sales'],
+						$current_data['order_count'],
+						$current_data['order_count'] > 0 ? round( $current_data['total_sales'] / $current_data['order_count'], 2 ) : 0,
+						$current_data['total_refunds'],
+					),
+					'previous' => array(
+						$previous_data['total_sales'],
+						$previous_data['order_count'],
+						$previous_data['order_count'] > 0 ? round( $previous_data['total_sales'] / $previous_data['order_count'], 2 ) : 0,
+						$previous_data['total_refunds'],
+					),
 				),
-				'previous' => array(
-					$previous_data['total_sales'],
-					$previous_data['order_count'],
-					$previous_data['order_count'] > 0 ? round( $previous_data['total_sales'] / $previous_data['order_count'], 2 ) : 0,
-					$previous_data['total_refunds'],
+				// Categories are harder to aggregate efficiently without complex queries.
+				// Sending empty/mock for now to avoid massive performance hit on large stores.
+				'categories' => array(
+					'labels' => array( 'General' ),
+					'values' => array( $current_data['total_sales'] ),
 				),
-			),
-			// Categories are harder to aggregate efficiently without complex queries.
-			// Sending empty/mock for now to avoid massive performance hit on large stores.
-			'categories' => array(
-				'labels' => array( 'General' ),
-				'values' => array( $current_data['total_sales'] ),
-			),
+			)
 		);
 	}
 
@@ -112,9 +116,9 @@ class AnalyticsService implements AnalyticsServiceInterface {
 	 *
 	 * @param string $start Start Y-m-d.
 	 * @param string $end   End Y-m-d.
-	 * @return array
+	 * @return ServiceResult Result with report data.
 	 */
-	public function get_report( string $start, string $end ): array {
+	public function get_report( string $start, string $end ): ServiceResult {
 		// Ensure time is included
 		if ( strlen( $start ) === 10 ) {
 			$start .= ' 00:00:00';
@@ -123,7 +127,12 @@ class AnalyticsService implements AnalyticsServiceInterface {
 			$end .= ' 23:59:59';
 		}
 
-		return $this->query_period( $start, $end );
+		$data = $this->query_period( $start, $end );
+
+		return ServiceResult::success(
+			'Report data retrieved.',
+			$data
+		);
 	}
 
 	/**
@@ -292,9 +301,9 @@ class AnalyticsService implements AnalyticsServiceInterface {
 	 * @param string      $period     Period identifier.
 	 * @param string|null $start_date Custom start date (Y-m-d) for 'custom' period.
 	 * @param string|null $end_date   Custom end date (Y-m-d) for 'custom' period.
-	 * @return array Report data.
+	 * @return ServiceResult Result with report data.
 	 */
-	public function get_report_by_period( string $period, ?string $start_date = null, ?string $end_date = null ): array {
+	public function get_report_by_period( string $period, ?string $start_date = null, ?string $end_date = null ): ServiceResult {
 		$tz = $this->get_timezone();
 
 		$now   = new DateTime( 'now', $tz );
@@ -349,15 +358,18 @@ class AnalyticsService implements AnalyticsServiceInterface {
 				break;
 		}
 
-		$report = $this->get_report( $start->format( 'Y-m-d H:i:s' ), $end->format( 'Y-m-d H:i:s' ) );
+		$report_data = $this->query_period( $start->format( 'Y-m-d H:i:s' ), $end->format( 'Y-m-d H:i:s' ) );
 
-		return array(
-			'period'      => $period,
-			'start'       => $start->format( 'Y-m-d' ),
-			'end'         => $end->format( 'Y-m-d' ),
-			'total_sales' => $report['total_sales'],
-			'orders'      => $report['order_count'],
-			'refunds'     => $report['total_refunds'],
+		return ServiceResult::success(
+			"Report data retrieved for {$period}.",
+			array(
+				'period'      => $period,
+				'start'       => $start->format( 'Y-m-d' ),
+				'end'         => $end->format( 'Y-m-d' ),
+				'total_sales' => $report_data['total_sales'],
+				'orders'      => $report_data['order_count'],
+				'refunds'     => $report_data['total_refunds'],
+			)
 		);
 	}
 

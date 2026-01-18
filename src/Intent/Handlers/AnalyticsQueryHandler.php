@@ -80,7 +80,13 @@ class AnalyticsQueryHandler extends AbstractAgenticHandler {
 			$start_date = isset( $arguments['start_date'] ) ? (string) $arguments['start_date'] : null;
 			$end_date   = isset( $arguments['end_date'] ) ? (string) $arguments['end_date'] : null;
 
-			return $this->service->get_report_by_period( $period, $start_date, $end_date );
+			$result = $this->service->get_report_by_period( $period, $start_date, $end_date );
+
+			if ( $result->isFailure() ) {
+				return array( 'error' => $result->message );
+			}
+
+			return $result->data;
 		}
 
 		return array( 'error' => "Unknown tool: {$name}" );
