@@ -243,6 +243,16 @@ You can also run checks selectively:
 
 The script will install dependencies if needed and report a summary of passed/failed checks at the end.
 
+### Architecture change DoD
+
+For architecture-level changes (new services, controllers, data flow, contracts, or extension points), the Definition of Done includes:
+
+- Run PHP checks: `composer run phpunit`, `composer run phpcs`, `composer run phpstan`.
+- Run React tests when UI or shared types are touched: `npm --prefix react test`.
+- Update documentation for the change (for example `docs/DEVELOPER.md`, `docs/EXTENSIONS.md`, and any relevant API/OpenAPI docs).
+
+Tip: `./scripts/validate.sh` runs the full PHP + Node/React validation suite in one command.
+
 ### Building UI assets
 
 To build the React UI for production (the exact assets WordPress will enqueue):
