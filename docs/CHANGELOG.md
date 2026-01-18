@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Notes
+- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
+
+## [0.2.0] - 2026-01-18
+### Notes
+- This is the authoritative current version for shipped functionality. It includes all changes previously listed under “Unreleased,” and the upgrade steps through **0.1.2** are part of this release.
+
 ### Removed
 - **Legacy wp-element UI bundle** (`assets/agentwp-admin.js`, `assets/agentwp-admin.css`) has been removed. The React-based UI in `react/src/` is now the sole supported runtime.
   - The `AssetManager` no longer falls back to the legacy bundle when the Vite manifest is missing.

@@ -1,0 +1,366 @@
+Status: DONE
+
+Updated `docs/CHANGELOG.md` to declare 0.2.0 as the authoritative current release, add clear release boundaries, and move the previously “Unreleased” content under the new 0.2.0 section with a versioning note.
+
+How to verify (exact commands): No verification commands specified.
+
+Risks / follow-ups:
+- Follow up on aligning `agentwp.php`/`AGENTWP_VERSION` (and optionally `react/package.json`) with the 0.2.0 decision.
+
+OpenAI Codex v0.87.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019bd1cc-aa3f-7ba0-9484-6d397dd47086
+--------
+user
+You are implementing task C02-01 in this git repository.
+
+1) Read the spec: .plans/C02-01.md
+2) Read handoff/context: .t2/handoff/C02-01.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+
+thinking
+**Preparing to read specification**
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+agentwp.php
+assets
+composer.json
+composer.lock
+docker
+docker-compose.demo.yml
+docker-compose.yml
+docs
+includes
+languages
+node_modules
+package-lock.json
+package.json
+phpcs.xml
+phpstan
+phpstan.neon
+phpunit.xml.dist
+plan_tasks.csv
+playwright.config.cjs
+react
+exec
+/bin/zsh -lc 'cat .plans/C02-01.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 88ms:
+# C02-01 — Choose authoritative current version
+
+Decide the authoritative plugin version that matches the implemented upgrader steps and shipped functionality (likely >= `0.1.2`). Document the decision and release boundaries in `docs/CHANGELOG.md`.
+exec
+/bin/zsh -lc 'cat .t2/handoff/C02-01.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 80ms:
+# Handoff: C02-01
+
+Created: 2026-01-18T15:50:09.691805Z
+
+Spec: .plans/C02-01.md
+
+thinking
+**Searching for plugin version and upgrader notes**
+exec
+/bin/zsh -lc 'rg -n "version|Version" -S includes src docs | head -n 200' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 79ms:
+docs/openapi.json:5:    "version": "0.2.0",
+docs/openapi.json:811:          "version": {
+src/Billing/UsageTracker.php:19:	const VERSION_OPTION = 'agentwp_usage_version';
+src/Billing/UsageTracker.php:313:		$installed_version = get_option( self::VERSION_OPTION, '' );
+src/Billing/UsageTracker.php:316:		if ( $installed_version === self::VERSION && self::table_exists( $table ) ) {
+docs/CHANGELOG.md:5:and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+src/Rest/HealthController.php:48:				'version'   => defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '',
+docs/agentwp-prd.md:85:Use `@wordpress/scripts` for build tooling, `@wordpress/element` for React abstraction, and `@wordpress/api-fetch` for authenticated requests. This approach ensures compatibility with WordPress core patterns while enabling modern component-based development. Externalize React and ReactDOM to use WordPress's bundled versions.
+docs/agentwp-prd.md:157:| Conversational chatbot | 3.2x conversion rate increases documented | High |
+docs/agentwp-prd.md:158:| Abandoned cart AI recovery | 5–15% conversion on targeted coupons | Medium |
+docs/agentwp-prd.md:198:**Marketplace strategy:** Budget for extensive external marketing (blog content, YouTube tutorials, affiliate partnerships). The first 90 days determine long-term CodeCanyon visibility. A WordPress.org freemium version provides user acquisition funnel and review momentum.
+src/Search/Index.php:18:	const VERSION_OPTION  = 'agentwp_search_index_version';
+src/Search/Index.php:72:	 * Table creation runs only if the stored version differs from current.
+src/Search/Index.php:143:	 * Only creates/upgrades the table when the stored version differs from current.
+src/Search/Index.php:155:		$installed_version = get_option( self::VERSION_OPTION, '' );
+src/Search/Index.php:158:		if ( $installed_version === self::VERSION && self::table_exists( $table ) ) {
+docs/DEVELOPER.md:1067:> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 2.0.0 and will be removed in version 3.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
+docs/DEVELOPER.md:1194:AgentWP follows semantic versioning. The `@deprecated` annotation format ensures deprecation metadata is credible and actionable.
+docs/DEVELOPER.md:1198:All `@deprecated` PHPDoc annotations must include the version when the deprecation was introduced:
+docs/DEVELOPER.md:1207:- `X.Y.Z` - The version when the deprecation was introduced (must match a released or current `AGENTWP_VERSION`)
+
+thinking
+**Locating version info in plugin files**
+exec
+/bin/zsh -lc "sed -n '1,200p' agentwp.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 71ms:
+<?php
+/**
+ * Plugin Name: AgentWP
+ * Plugin URI: https://agentwp.example
+ * Description: React-powered admin UI for WooCommerce automation.
+ * Version: 0.1.0
+ * Requires at least: 6.4
+ * Requires PHP: 8.0
+ * WC requires at least: 8.0
+ * Author: AgentWP
+ * Text Domain: agentwp
+ * Domain Path: /languages
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+define( 'AGENTWP_VERSION', '0.1.0' );
+define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
+
+thinking
+**Planning upgrader steps**
+exec
+/bin/zsh -lc "sed -n '1,260p' src/Plugin/Upgrader.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 35ms:
+<?php
+/**
+ * Plugin upgrader for version-based migrations.
+ *
+ * @package AgentWP\Plugin
+ */
+
+namespace AgentWP\Plugin;
+
+/**
+ * Manages plugin upgrades and version-based migrations.
+ *
+ * Runs upgrade steps when the installed version differs from the current version.
+ * All upgrade steps are idempotent and safe to re-run.
+ *
+ * Usage:
+ * - Call Upgrader::init() early in boot (plugins_loaded hook)
+ * - Add new upgrade steps in get_upgrade_steps() when needed
+ * - Each step runs only once when upgrading from a lower version
+ */
+
+thinking
+**Determining authoritative version**
+
+I'm verifying existing changelog entries to decide which version (≥0.1.2) corresponds to shipped upgrader steps and functionality, to document release boundaries in docs/CHANGELOG.md as specified.
+exec
+/bin/zsh -lc 'cat docs/CHANGELOG.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 69ms:
+# Changelog
+All notable changes to AgentWP are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+### Removed
+- **Legacy wp-element UI bundle** (`assets/agentwp-admin.js`, `assets/agentwp-admin.css`) has been removed. The React-based UI in `react/src/` is now the sole supported runtime.
+  - The `AssetManager` no longer falls back to the legacy bundle when the Vite manifest is missing.
+  - All legacy fallback methods (`enqueueLegacyScript`, `enqueueStyle`) have been removed from `AssetManager`.
+  - Migration: Run `npm run build` in the `react/` directory to generate the Vite build output in `assets/build/`.
+- **Deprecated shims removed** (cleanup per P05-06):
+  - `Plugin::OPTION_*` constants: Use `SettingsManager::OPTION_*` directly.
+  - `Plugin::get_default_settings()` method: Use `SettingsManager::getDefaults()`.
+  - `Plugin::get_default_usage_stats()` method: Use `SettingsManager::getDefaultUsageStats()`.
+  - `OpenAIClient::API_BASE` constant: Use `AgentWPConfig::OPENAI_API_BASE_URL`.
+  - `OpenAIClient::MAX_STREAM_*` constants: Use `AgentWPConfig::STREAM_MAX_*`.
+  - `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` constant: Use `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH`.
+  - `BaseHandler::getIntent()` method: Use `#[HandlesIntent]` attribute on handler class.
+
+thinking
+**Reviewing version discrepancies**
+
+I'm noting the changelog lists only 0.1.0, while upgrader steps show 0.1.1 and 0.1.2 with many breaking changes suggesting a major release around 0.2.0; next, I'll verify actual version declarations in openapi.json and package.json to select the authoritative current version.
+exec
+/bin/zsh -lc 'cat react/package.json' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 67ms:
+{
+  "name": "agentwp-react",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "generate:types": "openapi-typescript ../docs/openapi.json -o src/types/api.ts && prettier --write src/types/api.ts",
+    "check:types": "npm run generate:types && node scripts/check-openapi-types.cjs",
+    "prepare": "cd .. && husky react/.husky"
+
+thinking
+**Noticing version mismatch**
+
+The current React version is 0.1.0, but the openapi.json is at 0.2.0, indicating a likely new release; next, I'll review the architecture improvement plan in the docs for context.
+exec
+/bin/zsh -lc "sed -n '1,140p' docs/ARCHITECTURE-IMPROVEMENT-PLAN.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 68ms:
+# AgentWP Architecture Improvement Plan
+
+**Last updated:** 2026-01-18  
+**Scope:** PHP backend (`src/`), React admin UI (`react/`), build/CI, docs, and operational concerns.
+
+This document is the actionable roadmap to (1) fix currently observed issues, and (2) evolve the architecture while preserving the project’s existing boundaries (DI + contracts, ServiceResult, gateways, DTO validation, and the service provider bootstrap).
+
+---
+
+## 0) Guiding Principles
+
+- **Keep the current layering intact:** `Rest` (I/O) → `Intent` (orchestration) → `Services` (business rules) → `Infrastructure` (WordPress/WooCommerce adapters).
+- **Preserve testability:** Services depend on contracts; minimize WP globals outside Infrastructure/Plugin/Rest.
+- **Prefer additive changes with deprecations** over breaking rewrites (WordPress plugin stability).
+- **Make CI the source of truth:** plan work so the repo can run `./scripts/validate.sh` cleanly.
+
+---
+
+## 1) Current State (Findings from a repo-wide audit)
+
+
+thinking
+**Choosing next version**
+
+I'm reviewing openapi.json version 0.2.0 alongside Upgrader steps through 0.1.2 and the unreleased breaking changes to decide if the next authoritative version should be 0.2.0.
+exec
+/bin/zsh -lc 'head -n 20 docs/openapi.json' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 72ms:
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AgentWP REST API",
+    "version": "0.2.0",
+    "description": "OpenAPI specification for AgentWP REST endpoints. Updated for Phase 3 DTO refactoring."
+  },
+  "x-generated-from": "Endpoint annotations in src/Rest and src/API controllers.",
+  "servers": [
+    {
+      "url": "/wp-json"
+    }
+  ],
+  "paths": {
+    "/agentwp/v1/intent": {
+      "post": {
+        "summary": "Submit an intent",
+        "security": [
+          {
+            "nonceAuth": []
+
+
+thinking
+**Evaluating authoritative version choice**
+
+The current upgrader steps go up to 0.1.2, but the changelog and breaking changes suggest 0.2.0 fits the implemented functionality better; next, I'll confirm version references across docs to align the authoritative version.
+thinking
+**Deciding authoritative version as 0.2.0**
+
+The best approach is to set 0.2.0 as the authoritative current version in docs/CHANGELOG.md by moving all Unreleased entries into a new 0.2.0 release section dated 2026-01-18, adding notes to document this decision and release boundaries without changing code or plugin headers.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/docs/CHANGELOG.md
+@@ -7,2 +7,9 @@
+ ## [Unreleased]
++### Notes
++- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
++
++## [0.2.0] - 2026-01-18
++### Notes
++- This is the authoritative current version for shipped functionality. It includes all changes previously listed under “Unreleased,” and the upgrade steps through **0.1.2** are part of this release.
++
+ ### Removed
+apply_patch(auto_approved=true) exited 0 in 26ms:
+Success. Updated the following files:
+M docs/CHANGELOG.md
+file update:
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index 99fe39a18655e04f1aaec60ac45d663a62eb7c01..a3a6141b836ce4c5dcc147255ce1ad6226d3f72d
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -5,6 +5,13 @@
+ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+ 
+ ## [Unreleased]
++### Notes
++- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
++
++## [0.2.0] - 2026-01-18
++### Notes
++- This is the authoritative current version for shipped functionality. It includes all changes previously listed under “Unreleased,” and the upgrade steps through **0.1.2** are part of this release.
++
+ ### Removed
+ - **Legacy wp-element UI bundle** (`assets/agentwp-admin.js`, `assets/agentwp-admin.css`) has been removed. The React-based UI in `react/src/` is now the sole supported runtime.
+   - The `AssetManager` no longer falls back to the legacy bundle when the Vite manifest is missing.
+
+file update:
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index 99fe39a18655e04f1aaec60ac45d663a62eb7c01..a3a6141b836ce4c5dcc147255ce1ad6226d3f72d
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -5,6 +5,13 @@
+ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+ 
+ ## [Unreleased]
++### Notes
++- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
++
++## [0.2.0] - 2026-01-18
++### Notes
++- This is the authoritative current version for shipped functionality. It includes all changes previously listed under “Unreleased,” and the upgrade steps through **0.1.2** are part of this release.
++
+ ### Removed
+ - **Legacy wp-element UI bundle** (`assets/agentwp-admin.js`, `assets/agentwp-admin.css`) has been removed. The React-based UI in `react/src/` is now the sole supported runtime.
+   - The `AssetManager` no longer falls back to the legacy bundle when the Vite manifest is missing.
+
+
+
+thinking
+**Summarizing changelog update completion**
+
+Status DONE: updated changelog to declare 0.2.0 release, adjusted Unreleased section boundary, and added authoritative version notes. Verification commands are not specified. File path is docs/CHANGELOG.
+thinking
+**Adding test status note**
+
+Including that no tests were run for the changelog update in the final summary with bullet points.
+codex
+Status: DONE
+
+Updated `docs/CHANGELOG.md` to declare 0.2.0 as the authoritative current release, add clear release boundaries, and move the previously “Unreleased” content under the new 0.2.0 section with a versioning note.
+
+How to verify (exact commands): No verification commands specified.
+
+Risks / follow-ups:
+- Follow up on aligning `agentwp.php`/`AGENTWP_VERSION` (and optionally `react/package.json`) with the 0.2.0 decision.
+file update:
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index 99fe39a18655e04f1aaec60ac45d663a62eb7c01..a3a6141b836ce4c5dcc147255ce1ad6226d3f72d
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -5,6 +5,13 @@
+ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+ 
+ ## [Unreleased]
++### Notes
++- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
++
++## [0.2.0] - 2026-01-18
++### Notes
++- This is the authoritative current version for shipped functionality. It includes all changes previously listed under “Unreleased,” and the upgrade steps through **0.1.2** are part of this release.
++
+ ### Removed
+ - **Legacy wp-element UI bundle** (`assets/agentwp-admin.js`, `assets/agentwp-admin.css`) has been removed. The React-based UI in `react/src/` is now the sole supported runtime.
+   - The `AssetManager` no longer falls back to the legacy bundle when the Vite manifest is missing.
+
+tokens used
+25,470
