@@ -39,6 +39,9 @@ use AgentWP\Contracts\SessionHandlerInterface;
 use AgentWP\Contracts\SleeperInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Contracts\TransientCacheInterface;
+use AgentWP\Contracts\UsageTrackerInterface;
+use AgentWP\Infrastructure\SearchIndexAdapter;
+use AgentWP\Infrastructure\UsageTrackerAdapter;
 use AgentWP\Intent\ContextBuilder;
 use AgentWP\Intent\Engine;
 use AgentWP\Intent\FunctionRegistry;
@@ -153,6 +156,7 @@ class ContainerWiringTest extends TestCase {
 			AIClientFactoryInterface::class,
 			DraftStorageInterface::class,
 			PolicyInterface::class,
+			UsageTrackerInterface::class,
 		);
 
 		foreach ( $expected_bindings as $binding ) {
@@ -660,6 +664,140 @@ class ContainerWiringTest extends TestCase {
 		$this->assertTrue( $classifier->has( Intent::ANALYTICS_QUERY ), 'Should have AnalyticsScorer' );
 		$this->assertTrue( $classifier->has( Intent::CUSTOMER_LOOKUP ), 'Should have CustomerScorer' );
 		$this->assertSame( 7, $classifier->count(), 'Should have exactly 7 default scorers' );
+	}
+
+	// -------------------------------------------------------------------------
+	// Adapter Resolution Tests
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Test that UsageTrackerInterface resolves to UsageTrackerAdapter.
+	 */
+	public function test_usage_tracker_interface_resolves_to_adapter(): void {
+		$this->registerProvidersWithoutRest();
+
+		$tracker = $this->container->get( UsageTrackerInterface::class );
+
+		$this->assertInstanceOf(
+			UsageTrackerAdapter::class,
+			$tracker,
+			'UsageTrackerInterface should resolve to UsageTrackerAdapter'
+		);
+	}
+
+	/**
+	 * Test that UsageTrackerInterface is a singleton.
+	 */
+	public function test_usage_tracker_is_singleton(): void {
+		$this->registerProvidersWithoutRest();
+
+		$tracker1 = $this->container->get( UsageTrackerInterface::class );
+		$tracker2 = $this->container->get( UsageTrackerInterface::class );
+
+		$this->assertSame(
+			$tracker1,
+			$tracker2,
+			'UsageTrackerInterface should be a singleton'
+		);
+	}
+
+	/**
+	 * Test that SearchIndexInterface resolves to SearchIndexAdapter.
+	 */
+	public function test_search_index_interface_resolves_to_adapter(): void {
+		$this->registerProvidersWithoutRest();
+
+		$index = $this->container->get( SearchIndexInterface::class );
+
+		$this->assertInstanceOf(
+			SearchIndexAdapter::class,
+			$index,
+			'SearchIndexInterface should resolve to SearchIndexAdapter'
+		);
+	}
+
+	/**
+	 * Test that SearchIndexInterface is a singleton.
+	 */
+	public function test_search_index_is_singleton(): void {
+		$this->registerProvidersWithoutRest();
+
+		$index1 = $this->container->get( SearchIndexInterface::class );
+		$index2 = $this->container->get( SearchIndexInterface::class );
+
+		$this->assertSame(
+			$index1,
+			$index2,
+			'SearchIndexInterface should be a singleton'
+		);
+	}
+
+	/**
+	 * Test that controllers can resolve UsageTrackerInterface.
+	 *
+	 * This simulates the RestController::resolveRequired() pattern
+	 * for the usage tracker adapter.
+	 */
+	public function test_controllers_can_resolve_usage_tracker(): void {
+		$this->registerProvidersWithoutRest();
+
+		$this->assertTrue(
+			$this->container->has( UsageTrackerInterface::class ),
+			'Container should have UsageTrackerInterface binding'
+		);
+
+		$tracker = $this->container->get( UsageTrackerInterface::class );
+
+		$this->assertNotNull( $tracker, 'UsageTrackerInterface should not resolve to null' );
+		$this->assertInstanceOf( UsageTrackerInterface::class, $tracker );
+	}
+
+	/**
+	 * Test that controllers can resolve SearchIndexInterface.
+	 *
+	 * This simulates the RestController::resolveRequired() pattern
+	 * for the search index adapter.
+	 */
+	public function test_controllers_can_resolve_search_index(): void {
+		$this->registerProvidersWithoutRest();
+
+		$this->assertTrue(
+			$this->container->has( SearchIndexInterface::class ),
+			'Container should have SearchIndexInterface binding'
+		);
+
+		$index = $this->container->get( SearchIndexInterface::class );
+
+		$this->assertNotNull( $index, 'SearchIndexInterface should not resolve to null' );
+		$this->assertInstanceOf( SearchIndexInterface::class, $index );
+	}
+
+	/**
+	 * Test that adapter services are available for controllers.
+	 *
+	 * This tests the pattern used by RestController::resolveRequired()
+	 * for the new adapter services.
+	 */
+	public function test_adapter_services_available_for_controllers(): void {
+		$this->registerProvidersWithoutRest();
+
+		$adapter_services = array(
+			UsageTrackerInterface::class => 'Usage tracker adapter',
+			SearchIndexInterface::class  => 'Search index adapter',
+		);
+
+		foreach ( $adapter_services as $service_id => $service_name ) {
+			$this->assertTrue(
+				$this->container->has( $service_id ),
+				sprintf( '%s should be registered for controllers', $service_name )
+			);
+
+			$service = $this->container->get( $service_id );
+			$this->assertNotNull(
+				$service,
+				sprintf( '%s should not resolve to null', $service_name )
+			);
+		}
 	}
 
 	/**
