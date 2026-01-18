@@ -97,7 +97,11 @@ class FakeToolDispatcher implements ToolDispatcherInterface {
 		);
 
 		if ( ! $this->has( $name ) ) {
-			return array( 'error' => "Unknown tool: {$name}" );
+			return array(
+				'success' => false,
+				'error'   => sprintf( 'Unknown tool "%s".', $name ),
+				'code'    => 'unknown_tool',
+			);
 		}
 
 		$result = $this->executors[ $name ]( $arguments );

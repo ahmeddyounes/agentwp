@@ -10,9 +10,12 @@
 
 namespace AgentWP\Intent;
 
+use AgentWP\Contracts\AuditLoggerInterface;
 use AgentWP\Contracts\ExecutableToolInterface;
+use AgentWP\Contracts\LoggerInterface;
 use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Infrastructure\NullLogger;
 use AgentWP\Validation\ToolArgumentValidator;
 
 /**
@@ -47,17 +50,37 @@ class ToolDispatcher implements ToolDispatcherInterface {
 	private ToolArgumentValidator $validator;
 
 	/**
+	 * Logger for tool dispatch failures.
+	 *
+	 * @var LoggerInterface
+	 */
+	private LoggerInterface $logger;
+
+	/**
+	 * Audit logger for sensitive tool dispatch failures.
+	 *
+	 * @var AuditLoggerInterface|null
+	 */
+	private ?AuditLoggerInterface $auditLogger;
+
+	/**
 	 * Initialize the dispatcher.
 	 *
-	 * @param ToolRegistryInterface      $toolRegistry Tool registry for schema lookup.
-	 * @param ToolArgumentValidator|null $validator    Argument validator (optional).
+	 * @param ToolRegistryInterface       $toolRegistry Tool registry for schema lookup.
+	 * @param ToolArgumentValidator|null  $validator    Argument validator (optional).
+	 * @param LoggerInterface|null        $logger       Logger for tool dispatch failures (optional).
+	 * @param AuditLoggerInterface|null   $auditLogger  Audit logger for tool dispatch failures (optional).
 	 */
 	public function __construct(
 		ToolRegistryInterface $toolRegistry,
-		?ToolArgumentValidator $validator = null
+		?ToolArgumentValidator $validator = null,
+		?LoggerInterface $logger = null,
+		?AuditLoggerInterface $auditLogger = null
 	) {
 		$this->toolRegistry = $toolRegistry;
 		$this->validator    = $validator ?? new ToolArgumentValidator();
+		$this->logger       = $logger ?? new NullLogger();
+		$this->auditLogger  = $auditLogger;
 	}
 
 	/**
@@ -132,12 +155,26 @@ class ToolDispatcher implements ToolDispatcherInterface {
 	public function dispatch( string $name, array $arguments ): array {
 		// Check if executor is registered.
 		if ( ! $this->has( $name ) ) {
-			return array( 'error' => "Unknown tool: {$name}" );
+			$this->logDispatchFailure(
+				'unknown_tool',
+				$name,
+				array(
+					'argument_count' => count( $arguments ),
+				)
+			);
+
+			return $this->unknownToolError( $name );
 		}
 
 		// Validate arguments against schema if available.
 		$validation_error = $this->validateArguments( $name, $arguments );
 		if ( null !== $validation_error ) {
+			$this->logDispatchFailure(
+				'invalid_tool_arguments',
+				$name,
+				$this->extractValidationContext( $validation_error )
+			);
+
 			return $validation_error;
 		}
 
@@ -230,5 +267,90 @@ class ToolDispatcher implements ToolDispatcherInterface {
 		}
 
 		return array( 'result' => $value );
+	}
+
+	/**
+	 * Build a consistent error response for unknown tools.
+	 *
+	 * @param string $name Tool name.
+	 * @return array{success: false, error: string, code: string}
+	 */
+	private function unknownToolError( string $name ): array {
+		return array(
+			'success' => false,
+			'error'   => sprintf( 'Unknown tool "%s".', $name ),
+			'code'    => 'unknown_tool',
+		);
+	}
+
+	/**
+	 * Log tool dispatch failures without leaking sensitive data.
+	 *
+	 * @param string $reason  Failure reason.
+	 * @param string $tool    Tool name.
+	 * @param array  $context Additional safe context.
+	 * @return void
+	 */
+	private function logDispatchFailure( string $reason, string $tool, array $context = array() ): void {
+		$payload = array_merge(
+			array(
+				'tool'   => $tool,
+				'reason' => $reason,
+			),
+			$context
+		);
+
+		$this->logger->warning( 'Tool dispatch failed.', $payload );
+
+		if ( null !== $this->auditLogger ) {
+			$this->auditLogger->logSensitiveAction(
+				'tool_dispatch_failure',
+				$this->getCurrentUserId(),
+				$payload
+			);
+		}
+	}
+
+	/**
+	 * Extract safe validation context for logging.
+	 *
+	 * @param array $validation_error Validation error array.
+	 * @return array<string, mixed>
+	 */
+	private function extractValidationContext( array $validation_error ): array {
+		$errors = isset( $validation_error['validation_errors'] ) && is_array( $validation_error['validation_errors'] )
+			? $validation_error['validation_errors']
+			: array();
+
+		$fields = array();
+		$codes  = array();
+
+		foreach ( $errors as $error ) {
+			if ( isset( $error['field'] ) && '' !== $error['field'] ) {
+				$fields[] = $error['field'];
+			}
+			if ( isset( $error['code'] ) && '' !== $error['code'] ) {
+				$codes[] = $error['code'];
+			}
+		}
+
+		return array(
+			'validation_count'  => count( $errors ),
+			'validation_fields' => array_values( array_unique( $fields ) ),
+			'validation_codes'  => array_values( array_unique( $codes ) ),
+		);
+	}
+
+	/**
+	 * Get the current user ID in a safe way.
+	 *
+	 * @return int
+	 */
+	private function getCurrentUserId(): int {
+		if ( function_exists( 'get_current_user_id' ) ) {
+			return (int) get_current_user_id();
+		}
+
+		return 0;
 	}
 }

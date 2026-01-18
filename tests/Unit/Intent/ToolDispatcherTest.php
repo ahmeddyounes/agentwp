@@ -7,9 +7,10 @@ namespace AgentWP\Tests\Unit\Intent;
 
 use AgentWP\AI\Functions\FunctionSchema;
 use AgentWP\Intent\ToolDispatcher;
+use AgentWP\Tests\Fakes\FakeAuditLogger;
+use AgentWP\Tests\Fakes\FakeLogger;
 use AgentWP\Tests\Fakes\FakeToolRegistry;
 use AgentWP\Tests\TestCase;
-use AgentWP\Validation\ToolArgumentValidator;
 
 class ToolDispatcherTest extends TestCase {
 
@@ -64,6 +65,10 @@ class ToolDispatcherTest extends TestCase {
 		$result = $this->dispatcher->dispatch( 'unknown_tool', array() );
 
 		$this->assertArrayHasKey( 'error', $result );
+		$this->assertArrayHasKey( 'success', $result );
+		$this->assertArrayHasKey( 'code', $result );
+		$this->assertFalse( $result['success'] );
+		$this->assertSame( 'unknown_tool', $result['code'] );
 		$this->assertStringContainsString( 'Unknown tool', $result['error'] );
 	}
 
@@ -119,6 +124,86 @@ class ToolDispatcherTest extends TestCase {
 		$this->assertArrayHasKey( 'error', $result );
 		$this->assertArrayHasKey( 'code', $result );
 		$this->assertSame( 'invalid_tool_arguments', $result['code'] );
+	}
+
+	public function test_dispatch_logs_unknown_tool_failure(): void {
+		$logger      = new FakeLogger();
+		$auditLogger = new FakeAuditLogger();
+		$dispatcher  = new ToolDispatcher( $this->toolRegistry, null, $logger, $auditLogger );
+
+		$dispatcher->dispatch( 'missing_tool', array( 'secret' => 'value' ) );
+
+		$log = $logger->getLastLog();
+		$this->assertNotNull( $log );
+		$this->assertSame( 'warning', $log['level'] );
+		$this->assertSame( 'Tool dispatch failed.', $log['message'] );
+		$this->assertSame( 'missing_tool', $log['context']['tool'] );
+		$this->assertSame( 'unknown_tool', $log['context']['reason'] );
+		$this->assertArrayHasKey( 'argument_count', $log['context'] );
+
+		$audit = $auditLogger->getLastLog();
+		$this->assertNotNull( $audit );
+		$this->assertSame( 'sensitive', $audit['type'] );
+		$this->assertSame( 'tool_dispatch_failure', $audit['action'] );
+		$this->assertSame( 'unknown_tool', $audit['context']['reason'] );
+	}
+
+	public function test_dispatch_logs_validation_failure(): void {
+		$logger      = new FakeLogger();
+		$auditLogger = new FakeAuditLogger();
+		$dispatcher  = new ToolDispatcher( $this->toolRegistry, null, $logger, $auditLogger );
+
+		$schema = new class() implements FunctionSchema {
+			public function get_name(): string {
+				return 'strict_tool';
+			}
+
+			public function get_description(): string {
+				return 'A tool with strict validation';
+			}
+
+			public function get_parameters(): array {
+				return array(
+					'type'       => 'object',
+					'properties' => array(
+						'name' => array(
+							'type'        => 'string',
+							'description' => 'The name',
+						),
+					),
+					'required'   => array( 'name' ),
+				);
+			}
+
+			public function to_tool_definition(): array {
+				return array(
+					'type'     => 'function',
+					'function' => array(
+						'name'        => $this->get_name(),
+						'description' => $this->get_description(),
+						'parameters'  => $this->get_parameters(),
+					),
+				);
+			}
+		};
+
+		$this->toolRegistry->register( $schema );
+		$dispatcher->register( 'strict_tool', fn( array $args ) => array( 'ok' => true ) );
+
+		$dispatcher->dispatch( 'strict_tool', array() );
+
+		$log = $logger->getLastLog();
+		$this->assertNotNull( $log );
+		$this->assertSame( 'warning', $log['level'] );
+		$this->assertSame( 'invalid_tool_arguments', $log['context']['reason'] );
+		$this->assertSame( 'strict_tool', $log['context']['tool'] );
+		$this->assertNotEmpty( $log['context']['validation_fields'] );
+
+		$audit = $auditLogger->getLastLog();
+		$this->assertNotNull( $audit );
+		$this->assertSame( 'sensitive', $audit['type'] );
+		$this->assertSame( 'tool_dispatch_failure', $audit['action'] );
+		$this->assertSame( 'invalid_tool_arguments', $audit['context']['reason'] );
 	}
 
 	public function test_dispatch_skips_validation_when_no_schema(): void {

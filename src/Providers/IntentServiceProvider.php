@@ -32,6 +32,8 @@ use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Contracts\OrderSearchServiceInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
+use AgentWP\Contracts\AuditLoggerInterface;
+use AgentWP\Contracts\LoggerInterface;
 use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\ToolDispatcher;
@@ -277,7 +279,10 @@ final class IntentServiceProvider extends ServiceProvider {
 			ToolDispatcherInterface::class,
 			function ( $c ) {
 				$dispatcher = new ToolDispatcher(
-					$c->get( ToolRegistryInterface::class )
+					$c->get( ToolRegistryInterface::class ),
+					null,
+					$c->has( LoggerInterface::class ) ? $c->get( LoggerInterface::class ) : null,
+					$c->has( AuditLoggerInterface::class ) ? $c->get( AuditLoggerInterface::class ) : null
 				);
 
 				// Register order-related executable tools.
