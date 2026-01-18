@@ -91,6 +91,30 @@ if ( ! function_exists( 'get_option' ) ) {
 	}
 }
 
+if ( ! function_exists( 'update_option' ) ) {
+	function update_option( $option, $value, $autoload = null ) {
+		return true;
+	}
+}
+
+if ( ! function_exists( 'add_option' ) ) {
+	function add_option( $option, $value = '', $deprecated = '', $autoload = 'yes' ) {
+		return true;
+	}
+}
+
+if ( ! function_exists( 'do_action' ) ) {
+	function do_action( $hook_name, ...$args ) {
+		// No-op stub for testing.
+	}
+}
+
+if ( ! function_exists( 'is_multisite' ) ) {
+	function is_multisite() {
+		return false;
+	}
+}
+
 if ( ! function_exists( 'wp_strip_all_tags' ) ) {
 	function wp_strip_all_tags( $string, $remove_breaks = false ) {
 		$string = preg_replace( '@<(script|style)[^>]*?>.*?</\\1>@si', '', $string );

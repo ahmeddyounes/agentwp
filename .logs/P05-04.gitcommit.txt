@@ -1,0 +1,11 @@
+[main de02a79] P05-04: implement
+ 11 files changed, 771 insertions(+), 9 deletions(-)
+ create mode 100644 .logs/P05-03.gitcommit.txt
+ create mode 100644 .logs/P05-04.claude.impl.last.md
+ create mode 100644 .logs/P05-04.claude.impl.raw.txt
+ create mode 100644 .plans/P05-04.md
+ create mode 100644 .t2/handoff/P05-04.md
+ create mode 100644 src/Plugin/SchemaManager.php
+ create mode 100644 tests/Unit/Plugin/SchemaManagerTest.php
+
+→ No staged files match any configured task.
