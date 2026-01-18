@@ -42,11 +42,59 @@ async function setApiKey(page, apiKey) {
   return { response, json };
 }
 
+/**
+ * Wait for the AgentWP React app to mount in shadow DOM.
+ * @param {import('@playwright/test').Page} page
+ * @param {number} timeout
+ * @returns {Promise<void>}
+ */
+async function waitForAppMount(page, timeout = 10000) {
+  await page.waitForFunction(
+    () => {
+      const host = document.getElementById('agentwp-root');
+      return host && host.shadowRoot && host.shadowRoot.querySelector('#agentwp-shadow-root');
+    },
+    { timeout }
+  );
+}
+
+/**
+ * Query an element within the AgentWP shadow DOM.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} selector
+ * @returns {Promise<boolean>}
+ */
+async function shadowQuery(page, selector) {
+  return page.evaluate(
+    (sel) => {
+      const host = document.getElementById('agentwp-root');
+      const shadow = host?.shadowRoot;
+      return Boolean(shadow?.querySelector(sel));
+    },
+    selector
+  );
+}
+
+/**
+ * Open the command deck via keyboard shortcut.
+ * @param {import('@playwright/test').Page} page
+ * @returns {Promise<void>}
+ */
+async function openCommandDeck(page) {
+  const isMac = await page.evaluate(() => /Mac|iPod|iPhone|iPad/.test(navigator.platform));
+  await page.keyboard.press(isMac ? 'Meta+k' : 'Control+k');
+  // Wait for command deck to load
+  await page.waitForTimeout(1500);
+}
+
 module.exports = {
   apiGet,
   apiPost,
   login,
+  openCommandDeck,
   resetTestData,
   seedTestData,
   setApiKey,
+  shadowQuery,
+  waitForAppMount,
 };
