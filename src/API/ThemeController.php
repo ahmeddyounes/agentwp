@@ -9,6 +9,7 @@ namespace AgentWP\API;
 
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\DTO\ThemeRequestDTO;
+use AgentWP\Rest\RestController;
 use WP_REST_Server;
 
 class ThemeController extends RestController {

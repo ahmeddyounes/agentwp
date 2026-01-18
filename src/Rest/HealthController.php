@@ -7,7 +7,7 @@
 
 namespace AgentWP\Rest;
 
-use AgentWP\API\RestController;
+use AgentWP\Rest\RestController;
 use WP_REST_Request;
 use WP_REST_Server;
 

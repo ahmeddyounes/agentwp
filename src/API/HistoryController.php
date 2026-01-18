@@ -9,6 +9,7 @@ namespace AgentWP\API;
 
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\DTO\HistoryRequestDTO;
+use AgentWP\Rest\RestController;
 use WP_REST_Server;
 
 class HistoryController extends RestController {

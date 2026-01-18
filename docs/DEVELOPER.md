@@ -689,9 +689,7 @@ All REST controllers must be placed in:
 
 - **Directory**: `src/Rest/`
 - **Namespace**: `AgentWP\Rest`
-- **Base class**: Extend `AgentWP\API\RestController`
-
-> **Note:** Some legacy controllers exist in `src/API/` (e.g., `HistoryController`, `ThemeController`). New controllers should NOT be placed there. The `src/API/` directory contains only the shared base class (`RestController`) and legacy controllers that will be migrated to `src/Rest/` in a future release.
+- **Base class**: Extend `AgentWP\Rest\RestController`
 
 ### Step-by-step guide
 
@@ -701,7 +699,7 @@ All REST controllers must be placed in:
 <?php
 namespace AgentWP\Rest;
 
-use AgentWP\API\RestController;
+use AgentWP\Rest\RestController;
 use WP_REST_Server;
 
 class MyFeatureController extends RestController {
@@ -784,7 +782,7 @@ Extend `RestController` to inherit permission checks, validation, and response h
 ```php
 namespace MyPlugin\AgentWP;
 
-use AgentWP\API\RestController;
+use AgentWP\Rest\RestController;
 use WP_REST_Server;
 
 class ShipmentController extends RestController {

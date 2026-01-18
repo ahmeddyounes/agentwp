@@ -7,7 +7,7 @@
 
 namespace AgentWP\Rest;
 
-use AgentWP\API\RestController;
+use AgentWP\Rest\RestController;
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\DTO\IntentRequestDTO;
 use AgentWP\Intent\Engine;

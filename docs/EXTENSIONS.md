@@ -632,7 +632,7 @@ Custom REST controllers can be registered via the `rest.controller` container ta
 ```php
 namespace MyPlugin\AgentWP;
 
-use AgentWP\API\RestController;
+use AgentWP\Rest\RestController;
 use WP_REST_Server;
 
 class ShipmentController extends RestController {
