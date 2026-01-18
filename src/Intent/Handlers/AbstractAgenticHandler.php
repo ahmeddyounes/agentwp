@@ -15,6 +15,7 @@ use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
 use AgentWP\Contracts\ToolExecutorInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Validation\ToolArgumentValidator;
 
 /**
  * Abstract handler that provides the agentic interaction loop.
@@ -48,20 +49,28 @@ abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecuto
 	protected ToolRegistryInterface $toolRegistry;
 
 	/**
+	 * @var ToolArgumentValidator
+	 */
+	protected ToolArgumentValidator $argumentValidator;
+
+	/**
 	 * Initialize the handler.
 	 *
-	 * @param string                   $intent        Intent identifier.
-	 * @param AIClientFactoryInterface $clientFactory AI client factory.
-	 * @param ToolRegistryInterface    $toolRegistry  Tool registry.
+	 * @param string                   $intent             Intent identifier.
+	 * @param AIClientFactoryInterface $clientFactory      AI client factory.
+	 * @param ToolRegistryInterface    $toolRegistry       Tool registry.
+	 * @param ToolArgumentValidator    $argumentValidator  Tool argument validator (optional).
 	 */
 	public function __construct(
 		string $intent,
 		AIClientFactoryInterface $clientFactory,
-		ToolRegistryInterface $toolRegistry
+		ToolRegistryInterface $toolRegistry,
+		?ToolArgumentValidator $argumentValidator = null
 	) {
 		parent::__construct( $intent );
-		$this->clientFactory = $clientFactory;
-		$this->toolRegistry  = $toolRegistry;
+		$this->clientFactory     = $clientFactory;
+		$this->toolRegistry      = $toolRegistry;
+		$this->argumentValidator = $argumentValidator ?? new ToolArgumentValidator();
 	}
 
 	/**
@@ -213,6 +222,10 @@ abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecuto
 	/**
 	 * Execute tool calls and add results to messages.
 	 *
+	 * Validates tool arguments against their JSON schemas before execution.
+	 * Invalid arguments return an error result to the AI without reaching
+	 * the domain services.
+	 *
 	 * @param array $messages Current messages.
 	 * @param array $tool_calls Tool calls from AI response.
 	 * @return array Updated messages with tool results.
@@ -229,7 +242,13 @@ abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecuto
 				$args = array();
 			}
 
-			$result = $this->execute_tool( $name, $args );
+			// Validate arguments against schema before execution.
+			$validation_result = $this->validateToolArguments( $name, $args );
+			if ( null !== $validation_result ) {
+				$result = $validation_result;
+			} else {
+				$result = $this->execute_tool( $name, $args );
+			}
 
 			// Ensure JSON encoding succeeds.
 			$encoded_result = wp_json_encode( $result );
@@ -245,5 +264,29 @@ abstract class AbstractAgenticHandler extends BaseHandler implements ToolExecuto
 		}
 
 		return $messages;
+	}
+
+	/**
+	 * Validate tool arguments against the tool's JSON schema.
+	 *
+	 * @param string $name Tool name.
+	 * @param array  $args Tool arguments.
+	 * @return array|null Error array if validation fails, null if valid.
+	 */
+	protected function validateToolArguments( string $name, array $args ): ?array {
+		$schema = $this->toolRegistry->get( $name );
+
+		// If tool not found in registry, skip validation (handler will return unknown tool error).
+		if ( null === $schema ) {
+			return null;
+		}
+
+		$result = $this->argumentValidator->validate( $schema, $args );
+
+		if ( ! $result->isValid ) {
+			return $result->toErrorArray();
+		}
+
+		return null;
 	}
 }

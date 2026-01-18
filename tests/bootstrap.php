@@ -10,20 +10,59 @@ require dirname( __DIR__ ) . '/vendor/autoload.php';
 
 if ( ! class_exists( 'WP_Error' ) ) {
 	class WP_Error {
-		private $code;
-		private $message;
+		private $errors = array();
+		private $error_data = array();
 
-		public function __construct( $code = '', $message = '' ) {
-			$this->code    = $code;
-			$this->message = $message;
+		public function __construct( $code = '', $message = '', $data = '' ) {
+			if ( ! empty( $code ) ) {
+				$this->add( $code, $message, $data );
+			}
 		}
 
-		public function get_error_message() {
-			return $this->message;
+		public function add( $code, $message, $data = '' ) {
+			$this->errors[ $code ][] = $message;
+			if ( ! empty( $data ) ) {
+				$this->error_data[ $code ] = $data;
+			}
+		}
+
+		public function get_error_message( $code = '' ) {
+			if ( empty( $code ) ) {
+				$code = $this->get_error_code();
+			}
+			$messages = $this->get_error_messages( $code );
+			return $messages[0] ?? '';
+		}
+
+		public function get_error_messages( $code = '' ) {
+			if ( empty( $code ) ) {
+				$all_messages = array();
+				foreach ( $this->errors as $messages ) {
+					$all_messages = array_merge( $all_messages, $messages );
+				}
+				return $all_messages;
+			}
+			return $this->errors[ $code ] ?? array();
 		}
 
 		public function get_error_code() {
-			return $this->code;
+			$codes = $this->get_error_codes();
+			return $codes[0] ?? '';
+		}
+
+		public function get_error_codes() {
+			return array_keys( $this->errors );
+		}
+
+		public function get_error_data( $code = '' ) {
+			if ( empty( $code ) ) {
+				$code = $this->get_error_code();
+			}
+			return $this->error_data[ $code ] ?? null;
+		}
+
+		public function has_errors() {
+			return ! empty( $this->errors );
 		}
 	}
 }
@@ -193,5 +232,6 @@ if ( ! class_exists( 'WP_REST_Response' ) ) {
 require __DIR__ . '/Support/EncryptionFunctionOverrides.php';
 require __DIR__ . '/Support/encryption-functions.php';
 require __DIR__ . '/Support/ai-functions.php';
+require __DIR__ . '/Support/rest-validation-functions.php';
 
 WP_Mock::bootstrap();
