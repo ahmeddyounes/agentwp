@@ -30,6 +30,7 @@ $option_keys = array(
 	'agentwp_search_index_version',
 	'agentwp_search_index_state',
 	'agentwp_order_cache_version',
+	'agentwp_installed_version',
 );
 
 /**

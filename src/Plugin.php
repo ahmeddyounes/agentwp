@@ -81,6 +81,11 @@ class Plugin {
 		add_option( SettingsManager::OPTION_DEMO_API_KEY, SettingsManager::DEFAULT_DEMO_API_KEY, '', false );
 		add_option( SettingsManager::OPTION_DEMO_API_KEY_LAST4, SettingsManager::DEFAULT_DEMO_API_KEY_LAST4, '', false );
 
+		// Set installed version for new installations.
+		if ( class_exists( 'AgentWP\\Plugin\\Upgrader' ) ) {
+			Plugin\Upgrader::update_installed_version( defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '0.0.0' );
+		}
+
 		if ( class_exists( 'AgentWP\\Billing\\UsageTracker' ) ) {
 			Billing\UsageTracker::activate();
 		}

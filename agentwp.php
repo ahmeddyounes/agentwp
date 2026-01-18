@@ -73,6 +73,11 @@ add_action(
 			}
 		}
 
+		// Run upgrades early, before main plugin initialization.
+		if ( class_exists( 'AgentWP\\Plugin\\Upgrader' ) ) {
+			AgentWP\Plugin\Upgrader::init();
+		}
+
 		if ( class_exists( 'AgentWP\\Plugin' ) ) {
 			AgentWP\Plugin::init();
 		}
