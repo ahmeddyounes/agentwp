@@ -799,3 +799,24 @@ flowchart TD
 - REST API endpoints include request/response schemas and common rules.
 - Database section uses standard WooCommerce tables and `wp_options` only.
 - BYOK security architecture specifies AES-256 encryption and key handling.
+
+## 9) Related Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [DEVELOPER.md](DEVELOPER.md) | Developer guide with extension examples, hook reference, and local setup |
+| [ARCHITECTURE-IMPROVEMENT-PLAN.md](ARCHITECTURE-IMPROVEMENT-PLAN.md) | Completed architecture improvement roadmap |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and migration guide |
+| [openapi.json](openapi.json) | REST API specification |
+| [search-index.md](search-index.md) | Search index implementation details |
+
+### Architecture Decision Records
+
+| ADR | Decision |
+|-----|----------|
+| [ADR 0001](adr/0001-rest-controller-dependency-resolution.md) | REST controllers resolve dependencies via container |
+| [ADR 0002](adr/0002-intent-handler-registration.md) | `#[HandlesIntent]` attributes for handler registration |
+| [ADR 0003](adr/0003-intent-classification-strategy.md) | `ScorerRegistry` as canonical intent classifier |
+| [ADR 0004](adr/0004-openai-client-architecture.md) | Monolithic OpenAI client with infrastructure abstractions |
+| [ADR 0005](adr/0005-rest-rate-limiting.md) | Injected `RateLimiterInterface` for rate limiting |
+| [ADR 0006](adr/0006-search-index-architecture.md) | Static search index design |

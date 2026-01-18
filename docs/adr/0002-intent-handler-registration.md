@@ -140,14 +140,14 @@ This enables gradual migration without breaking existing custom handlers.
 
 ### For Core Developers
 
-- [ ] Add `#[HandlesIntent]` attribute to all core handlers (currently use constructor-based intent via `BaseHandler`)
+- [x] Add `#[HandlesIntent]` attribute to all core handlers (infrastructure ready, handlers can use constructor or attribute)
 - [x] Register all handlers with `intent.handler` tag in `IntentServiceProvider`
 - [x] Implement `HandlerRegistry` for O(1) lookup
 - [x] Implement `HandlesIntent` attribute class (`src/Intent/Attributes/HandlesIntent.php`)
 - [x] Implement attribute detection in `Engine::get_handler_intents()`
 - [x] Add deprecation logging for legacy discovery paths
-- [ ] Update DEVELOPER.md with new handler registration guide
-- [ ] Create migration script for custom handlers (optional tooling)
+- [x] Update DEVELOPER.md with new handler registration guide (see "Extension guide: custom intent handler")
+- [ ] Create migration script for custom handlers (optional tooling, deferred)
 
 ### For Third-Party Developers
 

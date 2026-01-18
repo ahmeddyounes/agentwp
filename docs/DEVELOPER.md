@@ -612,6 +612,158 @@ add_filter( 'agentwp_config_intent_weight_order_search', fn() => 1.5 );
 
 For custom intents, override `getWeight()` in your scorer or add your intent to `AbstractScorer::INTENT_WEIGHT_KEYS`.
 
+## Extension migration notes
+
+This section documents breaking changes that affect extensions and third-party integrations. For full release notes, see [CHANGELOG.md](CHANGELOG.md).
+
+### Handler registration deprecation
+
+**Affected:** Custom intent handlers using legacy registration patterns.
+
+**Timeline:**
+- v1.x (Current): Both patterns work; attribute-based is recommended
+- v2.0 (Next major): Legacy patterns emit deprecation warnings
+- v3.0 (Future): Legacy patterns removed
+
+**Migration steps:**
+
+1. **Add `#[HandlesIntent]` attribute** to your handler class:
+   ```php
+   use AgentWP\Intent\Attributes\HandlesIntent;
+
+   #[HandlesIntent('my_custom_intent')]
+   class MyHandler extends BaseHandler {
+       // ...
+   }
+   ```
+
+2. **Remove legacy `getIntent()` method** if present (no longer needed with attribute).
+
+3. **Register via service provider** with container tag:
+   ```php
+   $this->container->tag(MyHandler::class, 'intent.handler');
+   ```
+
+See [ADR 0002](adr/0002-intent-handler-registration.md) for full details.
+
+### ServiceResult return type
+
+**Affected:** Code that consumes application service return values.
+
+Application services now return `ServiceResult` instead of arrays or mixed types. Update consuming code:
+
+```php
+// Before
+$result = $service->prepare_refund($order_id, $amount);
+if (isset($result['error'])) {
+    // Handle error
+}
+
+// After
+$result = $service->prepare_refund($order_id, $amount);
+if ($result->isFailure()) {
+    // Use $result->code, $result->message, $result->httpStatus
+    return new WP_REST_Response($result->toArray(), $result->httpStatus);
+}
+// Access data via $result->get('key') or $result->data
+```
+
+### Policy layer for permissions
+
+**Affected:** Custom services that check user capabilities.
+
+Services no longer call `current_user_can()` directly. Instead, inject `PolicyInterface`:
+
+```php
+use AgentWP\Contracts\PolicyInterface;
+
+class MyService {
+    public function __construct(private PolicyInterface $policy) {}
+
+    public function doSomething(): ServiceResult {
+        if (!$this->policy->canManageOrders()) {
+            return ServiceResult::permissionDenied();
+        }
+        // ...
+    }
+}
+```
+
+### Gateway abstractions for WooCommerce
+
+**Affected:** Custom services that call WooCommerce functions directly.
+
+WooCommerce operations are now abstracted behind gateway interfaces for testability:
+
+```php
+// Before
+$order = wc_get_order($order_id);
+$refund = wc_create_refund($args);
+
+// After
+$order = $this->refundGateway->get_order($order_id);
+$refund = $this->refundGateway->create_refund($args);
+```
+
+Available gateways:
+- `WooCommerceRefundGatewayInterface`
+- `WooCommerceOrderGatewayInterface`
+- `WooCommerceStockGatewayInterface`
+- `WooCommerceUserGatewayInterface`
+
+### Draft lifecycle changes
+
+**Affected:** Code that interacts with draft storage directly.
+
+Use `DraftManagerInterface` instead of `DraftStorageInterface` for draft operations:
+
+```php
+// Before
+$draft_id = $this->storage->generate_id('refund');
+$this->storage->store('refund', $draft_id, $payload, 600);
+
+// After
+$result = $this->draftManager->create('refund', $payload, $preview);
+$draft_id = $result->get('draft_id');
+```
+
+Draft payloads now include `preview` data and use the standardized `DraftPayload` DTO.
+
+### Intent classification
+
+**Affected:** Custom intent classifiers or direct `IntentClassifier` usage.
+
+`ScorerRegistry` is now the canonical classifier. If you were using `IntentClassifier` directly:
+
+```php
+// Before
+$classifier = new IntentClassifier();
+$intent = $classifier->classify($input);
+
+// After
+$classifier = $container->get(IntentClassifierInterface::class);
+$intent = $classifier->classify($input);
+```
+
+Add custom scorers via the `agentwp_intent_scorers` filter.
+
+### Configuration constants
+
+**Affected:** Code using hardcoded option names.
+
+All option keys are now defined in `AgentWPConfig`. Use constants instead of strings:
+
+```php
+// Before
+$value = get_option('agentwp_api_key');
+
+// After (if needed outside SettingsManager)
+$value = get_option(AgentWPConfig::OPTION_API_KEY);
+
+// Preferred: Use SettingsManager
+$value = $settingsManager->getApiKey();
+```
+
 ## OpenAPI spec
 
 The OpenAPI spec lives in `docs/openapi.json`. It documents the REST API and is kept in sync with controller annotations.
@@ -694,3 +846,26 @@ This generates `react/src/types/api.ts` from `docs/openapi.json` using [openapi-
    ```
 
 The generated types are deterministic and should be regenerated when the OpenAPI spec changes.
+
+## Related documentation
+
+| Document | Purpose |
+|----------|---------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Technical architecture with boot flow diagrams and service layer details |
+| [ARCHITECTURE-IMPROVEMENT-PLAN.md](ARCHITECTURE-IMPROVEMENT-PLAN.md) | Completed architecture improvement roadmap |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and migration guide for breaking changes |
+| [openapi.json](openapi.json) | REST API specification for TypeScript type generation |
+| [search-index.md](search-index.md) | Search index implementation and troubleshooting |
+
+### Architecture Decision Records
+
+For architectural decisions and rationale, see the ADRs in `docs/adr/`:
+
+| ADR | Topic |
+|-----|-------|
+| [0001](adr/0001-rest-controller-dependency-resolution.md) | REST Controller Dependency Resolution |
+| [0002](adr/0002-intent-handler-registration.md) | Intent Handler Registration |
+| [0003](adr/0003-intent-classification-strategy.md) | Intent Classification Strategy |
+| [0004](adr/0004-openai-client-architecture.md) | OpenAI Client Architecture |
+| [0005](adr/0005-rest-rate-limiting.md) | REST Rate Limiting |
+| [0006](adr/0006-search-index-architecture.md) | Search Index Architecture |

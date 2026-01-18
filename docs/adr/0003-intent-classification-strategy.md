@@ -330,14 +330,14 @@ public function test_classify_never_throws_on_arbitrary_input(): void {
 
 ### For Core Developers
 
-- [ ] Update `IntentServiceProvider` to register `ScorerRegistry` as `IntentClassifierInterface`
-- [ ] Add `agentwp_intent_scorers` filter to service provider
-- [ ] Add `agentwp_intent_classified` action to `ScorerRegistry::classify()`
-- [ ] Add `@deprecated` annotation to `IntentClassifier` class
-- [ ] Implement `WeightedScorerDecorator` for weight support
-- [ ] Create unit tests for each scorer in `tests/Unit/Intent/Classifier/Scorers/`
-- [ ] Create integration tests for filter-based extension
-- [ ] Update DEVELOPER.md with scorer registration guide
+- [x] Update `IntentServiceProvider` to register `ScorerRegistry` as `IntentClassifierInterface`
+- [x] Add `agentwp_intent_scorers` filter to service provider
+- [x] Add `agentwp_intent_classified` action to `ScorerRegistry::classify()`
+- [x] Add `@deprecated` annotation to `IntentClassifier` class
+- [ ] Implement `WeightedScorerDecorator` for weight support (deferred, optional enhancement)
+- [x] Create unit tests for each scorer in `tests/Unit/Intent/Classifier/Scorers/`
+- [x] Create integration tests for filter-based extension
+- [x] Update DEVELOPER.md with scorer registration guide (see "Extension guide: custom intent scorer")
 
 ### For Third-Party Developers
 

@@ -10,6 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ApiKeyStorage` service for centralized API key management (`src/Security/ApiKeyStorage.php`).
 - `DemoClient` for stubbed responses in demo mode without API key (`src/Demo/DemoClient.php`).
 - Architecture inventory document (`docs/architecture-inventory.md`).
+
+### Documentation
+- **Architecture Improvement Plan** (`docs/ARCHITECTURE-IMPROVEMENT-PLAN.md`): Updated to reflect completed implementation of all 8 phases.
+- **Architecture Decision Records**: Six ADRs documented in `docs/adr/`:
+  - ADR 0001: REST Controller Dependency Resolution
+  - ADR 0002: Intent Handler Registration
+  - ADR 0003: Intent Classification Strategy
+  - ADR 0004: OpenAI Client Architecture
+  - ADR 0005: REST Rate Limiting
+  - ADR 0006: Search Index Architecture
+- **Technical Architecture** (`docs/ARCHITECTURE.md`): Boot flow diagram, service layer architecture, policy layer, ServiceResult pattern, gateway abstractions, draft lifecycle.
+- **Developer Guide** (`docs/DEVELOPER.md`): Extension guides for custom handlers and scorers, migration notes for extension developers, service layer conventions.
+- **Search Index** (`docs/search-index.md`): Detailed search index troubleshooting and performance documentation.
+- Cross-referenced documentation with related document tables and ADR indexes.
 - **Policy layer** for centralized capability checks (`src/Security/Policy/WooCommercePolicy.php`). Services now inject `PolicyInterface` instead of calling `current_user_can()` directly.
 - **ServiceResult DTO** (`src/DTO/ServiceResult.php`) as the standard return type for all application services. Provides uniform success/failure handling with typed factory methods and HTTP status codes.
 - **DraftPayload DTO** (`src/DTO/DraftPayload.php`) for standardized draft payload structure across all draft-based flows.
