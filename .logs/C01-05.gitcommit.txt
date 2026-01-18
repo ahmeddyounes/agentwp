@@ -1,0 +1,9 @@
+[main 626150c] C01-05: implement
+ 6 files changed, 151 insertions(+), 2 deletions(-)
+ create mode 100644 .logs/C01-04.gitcommit.txt
+ create mode 100644 .logs/C01-05.codex.impl.last.md
+ create mode 100644 .logs/C01-05.codex.impl.raw.txt
+ create mode 100644 .plans/C01-05.md
+ create mode 100644 .t2/handoff/C01-05.md
+
+→ No staged files match any configured task.
