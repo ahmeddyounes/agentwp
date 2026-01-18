@@ -1,11 +1,12 @@
-[main 796b31a] C04-04: implement
- 11 files changed, 797 insertions(+), 9 deletions(-)
- create mode 100644 .logs/C04-03.gitcommit.txt
- create mode 100644 .logs/C04-04.claude.impl.last.md
- create mode 100644 .logs/C04-04.claude.impl.raw.txt
- create mode 100644 .plans/C04-04.md
- create mode 100644 .t2/handoff/C04-04.md
- create mode 100644 tests/Fakes/FakeWPFunctions.php
- create mode 100644 tests/Unit/Intent/Classifier/ScorerRegistryTest.php
+[main e9f0c32] C04-04: implement
+ 24 files changed, 944 insertions(+), 200 deletions(-)
+ create mode 100644 src/Contracts/ExecutableToolInterface.php
+ create mode 100644 src/Intent/Tools/ConfirmRefundTool.php
+ create mode 100644 src/Intent/Tools/ConfirmStatusUpdateTool.php
+ create mode 100644 src/Intent/Tools/PrepareBulkStatusUpdateTool.php
+ create mode 100644 src/Intent/Tools/PrepareRefundTool.php
+ create mode 100644 src/Intent/Tools/PrepareStatusUpdateTool.php
+ create mode 100644 src/Intent/Tools/SearchOrdersTool.php
+ create mode 100644 tests/Fakes/FakeToolDispatcher.php
 
 → No staged files match any configured task.

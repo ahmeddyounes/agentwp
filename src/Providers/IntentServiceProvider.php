@@ -37,10 +37,16 @@ use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\ToolDispatcher;
 use AgentWP\Intent\Tools\ConfirmRefundTool;
 use AgentWP\Intent\Tools\ConfirmStatusUpdateTool;
+use AgentWP\Intent\Tools\ConfirmStockUpdateTool;
+use AgentWP\Intent\Tools\DraftEmailTool;
+use AgentWP\Intent\Tools\GetCustomerProfileTool;
+use AgentWP\Intent\Tools\GetSalesReportTool;
 use AgentWP\Intent\Tools\PrepareBulkStatusUpdateTool;
 use AgentWP\Intent\Tools\PrepareRefundTool;
 use AgentWP\Intent\Tools\PrepareStatusUpdateTool;
+use AgentWP\Intent\Tools\PrepareStockUpdateTool;
 use AgentWP\Intent\Tools\SearchOrdersTool;
+use AgentWP\Intent\Tools\SearchProductTool;
 use AgentWP\Plugin\SettingsManager;
 use AgentWP\Intent\Handlers\AnalyticsQueryHandler;
 use AgentWP\Intent\Handlers\CustomerLookupHandler;
@@ -283,6 +289,24 @@ final class IntentServiceProvider extends ServiceProvider {
 						new PrepareStatusUpdateTool( $c->get( OrderStatusServiceInterface::class ) ),
 						new PrepareBulkStatusUpdateTool( $c->get( OrderStatusServiceInterface::class ) ),
 						new ConfirmStatusUpdateTool( $c->get( OrderStatusServiceInterface::class ) ),
+					)
+				);
+
+				// Register product/stock tools.
+				$dispatcher->registerTools(
+					array(
+						new SearchProductTool( $c->get( ProductStockServiceInterface::class ) ),
+						new PrepareStockUpdateTool( $c->get( ProductStockServiceInterface::class ) ),
+						new ConfirmStockUpdateTool( $c->get( ProductStockServiceInterface::class ) ),
+					)
+				);
+
+				// Register email, analytics, and customer tools.
+				$dispatcher->registerTools(
+					array(
+						new DraftEmailTool( $c->get( EmailDraftServiceInterface::class ) ),
+						new GetSalesReportTool( $c->get( AnalyticsServiceInterface::class ) ),
+						new GetCustomerProfileTool( $c->get( CustomerServiceInterface::class ) ),
 					)
 				);
 
