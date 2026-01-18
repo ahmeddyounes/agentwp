@@ -167,7 +167,7 @@ final class RestRouteRegistrar {
 			'AgentWP\\Rest\\SearchController',
 			'AgentWP\\Rest\\AnalyticsController',
 			'AgentWP\\Rest\\HistoryController',
-			'AgentWP\\API\\ThemeController',
+			'AgentWP\\Rest\\ThemeController',
 		);
 	}
 
