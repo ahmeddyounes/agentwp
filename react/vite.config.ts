@@ -4,6 +4,7 @@ import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  base: './',
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
@@ -16,8 +17,15 @@ export default defineConfig({
     },
   },
   build: {
+    outDir: resolve(__dirname, '../assets/build'),
+    emptyOutDir: true,
+    manifest: true,
     rollupOptions: {
+      input: resolve(__dirname, 'index.html'),
       output: {
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]',
         manualChunks: {
           charts: ['chart.js', 'react-chartjs-2'],
         },

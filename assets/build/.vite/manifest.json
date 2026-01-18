@@ -1,0 +1,114 @@
+{
+  "_ErrorBoundary-!~{005}~.js": {
+    "file": "assets/ErrorBoundary-CjKmDUXe.css",
+    "src": "_ErrorBoundary-!~{005}~.js"
+  },
+  "_ErrorBoundary-C7nwgbtY.js": {
+    "file": "assets/ErrorBoundary-C7nwgbtY.js",
+    "name": "ErrorBoundary",
+    "isDynamicEntry": true,
+    "imports": [
+      "_charts-wlAe7WTx.js",
+      "index.html"
+    ],
+    "dynamicImports": [
+      "components/cards/ChartCard.tsx"
+    ],
+    "css": [
+      "assets/ErrorBoundary-CjKmDUXe.css"
+    ]
+  },
+  "_charts-wlAe7WTx.js": {
+    "file": "assets/charts-wlAe7WTx.js",
+    "name": "charts",
+    "isDynamicEntry": true
+  },
+  "_client-DfjPjhPa.js": {
+    "file": "assets/client-DfjPjhPa.js",
+    "name": "client",
+    "isDynamicEntry": true,
+    "imports": [
+      "_index-B2TtbXbr.js"
+    ]
+  },
+  "_index-B2TtbXbr.js": {
+    "file": "assets/index-B2TtbXbr.js",
+    "name": "index",
+    "imports": [
+      "_charts-wlAe7WTx.js"
+    ]
+  },
+  "_useQuery-BuohUMvy.js": {
+    "file": "assets/useQuery-BuohUMvy.js",
+    "name": "useQuery",
+    "imports": [
+      "_charts-wlAe7WTx.js"
+    ]
+  },
+  "components/cards/ChartCard.tsx": {
+    "file": "assets/ChartCard-ymmK-UVD.js",
+    "name": "ChartCard",
+    "src": "components/cards/ChartCard.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_charts-wlAe7WTx.js",
+      "_ErrorBoundary-C7nwgbtY.js",
+      "index.html"
+    ]
+  },
+  "index.html": {
+    "file": "assets/index-BYW1KCf_.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "imports": [
+      "_charts-wlAe7WTx.js"
+    ],
+    "dynamicImports": [
+      "_charts-wlAe7WTx.js",
+      "_client-DfjPjhPa.js",
+      "src/App.tsx",
+      "_ErrorBoundary-C7nwgbtY.js",
+      "node_modules/@tanstack/react-query/build/modern/index.js",
+      "src/index.css?inline",
+      "src/theme.ts"
+    ]
+  },
+  "node_modules/@tanstack/react-query/build/modern/index.js": {
+    "file": "assets/index-BWEk9LxJ.js",
+    "name": "index",
+    "src": "node_modules/@tanstack/react-query/build/modern/index.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_charts-wlAe7WTx.js",
+      "_useQuery-BuohUMvy.js"
+    ]
+  },
+  "src/App.tsx": {
+    "file": "assets/App-CGDzqxQX.js",
+    "name": "App",
+    "src": "src/App.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_charts-wlAe7WTx.js",
+      "_index-B2TtbXbr.js",
+      "_useQuery-BuohUMvy.js",
+      "src/theme.ts"
+    ],
+    "css": [
+      "assets/App-TRZluGMH.css"
+    ]
+  },
+  "src/index.css?inline": {
+    "file": "assets/index-CSJe4dBt.js",
+    "name": "index",
+    "src": "src/index.css?inline",
+    "isDynamicEntry": true
+  },
+  "src/theme.ts": {
+    "file": "assets/theme-DY8d_92P.js",
+    "name": "theme",
+    "src": "src/theme.ts",
+    "isDynamicEntry": true
+  }
+}
