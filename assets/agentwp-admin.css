@@ -1,3 +1,12 @@
+/**
+ * @deprecated since 0.2.0 - This legacy wp-element UI stylesheet is deprecated.
+ * The React-based UI (react/src/) is now the supported runtime.
+ * This file will be removed in version 1.0.0.
+ *
+ * Migration: Build the React UI with `npm run build` in the react/ directory.
+ * The Vite build output in assets/build/ takes precedence over this legacy bundle.
+ */
+
 .agentwp-admin {
 	margin-top: 16px;
 	padding: 16px;

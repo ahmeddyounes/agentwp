@@ -632,6 +632,48 @@ add_filter( 'agentwp_config_intent_weight_order_search', fn() => 1.5 );
 
 For custom intents, override `getWeight()` in your scorer or add your intent to `AbstractScorer::INTENT_WEIGHT_KEYS`.
 
+## Deprecation notice: legacy wp-element UI
+
+**Status:** Deprecated since 0.2.0 | **Removal:** Version 1.0.0
+
+The legacy wp-element UI bundle (`assets/agentwp-admin.js`, `assets/agentwp-admin.css`) is deprecated. The React-based UI in `react/src/` is now the supported runtime.
+
+### What this means
+
+- The `AssetManager` checks for the Vite manifest at `assets/build/.vite/manifest.json` first
+- If the manifest exists, the React build is loaded (production path)
+- If the manifest is missing, the legacy bundle is loaded with deprecation warnings
+- Deprecation warnings appear in:
+  - PHP error log (`E_USER_DEPRECATED`)
+  - Browser console (once per session)
+
+### Migration
+
+Build the React UI to ensure the production runtime is used:
+
+```bash
+# One-command build (recommended)
+./scripts/build-assets.sh
+
+# Or manually
+cd react
+npm install
+npm run build
+```
+
+After building, the `assets/build/` directory will contain the production assets and the legacy bundle will no longer be loaded.
+
+### Timeline
+
+| Version | Status |
+|---------|--------|
+| 0.2.0 | Deprecation warnings added |
+| 1.0.0 | Legacy bundle removed |
+
+### For contributors
+
+Do **not** add features or fixes to the legacy bundle. All UI development should happen in the `react/` directory.
+
 ## Extension migration notes
 
 This section documents breaking changes that affect extensions and third-party integrations. For full release notes, see [CHANGELOG.md](CHANGELOG.md).

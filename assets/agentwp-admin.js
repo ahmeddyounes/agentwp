@@ -1,5 +1,22 @@
+/**
+ * @deprecated since 0.2.0 - This legacy wp-element UI bundle is deprecated.
+ * The React-based UI (react/src/) is now the supported runtime.
+ * This file will be removed in version 1.0.0.
+ *
+ * Migration: Build the React UI with `npm run build` in the react/ directory.
+ * The Vite build output in assets/build/ takes precedence over this legacy bundle.
+ */
 (function () {
 	'use strict';
+
+	// Deprecation warning logged once per session.
+	if (!window._agentwpLegacyDeprecationWarned) {
+		window._agentwpLegacyDeprecationWarned = true;
+		console.warn(
+			'[AgentWP] DEPRECATED: The legacy wp-element UI (agentwp-admin.js) is deprecated and will be removed in version 1.0.0. ' +
+			'Please build the React UI from the react/ directory. See docs/CHANGELOG.md for migration details.'
+		);
+	}
 
 	if (!window.wp || !wp.element || !wp.components || !wp.apiFetch) {
 		return;

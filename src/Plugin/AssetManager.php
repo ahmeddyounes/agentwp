@@ -374,9 +374,19 @@ final class AssetManager {
 	/**
 	 * Enqueue the legacy admin script (fallback when manifest unavailable).
 	 *
+	 * @deprecated since 0.2.0 - The legacy wp-element UI bundle is deprecated.
+	 *             Build the React UI from react/ directory. Will be removed in 1.0.0.
+	 *
 	 * @return void
 	 */
 	private function enqueueLegacyScript(): void {
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_trigger_error -- Intentional deprecation notice.
+		trigger_error(
+			'AgentWP: The legacy wp-element UI (agentwp-admin.js) is deprecated since 0.2.0 and will be removed in 1.0.0. ' .
+			'Please build the React UI from the react/ directory.',
+			E_USER_DEPRECATED
+		);
+
 		$scriptPath = $this->pluginDir . '/assets/agentwp-admin.js';
 
 		if ( ! file_exists( $scriptPath ) ) {
