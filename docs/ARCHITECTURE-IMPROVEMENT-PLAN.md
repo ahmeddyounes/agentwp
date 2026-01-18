@@ -36,7 +36,7 @@ This document is the actionable roadmap to (1) fix currently observed issues, an
 
 ### 1.2 Versioning / Release Hygiene Issues
 
-- `agentwp.php` declares plugin version **`0.1.0`**, while `src/Plugin/Upgrader.php` contains steps for **`0.1.1`** and **`0.1.2`** and docs mention later work in “Unreleased”.
+- `agentwp.php` declares plugin version **`0.2.0`**, while `src/Plugin/Upgrader.php` contains steps for **`0.1.1`** and **`0.1.2`** and docs mention later work in “Unreleased” (keep these aligned for future releases).
 - Deprecations claim “since 2.0.0 / removed in 3.0.0” in `src/Intent/IntentClassifier.php`, which is inconsistent with the plugin’s current semver.
 
 ### 1.3 Architecture Mismatches / Drift
@@ -186,4 +186,3 @@ Create a new ADR in `docs/adr/` when making a change that:
 - changes the tool/function model, or
 - replaces cron with Action Scheduler, or
 - changes storage/encryption semantics.
-

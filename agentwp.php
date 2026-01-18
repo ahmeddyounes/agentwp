@@ -3,7 +3,7 @@
  * Plugin Name: AgentWP
  * Plugin URI: https://agentwp.example
  * Description: React-powered admin UI for WooCommerce automation.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * WC requires at least: 8.0
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AGENTWP_VERSION', '0.1.0' );
+define( 'AGENTWP_VERSION', '0.2.0' );
 define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
 define( 'AGENTWP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AGENTWP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

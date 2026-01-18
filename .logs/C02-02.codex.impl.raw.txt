@@ -1,0 +1,831 @@
+Status: DONE
+
+Summary of changes
+- Updated plugin version header and `AGENTWP_VERSION` to 0.2.0 in `agentwp.php`.
+- Aligned UI package versions to 0.2.0 in `react/package.json` and `react/package-lock.json`.
+- Updated the versioning note in `docs/ARCHITECTURE-IMPROVEMENT-PLAN.md` to reflect 0.2.0.
+
+How to verify (exact commands)
+- No verification commands were provided for this task.
+
+Risks / follow-ups
+- If you want full consistency across documentation, consider scanning for other “current version” statements beyond `docs/CHANGELOG.md` and updating them as needed.
+
+OpenAI Codex v0.87.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019bd1ce-1620-7f03-8146-e62a20cbc20e
+--------
+user
+You are implementing task C02-02 in this git repository.
+
+1) Read the spec: .plans/C02-02.md
+2) Read handoff/context: .t2/handoff/C02-02.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+
+thinking
+**Preparing to read files using shell**
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 67ms:
+agentwp.php
+assets
+composer.json
+composer.lock
+docker
+docker-compose.demo.yml
+docker-compose.yml
+docs
+includes
+languages
+node_modules
+package-lock.json
+package.json
+phpcs.xml
+phpstan
+phpstan.neon
+phpunit.xml.dist
+plan_tasks.csv
+playwright.config.cjs
+react
+exec
+/bin/zsh -lc 'cat .plans/C02-02.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 30ms:
+# C02-02 — Align plugin/UI version numbers
+
+Update `agentwp.php` (`Version:` header + `AGENTWP_VERSION`) to the chosen version. Optionally align `react/package.json` `version` if you want a single version across PHP+UI. Acceptance: version strings are consistent and documented.
+exec
+/bin/zsh -lc 'cat .t2/handoff/C02-02.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 32ms:
+# Handoff: C02-02
+
+Created: 2026-01-18T15:51:42.836834Z
+
+Spec: .plans/C02-02.md
+
+thinking
+**Inspecting version info**
+
+I'm checking agentwp.php and react/package.json to identify the chosen version details.
+exec
+/bin/zsh -lc 'rg -n "Version:|AGENTWP_VERSION" agentwp.php' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 72ms:
+6: * Version: 0.1.0
+19:define( 'AGENTWP_VERSION', '0.1.0' );
+
+thinking
+**Checking React version**
+exec
+/bin/zsh -lc 'cat react/package.json' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 76ms:
+{
+  "name": "agentwp-react",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "generate:types": "openapi-typescript ../docs/openapi.json -o src/types/api.ts && prettier --write src/types/api.ts",
+    "check:types": "npm run generate:types && node scripts/check-openapi-types.cjs",
+    "prepare": "cd .. && husky react/.husky"
+
+thinking
+**Checking desired version**
+
+I'm confirming the target version to use matches the specification, and I'll search tasks next to identify the intended version.
+exec
+/bin/zsh -lc 'rg -n "Version" .plans tasks.csv plan_tasks.csv README.md docs -S' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 74ms:
+plan_tasks.csv:10:C02-02,"Align plugin/UI version numbers","Update `agentwp.php` (`Version:` header + `AGENTWP_VERSION`) to the chosen version. Optionally align `react/package.json` `version` if you want a single version across PHP+UI. Acceptance: version strings are consistent and documented."
+docs/CHANGELOG.md:5:and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+docs/ARCHITECTURE-IMPROVEMENT-PLAN.md:37:### 1.2 Versioning / Release Hygiene Issues
+docs/ARCHITECTURE-IMPROVEMENT-PLAN.md:80:### Phase 2 — Normalize Versioning & Deprecation Policy
+docs/search-index.md:71:## Schema Versioning
+docs/search-index.md:76:- **Version check**: On every `init` hook, compares stored vs current version
+docs/search-index.md:266:- `SchemaVersionTest.php` - Version comparison, table verification
+docs/DEVELOPER.md:1226:### Version requirements
+docs/DEVELOPER.md:1228:1. **Version must exist**: The deprecation version must be `≤ AGENTWP_VERSION`. Never reference future versions for when something *became* deprecated.
+docs/DEVELOPER.md:1266:| [CHANGELOG.md](CHANGELOG.md) | Version history and migration guide for breaking changes |
+docs/ARCHITECTURE.md:909:| [CHANGELOG.md](CHANGELOG.md) | Version history and migration guide |
+docs/adr/0003-intent-classification-strategy.md:185:**Removal:** Version 3.0.0
+docs/adr/0002-intent-handler-registration.md:70:**Deprecation:** Version 2.0 (next major release)
+docs/adr/0002-intent-handler-registration.md:71:**Removal:** Version 3.0
+docs/adr/0002-intent-handler-registration.md:88:**Deprecation:** Version 2.0
+docs/adr/0002-intent-handler-registration.md:89:**Removal:** Version 3.0
+docs/adr/0006-search-index-architecture.md:12:- Version tracking uses WordPress options (`agentwp_search_index_version`)
+docs/adr/0006-search-index-architecture.md:26:3. **Global state**: Version and backfill state depend on WordPress options, making tests stateful
+docs/adr/0006-search-index-architecture.md:79:1. **Version check on every load**: `ensure_table()` compares stored version against `self::VERSION`
+docs/adr/0006-search-index-architecture.md:81:3. **Version bump after migration**: `update_option(VERSION_OPTION, self::VERSION)` after successful `dbDelta()`
+
+thinking
+**Checking changelog for version info**
+exec
+/bin/zsh -lc 'cat docs/CHANGELOG.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 29ms:
+# Changelog
+All notable changes to AgentWP are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+### Notes
+- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
+
+## [0.2.0] - 2026-01-18
+### Notes
+- This is the authoritative current version for shipped functionality. It includes all changes previously listed under “Unreleased,” and the upgrade steps through **0.1.2** are part of this release.
+
+### Removed
+- **Legacy wp-element UI bundle** (`assets/agentwp-admin.js`, `assets/agentwp-admin.css`) has been removed. The React-based UI in `react/src/` is now the sole supported runtime.
+  - The `AssetManager` no longer falls back to the legacy bundle when the Vite manifest is missing.
+  - All legacy fallback methods (`enqueueLegacyScript`, `enqueueStyle`) have been removed from `AssetManager`.
+  - Migration: Run `npm run build` in the `react/` directory to generate the Vite build output in `assets/build/`.
+- **Deprecated shims removed** (cleanup per P05-06):
+
+thinking
+**Updating version strings to 0.2.0**
+
+I'm updating the agentwp.php and AGENTWP_VERSION constants from 0.1.0 to 0.2.0, syncing react/package.json to match, and will search for other 0.1.0 references in README or docs for consistent versioning.
+exec
+/bin/zsh -lc "rg -n \"0\\.1\\.0\" -S" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 85ms:
+agentwp.php:6: * Version: 0.1.0
+agentwp.php:19:define( 'AGENTWP_VERSION', '0.1.0' );
+docs/DEVELOPER.md:1214: * @deprecated 0.1.0 Use SettingsManager constants directly.
+docs/DEVELOPER.md:1219: * @deprecated 0.1.0 Use the #[HandlesIntent] attribute instead.
+docs/DEVELOPER.md:1250:| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | `SettingsManager::OPTION_*` |
+docs/DEVELOPER.md:1251:| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaults()` |
+docs/DEVELOPER.md:1252:| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaultUsageStats()` |
+docs/DEVELOPER.md:1253:| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
+docs/DEVELOPER.md:1254:| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_*` |
+docs/DEVELOPER.md:1255:| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
+docs/DEVELOPER.md:1256:| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | `#[HandlesIntent]` attribute |
+docs/DEVELOPER.md:1257:| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | `handle_order_created()` / `handle_order_updated()` |
+docs/CHANGELOG.md:142:## [0.1.0] - 2026-01-07
+docs/ARCHITECTURE-IMPROVEMENT-PLAN.md:39:- `agentwp.php` declares plugin version **`0.1.0`**, while `src/Plugin/Upgrader.php` contains steps for **`0.1.1`** and **`0.1.2`** and docs mention later work in “Unreleased”.
+react/package.json:4:  "version": "0.1.0",
+react/package-lock.json:3:  "version": "0.1.0",
+react/package-lock.json:9:      "version": "0.1.0",
+react/package-lock.json:7723:        "yocto-queue": "^0.1.0"
+react/package-lock.json:10843:      "version": "0.1.0",
+react/package-lock.json:10844:      "resolved": "https://registry.npmjs.org/yocto-queue/-/yocto-queue-0.1.0.tgz",
+
+
+thinking
+**Evaluating version string updates**
+
+The plugin version constants in code and package files need updating to 0.2.0 for consistency. The ARCHITECTURE-IMPROVEMENT-PLAN doc referencing older versions may become outdated but the authoritative changelog already reflects 0.2.0, so only minor doc tweaks might be needed to avoid confusion.
+thinking
+**Reviewing architecture plan doc for version update**
+exec
+/bin/zsh -lc "sed -n '1,120p' docs/ARCHITECTURE-IMPROVEMENT-PLAN.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 69ms:
+# AgentWP Architecture Improvement Plan
+
+**Last updated:** 2026-01-18  
+**Scope:** PHP backend (`src/`), React admin UI (`react/`), build/CI, docs, and operational concerns.
+
+This document is the actionable roadmap to (1) fix currently observed issues, and (2) evolve the architecture while preserving the project’s existing boundaries (DI + contracts, ServiceResult, gateways, DTO validation, and the service provider bootstrap).
+
+---
+
+## 0) Guiding Principles
+
+- **Keep the current layering intact:** `Rest` (I/O) → `Intent` (orchestration) → `Services` (business rules) → `Infrastructure` (WordPress/WooCommerce adapters).
+- **Preserve testability:** Services depend on contracts; minimize WP globals outside Infrastructure/Plugin/Rest.
+- **Prefer additive changes with deprecations** over breaking rewrites (WordPress plugin stability).
+- **Make CI the source of truth:** plan work so the repo can run `./scripts/validate.sh` cleanly.
+
+---
+
+## 1) Current State (Findings from a repo-wide audit)
+
+
+thinking
+**Aligning version to 0.2.0**
+
+Planning to unify plugin header, version constant, React versions, and package-lock to 0.2.0 for consistency and reflect this in the changelog before updating agentwp.php accordingly.
+exec
+/bin/zsh -lc "sed -n '1,80p' agentwp.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 73ms:
+<?php
+/**
+ * Plugin Name: AgentWP
+ * Plugin URI: https://agentwp.example
+ * Description: React-powered admin UI for WooCommerce automation.
+ * Version: 0.1.0
+ * Requires at least: 6.4
+ * Requires PHP: 8.0
+ * WC requires at least: 8.0
+ * Author: AgentWP
+ * Text Domain: agentwp
+ * Domain Path: /languages
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+define( 'AGENTWP_VERSION', '0.1.0' );
+define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
+
+thinking
+**Preparing version update strategy**
+
+I'm identifying that both the top-level version fields and nested "packages" versions in package-lock.json need updating to 0.2.0 and planning to apply these changes via a patch for accuracy.
+exec
+/bin/zsh -lc "sed -n '1,40p' react/package-lock.json" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 75ms:
+{
+  "name": "agentwp-react",
+  "version": "0.1.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "agentwp-react",
+      "version": "0.1.0",
+      "dependencies": {
+        "@tanstack/react-query": "^5.66.0",
+        "chart.js": "^4.4.1",
+        "html2canvas": "^1.4.1",
+        "react": "^18.2.0",
+        "react-chartjs-2": "^5.2.0",
+        "react-dom": "^18.2.0",
+        "react-markdown": "^9.0.1",
+        "shepherd.js": "^14.5.1",
+        "zustand": "^5.0.3"
+      },
+
+
+thinking
+**Updating version strings and docs for consistency**
+
+I'm planning to update the top-level version and the react/package.json version to 0.2.0 to match the CHANGELOG, and ensure the agentwp.php constant version matches. I'll also update the version mention in docs/ARCHITECTURE-IMPROVEMENT-PLAN to keep documentation consistent with the new 0.2.0 version.
+thinking
+**Resolving version doc inconsistencies**
+
+The plugin version 0.2.0 now includes earlier versions, resolving prior mismatch concerns. I'll update the docs/ARCHITECTURE-IMPROVEMENT-PLAN to reflect the plugin version as 0.2.0 and note the alignment, keeping documentation accurate and consistent.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/agentwp.php
+@@ -5,3 +5,3 @@
+  * Description: React-powered admin UI for WooCommerce automation.
+- * Version: 0.1.0
++ * Version: 0.2.0
+  * Requires at least: 6.4
+@@ -18,3 +18,3 @@
+ 
+-define( 'AGENTWP_VERSION', '0.1.0' );
++define( 'AGENTWP_VERSION', '0.2.0' );
+ define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
+apply_patch(auto_approved=true) exited 0 in 32ms:
+Success. Updated the following files:
+M agentwp.php
+file update:
+diff --git a/agentwp.php b/agentwp.php
+index f331bff81ca0af6de4f9207efe1cee3fb72993d0..bf9893d0dfb12ba8056259d678a5db62b6fce115
+--- a/agentwp.php
++++ b/agentwp.php
+@@ -3,7 +3,7 @@
+  * Plugin Name: AgentWP
+  * Plugin URI: https://agentwp.example
+  * Description: React-powered admin UI for WooCommerce automation.
+- * Version: 0.1.0
++ * Version: 0.2.0
+  * Requires at least: 6.4
+  * Requires PHP: 8.0
+  * WC requires at least: 8.0
+@@ -16,7 +16,7 @@
+ 	exit;
+ }
+ 
+-define( 'AGENTWP_VERSION', '0.1.0' );
++define( 'AGENTWP_VERSION', '0.2.0' );
+ define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
+ define( 'AGENTWP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+ define( 'AGENTWP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+
+file update:
+diff --git a/agentwp.php b/agentwp.php
+index f331bff81ca0af6de4f9207efe1cee3fb72993d0..bf9893d0dfb12ba8056259d678a5db62b6fce115
+--- a/agentwp.php
++++ b/agentwp.php
+@@ -3,7 +3,7 @@
+  * Plugin Name: AgentWP
+  * Plugin URI: https://agentwp.example
+  * Description: React-powered admin UI for WooCommerce automation.
+- * Version: 0.1.0
++ * Version: 0.2.0
+  * Requires at least: 6.4
+  * Requires PHP: 8.0
+  * WC requires at least: 8.0
+@@ -16,7 +16,7 @@
+ 	exit;
+ }
+ 
+-define( 'AGENTWP_VERSION', '0.1.0' );
++define( 'AGENTWP_VERSION', '0.2.0' );
+ define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
+ define( 'AGENTWP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+ define( 'AGENTWP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+
+
+thinking
+**Updating package version**
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/react/package.json
+@@ -3,3 +3,3 @@
+   "private": true,
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "type": "module",
+apply_patch(auto_approved=true) exited 0 in 38ms:
+Success. Updated the following files:
+M react/package.json
+file update:
+diff --git a/agentwp.php b/agentwp.php
+index f331bff81ca0af6de4f9207efe1cee3fb72993d0..bf9893d0dfb12ba8056259d678a5db62b6fce115
+--- a/agentwp.php
++++ b/agentwp.php
+@@ -3,7 +3,7 @@
+  * Plugin Name: AgentWP
+  * Plugin URI: https://agentwp.example
+  * Description: React-powered admin UI for WooCommerce automation.
+- * Version: 0.1.0
++ * Version: 0.2.0
+  * Requires at least: 6.4
+  * Requires PHP: 8.0
+  * WC requires at least: 8.0
+@@ -16,7 +16,7 @@
+ 	exit;
+ }
+ 
+-define( 'AGENTWP_VERSION', '0.1.0' );
++define( 'AGENTWP_VERSION', '0.2.0' );
+ define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
+ define( 'AGENTWP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+ define( 'AGENTWP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+diff --git a/react/package.json b/react/package.json
+index 1aafd21538b3a574eee4fc602b6ef196617977ca..ac01810ac71abf057f2e3b17c27aad061e9d73ed
+--- a/react/package.json
++++ b/react/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "agentwp-react",
+   "private": true,
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "type": "module",
+   "scripts": {
+     "dev": "vite",
+
+file update:
+diff --git a/agentwp.php b/agentwp.php
+index f331bff81ca0af6de4f9207efe1cee3fb72993d0..bf9893d0dfb12ba8056259d678a5db62b6fce115
+--- a/agentwp.php
++++ b/agentwp.php
+@@ -3,7 +3,7 @@
+  * Plugin Name: AgentWP
+  * Plugin URI: https://agentwp.example
+  * Description: React-powered admin UI for WooCommerce automation.
+- * Version: 0.1.0
++ * Version: 0.2.0
+  * Requires at least: 6.4
+  * Requires PHP: 8.0
+  * WC requires at least: 8.0
+@@ -16,7 +16,7 @@
+ 	exit;
+ }
+ 
+-define( 'AGENTWP_VERSION', '0.1.0' );
++define( 'AGENTWP_VERSION', '0.2.0' );
+ define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
+ define( 'AGENTWP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+ define( 'AGENTWP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+diff --git a/react/package.json b/react/package.json
+index 1aafd21538b3a574eee4fc602b6ef196617977ca..ac01810ac71abf057f2e3b17c27aad061e9d73ed
+--- a/react/package.json
++++ b/react/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "agentwp-react",
+   "private": true,
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "type": "module",
+   "scripts": {
+     "dev": "vite",
+
+
+thinking
+**Updating package-lock.json entries**
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/react/package-lock.json
+@@ -2,3 +2,3 @@
+   "name": "agentwp-react",
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "lockfileVersion": 3,
+@@ -8,3 +8,3 @@
+       "name": "agentwp-react",
+-      "version": "0.1.0",
++      "version": "0.2.0",
+       "dependencies": {
+apply_patch(auto_approved=true) exited 0 in 44ms:
+Success. Updated the following files:
+M react/package-lock.json
+file update:
+diff --git a/agentwp.php b/agentwp.php
+index f331bff81ca0af6de4f9207efe1cee3fb72993d0..bf9893d0dfb12ba8056259d678a5db62b6fce115
+--- a/agentwp.php
++++ b/agentwp.php
+@@ -3,7 +3,7 @@
+  * Plugin Name: AgentWP
+  * Plugin URI: https://agentwp.example
+  * Description: React-powered admin UI for WooCommerce automation.
+- * Version: 0.1.0
++ * Version: 0.2.0
+  * Requires at least: 6.4
+  * Requires PHP: 8.0
+  * WC requires at least: 8.0
+@@ -16,7 +16,7 @@
+ 	exit;
+ }
+ 
+-define( 'AGENTWP_VERSION', '0.1.0' );
++define( 'AGENTWP_VERSION', '0.2.0' );
+ define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
+ define( 'AGENTWP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+ define( 'AGENTWP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+diff --git a/react/package-lock.json b/react/package-lock.json
+index 32cfdd34a66d2ca40454548ae05192e78a3454b2..b3cdf809cd9213050f262fbcdfdcfdcd1b677f35
+--- a/react/package-lock.json
++++ b/react/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "agentwp-react",
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "agentwp-react",
+-      "version": "0.1.0",
++      "version": "0.2.0",
+       "dependencies": {
+         "@tanstack/react-query": "^5.66.0",
+         "chart.js": "^4.4.1",
+diff --git a/react/package.json b/react/package.json
+index 1aafd21538b3a574eee4fc602b6ef196617977ca..ac01810ac71abf057f2e3b17c27aad061e9d73ed
+--- a/react/package.json
++++ b/react/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "agentwp-react",
+   "private": true,
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "type": "module",
+   "scripts": {
+     "dev": "vite",
+
+file update:
+diff --git a/agentwp.php b/agentwp.php
+index f331bff81ca0af6de4f9207efe1cee3fb72993d0..bf9893d0dfb12ba8056259d678a5db62b6fce115
+--- a/agentwp.php
++++ b/agentwp.php
+@@ -3,7 +3,7 @@
+  * Plugin Name: AgentWP
+  * Plugin URI: https://agentwp.example
+  * Description: React-powered admin UI for WooCommerce automation.
+- * Version: 0.1.0
++ * Version: 0.2.0
+  * Requires at least: 6.4
+  * Requires PHP: 8.0
+  * WC requires at least: 8.0
+@@ -16,7 +16,7 @@
+ 	exit;
+ }
+ 
+-define( 'AGENTWP_VERSION', '0.1.0' );
++define( 'AGENTWP_VERSION', '0.2.0' );
+ define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
+ define( 'AGENTWP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+ define( 'AGENTWP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+diff --git a/react/package-lock.json b/react/package-lock.json
+index 32cfdd34a66d2ca40454548ae05192e78a3454b2..b3cdf809cd9213050f262fbcdfdcfdcd1b677f35
+--- a/react/package-lock.json
++++ b/react/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "agentwp-react",
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "agentwp-react",
+-      "version": "0.1.0",
++      "version": "0.2.0",
+       "dependencies": {
+         "@tanstack/react-query": "^5.66.0",
+         "chart.js": "^4.4.1",
+diff --git a/react/package.json b/react/package.json
+index 1aafd21538b3a574eee4fc602b6ef196617977ca..ac01810ac71abf057f2e3b17c27aad061e9d73ed
+--- a/react/package.json
++++ b/react/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "agentwp-react",
+   "private": true,
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "type": "module",
+   "scripts": {
+     "dev": "vite",
+
+
+thinking
+**Updating architecture plan docs**
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
+@@ -38,3 +38,3 @@
+ 
+-- `agentwp.php` declares plugin version **`0.1.0`**, while `src/Plugin/Upgrader.php` contains steps for **`0.1.1`** and **`0.1.2`** and docs mention later work in “Unreleased”.
++- `agentwp.php` declares plugin version **`0.2.0`**, while `src/Plugin/Upgrader.php` contains steps for **`0.1.1`** and **`0.1.2`** and docs mention later work in “Unreleased” (keep these aligned for future releases).
+ - Deprecations claim “since 2.0.0 / removed in 3.0.0” in `src/Intent/IntentClassifier.php`, which is inconsistent with the plugin’s current semver.
+@@ -188,2 +188 @@
+ - changes storage/encryption semantics.
+-
+apply_patch(auto_approved=true) exited 0 in 61ms:
+Success. Updated the following files:
+M docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
+file update:
+diff --git a/agentwp.php b/agentwp.php
+index f331bff81ca0af6de4f9207efe1cee3fb72993d0..bf9893d0dfb12ba8056259d678a5db62b6fce115
+--- a/agentwp.php
++++ b/agentwp.php
+@@ -3,7 +3,7 @@
+  * Plugin Name: AgentWP
+  * Plugin URI: https://agentwp.example
+  * Description: React-powered admin UI for WooCommerce automation.
+- * Version: 0.1.0
++ * Version: 0.2.0
+  * Requires at least: 6.4
+  * Requires PHP: 8.0
+  * WC requires at least: 8.0
+@@ -16,7 +16,7 @@
+ 	exit;
+ }
+ 
+-define( 'AGENTWP_VERSION', '0.1.0' );
++define( 'AGENTWP_VERSION', '0.2.0' );
+ define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
+ define( 'AGENTWP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+ define( 'AGENTWP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+diff --git a/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md b/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
+index 61b76d068c4ec519dd020b88a324a80cfbd80832..da378120bbea68db34898d625d87efcde68229d1
+--- a/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
++++ b/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
+@@ -36,7 +36,7 @@
+ 
+ ### 1.2 Versioning / Release Hygiene Issues
+ 
+-- `agentwp.php` declares plugin version **`0.1.0`**, while `src/Plugin/Upgrader.php` contains steps for **`0.1.1`** and **`0.1.2`** and docs mention later work in “Unreleased”.
++- `agentwp.php` declares plugin version **`0.2.0`**, while `src/Plugin/Upgrader.php` contains steps for **`0.1.1`** and **`0.1.2`** and docs mention later work in “Unreleased” (keep these aligned for future releases).
+ - Deprecations claim “since 2.0.0 / removed in 3.0.0” in `src/Intent/IntentClassifier.php`, which is inconsistent with the plugin’s current semver.
+ 
+ ### 1.3 Architecture Mismatches / Drift
+@@ -186,4 +186,3 @@
+ - changes the tool/function model, or
+ - replaces cron with Action Scheduler, or
+ - changes storage/encryption semantics.
+-
+diff --git a/react/package-lock.json b/react/package-lock.json
+index 32cfdd34a66d2ca40454548ae05192e78a3454b2..b3cdf809cd9213050f262fbcdfdcfdcd1b677f35
+--- a/react/package-lock.json
++++ b/react/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "agentwp-react",
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "agentwp-react",
+-      "version": "0.1.0",
++      "version": "0.2.0",
+       "dependencies": {
+         "@tanstack/react-query": "^5.66.0",
+         "chart.js": "^4.4.1",
+diff --git a/react/package.json b/react/package.json
+index 1aafd21538b3a574eee4fc602b6ef196617977ca..ac01810ac71abf057f2e3b17c27aad061e9d73ed
+--- a/react/package.json
++++ b/react/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "agentwp-react",
+   "private": true,
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "type": "module",
+   "scripts": {
+     "dev": "vite",
+
+file update:
+diff --git a/agentwp.php b/agentwp.php
+index f331bff81ca0af6de4f9207efe1cee3fb72993d0..bf9893d0dfb12ba8056259d678a5db62b6fce115
+--- a/agentwp.php
++++ b/agentwp.php
+@@ -3,7 +3,7 @@
+  * Plugin Name: AgentWP
+  * Plugin URI: https://agentwp.example
+  * Description: React-powered admin UI for WooCommerce automation.
+- * Version: 0.1.0
++ * Version: 0.2.0
+  * Requires at least: 6.4
+  * Requires PHP: 8.0
+  * WC requires at least: 8.0
+@@ -16,7 +16,7 @@
+ 	exit;
+ }
+ 
+-define( 'AGENTWP_VERSION', '0.1.0' );
++define( 'AGENTWP_VERSION', '0.2.0' );
+ define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
+ define( 'AGENTWP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+ define( 'AGENTWP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+diff --git a/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md b/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
+index 61b76d068c4ec519dd020b88a324a80cfbd80832..da378120bbea68db34898d625d87efcde68229d1
+--- a/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
++++ b/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
+@@ -36,7 +36,7 @@
+ 
+ ### 1.2 Versioning / Release Hygiene Issues
+ 
+-- `agentwp.php` declares plugin version **`0.1.0`**, while `src/Plugin/Upgrader.php` contains steps for **`0.1.1`** and **`0.1.2`** and docs mention later work in “Unreleased”.
++- `agentwp.php` declares plugin version **`0.2.0`**, while `src/Plugin/Upgrader.php` contains steps for **`0.1.1`** and **`0.1.2`** and docs mention later work in “Unreleased” (keep these aligned for future releases).
+ - Deprecations claim “since 2.0.0 / removed in 3.0.0” in `src/Intent/IntentClassifier.php`, which is inconsistent with the plugin’s current semver.
+ 
+ ### 1.3 Architecture Mismatches / Drift
+@@ -186,4 +186,3 @@
+ - changes the tool/function model, or
+ - replaces cron with Action Scheduler, or
+ - changes storage/encryption semantics.
+-
+diff --git a/react/package-lock.json b/react/package-lock.json
+index 32cfdd34a66d2ca40454548ae05192e78a3454b2..b3cdf809cd9213050f262fbcdfdcfdcd1b677f35
+--- a/react/package-lock.json
++++ b/react/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "agentwp-react",
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "agentwp-react",
+-      "version": "0.1.0",
++      "version": "0.2.0",
+       "dependencies": {
+         "@tanstack/react-query": "^5.66.0",
+         "chart.js": "^4.4.1",
+diff --git a/react/package.json b/react/package.json
+index 1aafd21538b3a574eee4fc602b6ef196617977ca..ac01810ac71abf057f2e3b17c27aad061e9d73ed
+--- a/react/package.json
++++ b/react/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "agentwp-react",
+   "private": true,
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "type": "module",
+   "scripts": {
+     "dev": "vite",
+
+
+
+thinking
+**Finalizing version update summary**
+
+I'm preparing a final response confirming version consistency updates without test or command changes, noting no verification commands provided, with a summary and risks/follow-ups including docs/CHANGELOG considerations.
+thinking
+**Preparing final response structure**
+
+I'm drafting the final message with clear sections for status, summary, verification noting no commands specified, and risks/follow-ups, emphasizing no tests were run.
+codex
+Status: DONE
+
+Summary of changes
+- Updated plugin version header and `AGENTWP_VERSION` to 0.2.0 in `agentwp.php`.
+- Aligned UI package versions to 0.2.0 in `react/package.json` and `react/package-lock.json`.
+- Updated the versioning note in `docs/ARCHITECTURE-IMPROVEMENT-PLAN.md` to reflect 0.2.0.
+
+How to verify (exact commands)
+- No verification commands were provided for this task.
+
+Risks / follow-ups
+- If you want full consistency across documentation, consider scanning for other “current version” statements beyond `docs/CHANGELOG.md` and updating them as needed.
+file update:
+diff --git a/agentwp.php b/agentwp.php
+index f331bff81ca0af6de4f9207efe1cee3fb72993d0..bf9893d0dfb12ba8056259d678a5db62b6fce115
+--- a/agentwp.php
++++ b/agentwp.php
+@@ -3,7 +3,7 @@
+  * Plugin Name: AgentWP
+  * Plugin URI: https://agentwp.example
+  * Description: React-powered admin UI for WooCommerce automation.
+- * Version: 0.1.0
++ * Version: 0.2.0
+  * Requires at least: 6.4
+  * Requires PHP: 8.0
+  * WC requires at least: 8.0
+@@ -16,7 +16,7 @@
+ 	exit;
+ }
+ 
+-define( 'AGENTWP_VERSION', '0.1.0' );
++define( 'AGENTWP_VERSION', '0.2.0' );
+ define( 'AGENTWP_PLUGIN_FILE', __FILE__ );
+ define( 'AGENTWP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+ define( 'AGENTWP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+diff --git a/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md b/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
+index 61b76d068c4ec519dd020b88a324a80cfbd80832..da378120bbea68db34898d625d87efcde68229d1
+--- a/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
++++ b/docs/ARCHITECTURE-IMPROVEMENT-PLAN.md
+@@ -36,7 +36,7 @@
+ 
+ ### 1.2 Versioning / Release Hygiene Issues
+ 
+-- `agentwp.php` declares plugin version **`0.1.0`**, while `src/Plugin/Upgrader.php` contains steps for **`0.1.1`** and **`0.1.2`** and docs mention later work in “Unreleased”.
++- `agentwp.php` declares plugin version **`0.2.0`**, while `src/Plugin/Upgrader.php` contains steps for **`0.1.1`** and **`0.1.2`** and docs mention later work in “Unreleased” (keep these aligned for future releases).
+ - Deprecations claim “since 2.0.0 / removed in 3.0.0” in `src/Intent/IntentClassifier.php`, which is inconsistent with the plugin’s current semver.
+ 
+ ### 1.3 Architecture Mismatches / Drift
+@@ -186,4 +186,3 @@
+ - changes the tool/function model, or
+ - replaces cron with Action Scheduler, or
+ - changes storage/encryption semantics.
+-
+diff --git a/react/package-lock.json b/react/package-lock.json
+index 32cfdd34a66d2ca40454548ae05192e78a3454b2..b3cdf809cd9213050f262fbcdfdcfdcd1b677f35
+--- a/react/package-lock.json
++++ b/react/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "agentwp-react",
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "agentwp-react",
+-      "version": "0.1.0",
++      "version": "0.2.0",
+       "dependencies": {
+         "@tanstack/react-query": "^5.66.0",
+         "chart.js": "^4.4.1",
+diff --git a/react/package.json b/react/package.json
+index 1aafd21538b3a574eee4fc602b6ef196617977ca..ac01810ac71abf057f2e3b17c27aad061e9d73ed
+--- a/react/package.json
++++ b/react/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "agentwp-react",
+   "private": true,
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "type": "module",
+   "scripts": {
+     "dev": "vite",
+
+tokens used
+30,612
