@@ -1,7 +1,0 @@
-[main 142e5ec] C04-03: implement
- 17 files changed, 928 insertions(+), 312 deletions(-)
- create mode 100644 src/Contracts/ToolDispatcherInterface.php
- create mode 100644 src/Intent/ToolDispatcher.php
- create mode 100644 tests/Unit/Intent/ToolDispatcherTest.php
-
-→ No staged files match any configured task.

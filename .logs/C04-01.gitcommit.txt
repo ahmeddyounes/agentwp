@@ -1,5 +1,0 @@
-[main cf0e780] C04-01: implement
- 8 files changed, 501 insertions(+), 36 deletions(-)
- create mode 100644 docs/adr/0008-tool-execution-architecture.md
-
-→ No staged files match any configured task.
