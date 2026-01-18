@@ -185,24 +185,6 @@ class Index {
 	}
 
 	/**
-	 * Handle order save (legacy post-based storage).
-	 *
-	 * @param int     $post_id Post ID.
-	 * @param \WP_Post $post Post instance.
-	 * @param bool    $update Whether this is an existing post being updated.
-	 * @return void
-	 * @deprecated 0.1.0 Use handle_order_created/handle_order_updated for HPOS compatibility.
-	 */
-	public static function handle_order_save( $post_id, $post, $update ) {
-		unset( $update );
-		if ( ! self::should_handle_post_save( $post_id, $post ) ) {
-			return;
-		}
-
-		self::index_order( $post_id );
-	}
-
-	/**
 	 * Handle new order creation (HPOS-compatible).
 	 *
 	 * @param int                            $order_id Order ID.

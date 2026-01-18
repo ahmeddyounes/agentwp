@@ -1054,15 +1054,22 @@ public function getIntent(): string { ... }
 
 ### Current deprecations
 
-| Item | Deprecated | Planned Removal | Migration |
-|------|------------|-----------------|-----------|
-| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | Use `SettingsManager::OPTION_*` |
-| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | Use `SettingsManager::getDefaults()` |
-| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | Use `SettingsManager::getDefaultUsageStats()` |
-| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | Use `AgentWPConfig::OPENAI_API_BASE_URL` |
-| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | Use `AgentWPConfig::STREAM_MAX_*` |
-| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | Use `#[HandlesIntent]` attribute |
-| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | Use `handle_order_created()`/`handle_order_updated()` |
+No active deprecations. All previously deprecated items have been removed as of the latest release.
+
+### Removed (previously deprecated)
+
+The following deprecated items have been removed. If your code relies on them, migrate to the replacement:
+
+| Item | Deprecated In | Removed In | Replacement |
+|------|--------------|------------|-------------|
+| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | `SettingsManager::OPTION_*` |
+| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaults()` |
+| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaultUsageStats()` |
+| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
+| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_*` |
+| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
+| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | `#[HandlesIntent]` attribute |
+| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | `handle_order_created()` / `handle_order_updated()` |
 
 ## Related documentation
 

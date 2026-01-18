@@ -20,42 +20,6 @@ use AgentWP\Retry\ExponentialBackoffPolicy;
 use AgentWP\Retry\RetryExecutor;
 
 class OpenAIClient implements OpenAIClientInterface {
-	/**
-	 * Default API base URL (legacy constant for backward compatibility).
-	 *
-	 * @deprecated 0.1.0 Use AgentWPConfig::OPENAI_API_BASE_URL instead.
-	 */
-	const API_BASE = 'https://api.openai.com/v1';
-
-	/**
-	 * Maximum content length for stream responses (1MB).
-	 * Prevents memory exhaustion from malicious or malfunctioning streams.
-	 *
-	 * @deprecated 0.1.0 Use AgentWPConfig::STREAM_MAX_CONTENT_LENGTH instead.
-	 */
-	const MAX_STREAM_CONTENT_LENGTH = 1048576;
-
-	/**
-	 * Maximum number of tool calls in a stream response.
-	 *
-	 * @deprecated 0.1.0 Use AgentWPConfig::STREAM_MAX_TOOL_CALLS instead.
-	 */
-	const MAX_STREAM_TOOL_CALLS = 50;
-
-	/**
-	 * Maximum number of raw chunks to store.
-	 *
-	 * @deprecated 0.1.0 Use AgentWPConfig::STREAM_MAX_RAW_CHUNKS instead.
-	 */
-	const MAX_STREAM_RAW_CHUNKS = 100;
-
-	/**
-	 * Maximum length for tool call arguments (100KB).
-	 *
-	 * @deprecated 0.1.0 Use AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH instead.
-	 */
-	const MAX_TOOL_ARGUMENTS_LENGTH = 102400;
-
 	private HttpClientInterface $http_client;
 	private string $api_key;
 	private string $model;

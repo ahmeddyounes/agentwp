@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The `AssetManager` no longer falls back to the legacy bundle when the Vite manifest is missing.
   - All legacy fallback methods (`enqueueLegacyScript`, `enqueueStyle`) have been removed from `AssetManager`.
   - Migration: Run `npm run build` in the `react/` directory to generate the Vite build output in `assets/build/`.
+- **Deprecated shims removed** (cleanup per P05-06):
+  - `Plugin::OPTION_*` constants: Use `SettingsManager::OPTION_*` directly.
+  - `Plugin::get_default_settings()` method: Use `SettingsManager::getDefaults()`.
+  - `Plugin::get_default_usage_stats()` method: Use `SettingsManager::getDefaultUsageStats()`.
+  - `OpenAIClient::API_BASE` constant: Use `AgentWPConfig::OPENAI_API_BASE_URL`.
+  - `OpenAIClient::MAX_STREAM_*` constants: Use `AgentWPConfig::STREAM_MAX_*`.
+  - `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` constant: Use `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH`.
+  - `BaseHandler::getIntent()` method: Use `#[HandlesIntent]` attribute on handler class.
+  - `Index::handle_order_save()` method: Use `handle_order_created()` / `handle_order_updated()` for HPOS compatibility.
 
 ### Added
 - Comprehensive documentation suite and OpenAPI reference.

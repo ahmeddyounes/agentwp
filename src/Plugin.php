@@ -18,20 +18,7 @@ use AgentWP\Providers\RestServiceProvider;
 use AgentWP\Providers\ServicesServiceProvider;
 
 class Plugin {
-	/**
-	 * Option keys - delegated to SettingsManager for single source of truth.
-	 *
-	 * @deprecated 0.1.0 Use SettingsManager constants directly.
-	 */
-	const OPTION_SETTINGS          = SettingsManager::OPTION_SETTINGS;
-	const OPTION_API_KEY           = SettingsManager::OPTION_API_KEY;
-	const OPTION_API_KEY_LAST4     = SettingsManager::OPTION_API_KEY_LAST4;
-	const OPTION_DEMO_API_KEY      = SettingsManager::OPTION_DEMO_API_KEY;
-	const OPTION_DEMO_API_KEY_LAST4 = SettingsManager::OPTION_DEMO_API_KEY_LAST4;
-	const OPTION_BUDGET_LIMIT      = SettingsManager::OPTION_BUDGET_LIMIT;
-	const OPTION_DRAFT_TTL         = SettingsManager::OPTION_DRAFT_TTL;
-	const OPTION_USAGE_STATS       = SettingsManager::OPTION_USAGE_STATS;
-	const TRANSIENT_PREFIX         = 'agentwp_';
+	const TRANSIENT_PREFIX = 'agentwp_';
 
 	/**
 	 * @var Plugin|null
@@ -209,26 +196,6 @@ class Plugin {
 			false,
 			dirname( plugin_basename( AGENTWP_PLUGIN_FILE ) ) . '/languages'
 		);
-	}
-
-	/**
-	 * Default settings values.
-	 *
-	 * @deprecated 0.1.0 Use SettingsManager::getDefaults() directly.
-	 * @return array
-	 */
-	public static function get_default_settings() {
-		return SettingsManager::getDefaults();
-	}
-
-	/**
-	 * Default usage stats values.
-	 *
-	 * @deprecated 0.1.0 Use SettingsManager::getDefaultUsageStats() directly.
-	 * @return array
-	 */
-	public static function get_default_usage_stats() {
-		return SettingsManager::getDefaultUsageStats();
 	}
 
 	/**
