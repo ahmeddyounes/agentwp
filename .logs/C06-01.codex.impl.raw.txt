@@ -1,0 +1,363 @@
+Status: DONE
+
+Added ADR 0009 documenting the decision to keep WP‑Cron for background jobs, with the rationale, mitigations, and a compatibility plan for environments that disable WP‑Cron.  
+Details captured in `docs/adr/0009-background-job-scheduling.md`.
+
+Summary of changes
+- Added `docs/adr/0009-background-job-scheduling.md` with the cron vs Action Scheduler decision and follow-up plan.
+
+How to verify (exact commands)
+- Not run (no verification commands provided)
+
+Risks / follow-ups
+- Revisit Action Scheduler integration if AgentWP later requires WooCommerce or background workloads increase.
+- Ensure deployment docs mention configuring a real system cron when `DISABLE_WP_CRON` is set.
+
+OpenAI Codex v0.87.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019bd245-11ee-7041-94e8-d453b1fa291c
+--------
+user
+You are implementing task C06-01 in this git repository.
+
+1) Read the spec: .plans/C06-01.md
+2) Read handoff/context: .t2/handoff/C06-01.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 42ms:
+agentwp.php
+assets
+composer.json
+composer.lock
+docker
+docker-compose.demo.yml
+docker-compose.yml
+docs
+includes
+languages
+node_modules
+package-lock.json
+package.json
+phpcs.xml
+phpstan
+phpstan.neon
+phpunit.xml.dist
+plan_tasks.csv
+playwright.config.cjs
+react
+
+thinking
+**Reviewing spec and handoff**
+exec
+/bin/zsh -lc 'cat .plans/C06-01.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+# C06-01 — Decide cron vs Action Scheduler (ADR)
+
+Evaluate background jobs (`src/Search/Index.php` backfill; `src/Billing/UsageTracker.php` purge) and decide whether to migrate to Action Scheduler (with fallback) or harden WP-Cron. Write an ADR in `docs/adr/` documenting the decision and compatibility plan.
+exec
+/bin/zsh -lc 'cat .t2/handoff/C06-01.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 46ms:
+# Handoff: C06-01
+
+Created: 2026-01-18T18:01:40.563477Z
+
+Spec: .plans/C06-01.md
+
+thinking
+**Listing ADR documents**
+
+I'm checking the docs/adr directory to locate existing ADR format templates before creating a new one.
+exec
+/bin/zsh -lc 'ls docs/adr' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 31ms:
+0001-rest-controller-dependency-resolution.md
+0002-intent-handler-registration.md
+0003-intent-classification-strategy.md
+0004-openai-client-architecture.md
+0005-rest-rate-limiting.md
+0006-search-index-architecture.md
+0007-request-dto-validation.md
+0008-tool-execution-architecture.md
+
+thinking
+**Preparing to follow format**
+exec
+/bin/zsh -lc 'cat docs/adr/0008-tool-execution-architecture.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+# ADR 0008: Tool Execution Architecture
+
+**Date:** 2026-01-18
+**Status:** Accepted
+
+## Context
+
+AgentWP uses OpenAI function calling (tools) to enable AI-driven workflows. The system needs a clear architecture for:
+
+1. **Defining tools** - Schema (name, description, parameters)
+2. **Registering tools** - Making tools discoverable
+3. **Executing tools** - Running tool logic when the AI requests a function call
+
+Two architectural approaches were considered:
+
+### Approach A: Executable Tool Classes
+
+Each tool is a self-contained class with both schema definition AND execution logic:
+
+```php
+
+thinking
+**Checking ADR numbering and inspecting background job code**
+exec
+/bin/zsh -lc "sed -n '1,220p' src/Search/Index.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+<?php
+/**
+ * Search index management.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP\Search;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Plugin;
+
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custom search index relies on direct SQL; caching/invalidation is managed by the index lifecycle.
+
+class Index {
+	const TABLE           = 'agentwp_search_index';
+	const VERSION         = '1.0';
+	const VERSION_OPTION  = 'agentwp_search_index_version';
+	const STATE_OPTION    = 'agentwp_search_index_state';
+	const BACKFILL_HOOK   = 'agentwp_search_backfill';
+exec
+/bin/zsh -lc "sed -n '220,520p' src/Search/Index.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 42ms:
+		// redundant overhead on every search request.
+
+		foreach ( $types as $type ) {
+			$result[ $type ] = self::search_type( $type, $query, $limit );
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Handle product save.
+	 *
+	 * @param int     $post_id Post ID.
+	 * @param \WP_Post $post Post instance.
+	 * @param bool    $update Whether this is an existing post being updated.
+	 * @return void
+	 */
+	public static function handle_product_save( $post_id, $post, $update ) {
+		unset( $update );
+		if ( ! self::should_handle_post_save( $post_id, $post ) ) {
+exec
+/bin/zsh -lc "sed -n '520,1040p' src/Search/Index.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+
+	/**
+	 * Search data sources directly as a fallback.
+	 *
+	 * @param string $type Result type.
+	 * @param string $query Search query.
+	 * @param int    $limit Result limit.
+	 * @return array
+	 */
+	private static function search_source( $type, $query, $limit ) {
+		$results = array();
+
+		if ( 'products' === $type && function_exists( 'wc_get_products' ) ) {
+			$args = array(
+				'limit'  => $limit,
+				'status' => array( 'publish', 'private' ),
+				's'      => $query,
+			);
+
+			$products = wc_get_products( $args );
+exec
+/bin/zsh -lc "sed -n '1040,1400p' src/Search/Index.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 48ms:
+			$state = self::backfill_type( $type, $state );
+
+			if ( microtime( true ) - $start >= self::getBackfillWindow() ) {
+				break;
+			}
+		}
+
+		update_option( self::STATE_OPTION, $state, false );
+	}
+
+	/**
+	 * Backfill entries for a single type.
+	 *
+	 * @param string $type Type key.
+	 * @param array  $state Current state.
+	 * @return array
+	 */
+	private static function backfill_type( $type, array $state ) {
+		$cursor = isset( $state[ $type ] ) ? (int) $state[ $type ] : 0;
+		$ids    = self::fetch_ids( $type, $cursor, self::getBackfillLimit() );
+exec
+/bin/zsh -lc "sed -n '1,260p' src/Billing/UsageTracker.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+<?php
+/**
+ * Track OpenAI usage and costs.
+ *
+ * @package AgentWP
+ */
+
+namespace AgentWP\Billing;
+
+use AgentWP\AI\Model;
+use AgentWP\Config\AgentWPConfig;
+use DateInterval;
+use DateTimeImmutable;
+use DateTimeZone;
+
+class UsageTracker {
+	const TABLE          = 'agentwp_usage';
+	const VERSION        = '1.0';
+	const VERSION_OPTION = 'agentwp_usage_version';
+	const TOKEN_SCALE    = 1000000;
+exec
+/bin/zsh -lc "sed -n '260,620p' src/Billing/UsageTracker.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 33ms:
+					'total_cost_usd' => 0,
+				);
+			}
+			$breakdown[ $intent ]['total_tokens'] += $total_tokens;
+			$breakdown[ $intent ]['total_cost_usd'] += $cost;
+
+			$date_key = '';
+			if ( isset( $row['created_at'] ) && is_string( $row['created_at'] ) ) {
+				$date_key = substr( $row['created_at'], 0, 10 );
+			}
+			if ( isset( $daily[ $date_key ] ) ) {
+				$daily[ $date_key ]['total_tokens'] += $total_tokens;
+				$daily[ $date_key ]['total_cost_usd'] += $cost;
+			}
+		}
+
+		$summary['total_cost_usd'] = round( $summary['total_cost_usd'], 6 );
+
+		$breakdown_list = array_values( $breakdown );
+		foreach ( $breakdown_list as &$item ) {
+
+
+thinking
+**Deciding cron vs Action Scheduler**
+
+Planning to write an ADR evaluating whether to keep WP-Cron with improvements or migrate to Action Scheduler, considering plugin's WooCommerce dependency and task needs; no immediate code change but need to review current scheduling code for informed decision.
+thinking
+**Drafting detailed ADR for scheduling decision**
+
+Preparing ADR 0009 to keep WP-Cron with hardening as primary scheduler, noting existing locking and fallback measures, rejecting Action Scheduler migration now to avoid dependencies while allowing future optional integration if present; including context, decision, consequences, alternatives, and compatibility plan for manual cron or WP-CLI use.
+exec
+/bin/zsh -lc "cat <<'EOF' > docs/adr/0009-background-job-scheduling.md
+# ADR 0009: Background Job Scheduling (WP-Cron vs Action Scheduler)
+
+**Date:** 2026-01-18
+**Status:** Accepted
+
+## Context
+
+AgentWP currently runs two background tasks using WP-Cron:
+
+1. **Search index backfill** ("'`src/Search/Index.php`)
+   - Hook: `agentwp_search_backfill`
+   - Schedule: every minute (custom interval)
+   - Characteristics: time-sliced batches, transient lock, unschedules when complete
+   - Fallback: search queries fall back to source tables while backfill is incomplete
+
+2. **Usage retention purge** (`src/Billing/UsageTracker.php`)
+   - Hook: `agentwp_usage_purge`
+   - Schedule: daily
+   - Characteristics: deletes old rows based on retention config
+
+WP-Cron is traffic-driven and may not run reliably on low-traffic sites or when `DISABLE_WP_CRON` is set. Action Scheduler (AS) offers more reliable queues, retry handling, and better observability, but it adds a dependency (typically via WooCommerce) and would require new storage tables plus integration work.
+
+AgentWP should remain usable even when WooCommerce (and therefore AS) is not installed, so we cannot hard-require Action Scheduler.
+
+## Decision
+
+**We will keep WP-Cron as the primary scheduler and harden its usage rather than migrate to Action Scheduler at this time.**
+
+WP-Cron already fits the low-volume, non-user-blocking nature of these tasks, and the current implementation includes mitigations (locks, time windows, and fallbacks) that reduce the impact of delayed execution.
+
+## Compatibility Plan
+
+- Continue scheduling via WP-Cron for both tasks.
+- Maintain existing safeguards:
+  - Backfill lock + time-sliced batches + automatic unschedule when complete.
+  - Search fallback to source queries when backfill is incomplete.
+- Document operational expectations: sites with `DISABLE_WP_CRON` should configure a real system cron to call `wp-cron.php` (or run WP-CLI cron events) to keep the schedules executing.
+- Revisit Action Scheduler integration if background workloads grow or if AgentWP formally requires WooCommerce.
+
+## Consequences
+
+### Positive
+- No new dependency or storage tables required.
+- Works in minimal WordPress installs (WooCommerce not required).
+- Low implementation complexity; consistent with existing behavior.
+
+### Negative
+- Execution may be delayed on low-traffic sites.
+- No queue visibility or retry semantics beyond WP-Cron defaults.
+- Large backfills may take longer on under-trafficked sites.
+
+### Mitigations
+- Backfill is incremental with locking and can resume safely.
+- Search falls back to source tables when backfill is incomplete.
+- Purge is non-critical and can tolerate delays.
+
+## Alternatives Considered
+
+### A. Migrate to Action Scheduler with WP-Cron fallback
+**Rejected** for now because it introduces a dependency on AS availability and adds integration complexity. It is valuable for larger workloads but not necessary for current task volume.
+
+### B. Bundle Action Scheduler in the plugin
+**Rejected** due to increased bundle size, maintenance overhead, and potential conflicts with existing AS installations.
+
+## References
+
+- `src/Search/Index.php` — backfill scheduling, lock, and fallback
+- `src/Billing/UsageTracker.php` — retention purge scheduling
+- ADR 0006: Search Index Architecture
+EOF' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 64ms:
+
+
+thinking
+**Summarizing final changes and verification**
+
+The ADR 0009 was added, deciding to keep WP-Cron with a compatibility plan. Verification commands were not provided, so I'll note "Not run (no verification commands provided)." I'll summarize the change, verification status, risks, and file path concisely in the final message.
+codex
+Status: DONE
+
+Added ADR 0009 documenting the decision to keep WP‑Cron for background jobs, with the rationale, mitigations, and a compatibility plan for environments that disable WP‑Cron.  
+Details captured in `docs/adr/0009-background-job-scheduling.md`.
+
+Summary of changes
+- Added `docs/adr/0009-background-job-scheduling.md` with the cron vs Action Scheduler decision and follow-up plan.
+
+How to verify (exact commands)
+- Not run (no verification commands provided)
+
+Risks / follow-ups
+- Revisit Action Scheduler integration if AgentWP later requires WooCommerce or background workloads increase.
+- Ensure deployment docs mention configuring a real system cron when `DISABLE_WP_CRON` is set.
+tokens used
+25,475
