@@ -16,6 +16,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "generate:types": "openapi-typescript ../docs/openapi.json -o src/types/api.ts",
+    "check:types": "npm run generate:types && node scripts/check-openapi-types.cjs",
     "prepare": "cd .. && husky react/.husky"
   },
   "dependencies": {

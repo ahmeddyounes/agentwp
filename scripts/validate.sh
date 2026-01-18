@@ -159,13 +159,7 @@ run_node_checks() {
 
     # Check OpenAPI types are up to date
     print_step "Checking OpenAPI types are up to date..."
-    npm run generate:types
-    if git diff --exit-code src/types/api.ts > /dev/null 2>&1; then
-        print_success "OpenAPI types are up to date"
-    else
-        print_error "OpenAPI types are out of date. Run 'npm run generate:types' and commit."
-        FAILURES+=("OpenAPI types check")
-    fi
+    run_check "OpenAPI types check" npm run check:types || true
 
     # TypeScript check
     print_step "Running TypeScript check..."

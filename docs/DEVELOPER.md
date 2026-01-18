@@ -1128,6 +1128,15 @@ npm run generate:types
 
 This generates `react/src/types/api.ts` from `docs/openapi.json` using [openapi-typescript](https://openapi-ts.dev/).
 
+**Verifying types are up to date:**
+
+```bash
+cd react
+npm run check:types
+```
+
+This regenerates the types and fails if `react/src/types/api.ts` changes. CI and `./scripts/validate.sh --node` run this check automatically.
+
 **Workflow:**
 
 1. Update `docs/openapi.json` when adding/modifying endpoints
