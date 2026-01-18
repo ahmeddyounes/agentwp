@@ -399,6 +399,7 @@ final class AssetManager {
 			'supportEmail' => sanitize_email( get_option( 'admin_email' ) ),
 			'version'      => $this->version,
 			'demoMode'     => $this->settings->isDemoMode(),
+			'assetsUrl'    => $this->pluginUrl . '/assets/build/',
 		);
 	}
 
