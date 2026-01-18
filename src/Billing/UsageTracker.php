@@ -19,6 +19,10 @@ class UsageTracker {
 	const VERSION_OPTION = 'agentwp_usage_version';
 	const TOKEN_SCALE    = 1000000;
 	const PURGE_HOOK     = 'agentwp_usage_purge';
+	const PURGE_LAST_RUN_OPTION = 'agentwp_usage_purge_last_run';
+	const PURGE_STUCK_THRESHOLD = 172800; // 48 hours in seconds.
+	const PURGE_DELAY_BASE      = 3600; // Base delay before first run.
+	const PURGE_DELAY_JITTER    = 3600; // Jitter to spread schedules.
 
 	/**
 	 * Get retention days from config.
@@ -49,6 +53,7 @@ class UsageTracker {
 	 */
 	public static function init() {
 		add_action( 'init', array( __CLASS__, 'ensure_table_action' ) );
+		add_action( 'init', array( __CLASS__, 'schedule_purge' ) );
 		add_action( self::PURGE_HOOK, array( __CLASS__, 'purge_old_rows' ) );
 	}
 
@@ -91,11 +96,24 @@ class UsageTracker {
 			return;
 		}
 
-		if ( wp_next_scheduled( self::PURGE_HOOK ) ) {
+		$now            = time();
+		$next_scheduled = wp_next_scheduled( self::PURGE_HOOK );
+		$last_run       = (int) get_option( self::PURGE_LAST_RUN_OPTION, 0 );
+		$stale_cutoff   = $now - self::PURGE_STUCK_THRESHOLD;
+
+		if ( $next_scheduled && $next_scheduled < $stale_cutoff ) {
+			self::unschedule_purge();
+			$next_scheduled = false;
+		} elseif ( $last_run > 0 && $last_run < $stale_cutoff ) {
+			self::unschedule_purge();
+			$next_scheduled = false;
+		}
+
+		if ( $next_scheduled ) {
 			return;
 		}
 
-		wp_schedule_event( time() + 3600, 'daily', self::PURGE_HOOK );
+		wp_schedule_event( $now + self::get_purge_schedule_delay(), 'daily', self::PURGE_HOOK );
 	}
 
 	/**
@@ -499,6 +517,10 @@ class UsageTracker {
 			return;
 		}
 
+		if ( ! self::ensure_table() ) {
+			return;
+		}
+
 		$retentionDays = self::getRetentionDays();
 		try {
 			$cutoff = ( new DateTimeImmutable( 'now', new DateTimeZone( 'UTC' ) ) )
@@ -518,5 +540,28 @@ class UsageTracker {
 				$cutoff
 			)
 		);
+
+		update_option( self::PURGE_LAST_RUN_OPTION, time(), false );
+	}
+
+	/**
+	 * Compute initial schedule delay with per-site jitter.
+	 *
+	 * @return int
+	 */
+	private static function get_purge_schedule_delay(): int {
+		$delay  = self::PURGE_DELAY_BASE;
+		$jitter = 0;
+
+		if ( function_exists( 'get_current_blog_id' ) ) {
+			$blog_id = (int) get_current_blog_id();
+			if ( $blog_id > 0 ) {
+				$jitter = $blog_id % self::PURGE_DELAY_JITTER;
+			}
+		} elseif ( function_exists( 'wp_rand' ) ) {
+			$jitter = (int) wp_rand( 0, self::PURGE_DELAY_JITTER );
+		}
+
+		return $delay + $jitter;
 	}
 }

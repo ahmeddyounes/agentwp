@@ -147,6 +147,14 @@ Configure usage data retention and query limits.
 add_filter( 'agentwp_config_usage_retention_days', fn() => 180 );
 ```
 
+**Usage purge scheduling:**
+
+- Runs daily via WP-Cron (`agentwp_usage_purge`).
+- AgentWP auto-reschedules if the purge has not run in 48+ hours (per-site).
+- On multisite, purge times are jittered per site to avoid simultaneous load spikes.
+- If `DISABLE_WP_CRON` is set, configure a real system cron to call `wp-cron.php`
+  (or use WP-CLI `wp cron event run --due-now`) so purges run.
+
 ### Order Search Settings
 
 Configure order search behavior.
