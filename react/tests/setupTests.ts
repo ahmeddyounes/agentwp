@@ -127,6 +127,9 @@ Object.defineProperty(window, 'agentwpSettings', {
   value: {
     root: '/wp-json/',
     nonce: 'test-nonce',
+    theme: 'light',
+    supportEmail: 'test@example.com',
+    version: '1.0.0',
     demoMode: false,
   },
 });

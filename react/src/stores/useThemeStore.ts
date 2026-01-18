@@ -35,6 +35,8 @@ const getSystemPrefersDark = (): boolean => {
 
 const getInitialPreference = (): ThemePreference => {
   if (typeof window === 'undefined') return 'system';
+
+  // First, check localStorage for user's persisted preference
   try {
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (stored === 'light' || stored === 'dark' || stored === 'system') {
@@ -43,6 +45,13 @@ const getInitialPreference = (): ThemePreference => {
   } catch {
     // Ignore storage errors
   }
+
+  // Fallback to server-provided theme from window.agentwpSettings
+  const serverTheme = window.agentwpSettings?.theme;
+  if (serverTheme === 'light' || serverTheme === 'dark') {
+    return serverTheme;
+  }
+
   return 'system';
 };
 
