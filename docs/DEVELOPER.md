@@ -1064,12 +1064,12 @@ Draft payloads now include `preview` data and use the standardized `DraftPayload
 
 **Affected:** Custom intent classifiers or direct `IntentClassifier` usage.
 
-> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 2.0.0 and will be removed in version 3.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
+> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 0.2.0 and will be removed in version 1.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
 
 `ScorerRegistry` is now the canonical classifier. If you were using `IntentClassifier` directly:
 
 ```php
-// Before (deprecated - emits warning in 2.0.0, removed in 3.0.0)
+// Before (deprecated - emits warning in 0.2.0, removed in 1.0.0)
 $classifier = new IntentClassifier();
 $intent = $classifier->classify($input);
 
@@ -1239,7 +1239,9 @@ public function getIntent(): string { ... }
 
 ### Current deprecations
 
-No active deprecations. All previously deprecated items have been removed as of the latest release.
+| Item | Deprecated In | Planned Removal | Replacement |
+|------|---------------|-----------------|-------------|
+| `IntentClassifier` | 0.2.0 | 1.0.0 | Resolve `IntentClassifierInterface` (ScorerRegistry) |
 
 ### Removed (previously deprecated)
 
@@ -1247,14 +1249,14 @@ The following deprecated items have been removed. If your code relies on them, m
 
 | Item | Deprecated In | Removed In | Replacement |
 |------|--------------|------------|-------------|
-| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | `SettingsManager::OPTION_*` |
-| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaults()` |
-| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaultUsageStats()` |
-| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
-| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_*` |
-| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
-| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | `#[HandlesIntent]` attribute |
-| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | `handle_order_created()` / `handle_order_updated()` |
+| `Plugin::OPTION_*` constants | 0.1.0 | 0.2.0 | `SettingsManager::OPTION_*` |
+| `Plugin::get_default_settings()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaults()` |
+| `Plugin::get_default_usage_stats()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaultUsageStats()` |
+| `OpenAIClient::API_BASE` | 0.1.0 | 0.2.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
+| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_*` |
+| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
+| `BaseHandler::getIntent()` | 0.1.0 | 0.2.0 | `#[HandlesIntent]` attribute |
+| `Index::handle_order_save()` | 0.1.0 | 0.2.0 | `handle_order_created()` / `handle_order_updated()` |
 
 ## Related documentation
 

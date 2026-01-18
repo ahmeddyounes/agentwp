@@ -1,0 +1,936 @@
+Status: DONE
+
+Summary of changes:
+- Trimmed the Unreleased notes in `docs/CHANGELOG.md` so it only reflects “No changes yet.”
+- Updated deprecation/version references in `docs/DEVELOPER.md` to align with 0.2.0, added the active IntentClassifier deprecation, and corrected the “Removed In” versions.
+
+How to verify (exact commands):
+- No verification commands were provided.
+
+Risks / follow-ups:
+- Code deprecation strings in `src/Intent/IntentClassifier.php` still reference 2.0.0/3.0.0; consider aligning them with the updated docs/versioning (likely part of C02-05).
+- I noticed unrelated modified files in the worktree (`.t2/state.json`, `.logs/C02-03.gitcommit.txt`); let me know how you want to handle those.
+
+OpenAI Codex v0.87.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019bd1d7-431c-7b93-a65b-46c54702a3ed
+--------
+user
+You are implementing task C02-04 in this git repository.
+
+1) Read the spec: .plans/C02-04.md
+2) Read handoff/context: .t2/handoff/C02-04.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 51ms:
+agentwp.php
+assets
+composer.json
+composer.lock
+docker
+docker-compose.demo.yml
+docker-compose.yml
+docs
+includes
+languages
+node_modules
+package-lock.json
+package.json
+phpcs.xml
+phpstan
+phpstan.neon
+phpunit.xml.dist
+plan_tasks.csv
+playwright.config.cjs
+react
+
+thinking
+**Reading instructions file**
+exec
+/bin/zsh -lc "sed -n '1,200p' .plans/C02-04.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 65ms:
+# C02-04 — Finalize CHANGELOG release sections
+
+Move implemented items out of `[Unreleased]` into dated, versioned sections that match the chosen versioning. Ensure docs that reference releases/versions remain accurate (`docs/DEVELOPER.md`, `docs/ARCHITECTURE.md`).
+
+thinking
+**Reading handoff instructions**
+exec
+/bin/zsh -lc "sed -n '1,200p' .t2/handoff/C02-04.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 66ms:
+# Handoff: C02-04
+
+Created: 2026-01-18T16:01:44.186782Z
+
+Spec: .plans/C02-04.md
+
+thinking
+**Locating changelog file**
+
+I'm checking the repository for a CHANGELOG file using a search tool to identify its presence and path.
+exec
+/bin/zsh -lc "rg --files -g 'CHANGELOG*'" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 75ms:
+docs/CHANGELOG.md
+
+thinking
+**Opening file**
+exec
+/bin/zsh -lc "sed -n '1,240p' docs/CHANGELOG.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 56ms:
+# Changelog
+All notable changes to AgentWP are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+### Notes
+- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
+
+## [0.2.0] - 2026-01-18
+### Notes
+- This is the authoritative current version for shipped functionality. It includes all changes previously listed under “Unreleased,” and the upgrade steps through **0.1.2** are part of this release.
+
+### Removed
+- **Legacy wp-element UI bundle** (`assets/agentwp-admin.js`, `assets/agentwp-admin.css`) has been removed. The React-based UI in `react/src/` is now the sole supported runtime.
+  - The `AssetManager` no longer falls back to the legacy bundle when the Vite manifest is missing.
+  - All legacy fallback methods (`enqueueLegacyScript`, `enqueueStyle`) have been removed from `AssetManager`.
+  - Migration: Run `npm run build` in the `react/` directory to generate the Vite build output in `assets/build/`.
+- **Deprecated shims removed** (cleanup per P05-06):
+
+thinking
+**Checking documentation version references**
+
+I'm verifying that version references in docs like DEVELOPER.md and ARCHITECTURE.md align with the changelog and releases to ensure accurate versioning info. Next, I'll inspect those files for release mentions and consistency.
+exec
+/bin/zsh -lc "rg -n \"0\\.2\\.0|0\\.1\\.\\d|Unreleased|version\" docs/DEVELOPER.md docs/ARCHITECTURE.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 74ms:
+docs/ARCHITECTURE.md:635:    "version": "string"
+docs/DEVELOPER.md:1067:> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 2.0.0 and will be removed in version 3.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
+docs/DEVELOPER.md:1194:AgentWP follows semantic versioning. The `@deprecated` annotation format ensures deprecation metadata is credible and actionable.
+docs/DEVELOPER.md:1198:All `@deprecated` PHPDoc annotations must include the version when the deprecation was introduced:
+docs/DEVELOPER.md:1207:- `X.Y.Z` - The version when the deprecation was introduced (must match a released or current `AGENTWP_VERSION`)
+docs/DEVELOPER.md:1214: * @deprecated 0.1.0 Use SettingsManager constants directly.
+docs/DEVELOPER.md:1219: * @deprecated 0.1.0 Use the #[HandlesIntent] attribute instead.
+docs/DEVELOPER.md:1228:1. **Version must exist**: The deprecation version must be `≤ AGENTWP_VERSION`. Never reference future versions for when something *became* deprecated.
+docs/DEVELOPER.md:1229:2. **Planned removal is optional**: If included, the planned removal version should follow semver (typically the next major version).
+docs/DEVELOPER.md:1238:| Removed | Feature removed in a future major version. |
+docs/DEVELOPER.md:1250:| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | `SettingsManager::OPTION_*` |
+docs/DEVELOPER.md:1251:| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaults()` |
+docs/DEVELOPER.md:1252:| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaultUsageStats()` |
+docs/DEVELOPER.md:1253:| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
+docs/DEVELOPER.md:1254:| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_*` |
+docs/DEVELOPER.md:1255:| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
+docs/DEVELOPER.md:1256:| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | `#[HandlesIntent]` attribute |
+docs/DEVELOPER.md:1257:| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | `handle_order_created()` / `handle_order_updated()` |
+
+thinking
+**Verifying version references in docs**
+
+Noticed the docs mention deprecation from version 2.0.0, but the current version is 0.2.0, suggesting the deprecation notice might be outdated and needs correction to reflect accurate versioning after checking the repo and version constants.
+exec
+/bin/zsh -lc "rg -n \"AGENTWP_VERSION|0\\.2\\.0|0\\.1\\.0\" -S src includes docs" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 49ms:
+docs/openapi.json:5:    "version": "0.2.0",
+docs/DEVELOPER.md:1207:- `X.Y.Z` - The version when the deprecation was introduced (must match a released or current `AGENTWP_VERSION`)
+docs/DEVELOPER.md:1214: * @deprecated 0.1.0 Use SettingsManager constants directly.
+docs/DEVELOPER.md:1219: * @deprecated 0.1.0 Use the #[HandlesIntent] attribute instead.
+docs/DEVELOPER.md:1228:1. **Version must exist**: The deprecation version must be `≤ AGENTWP_VERSION`. Never reference future versions for when something *became* deprecated.
+docs/DEVELOPER.md:1250:| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | `SettingsManager::OPTION_*` |
+docs/DEVELOPER.md:1251:| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaults()` |
+docs/DEVELOPER.md:1252:| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaultUsageStats()` |
+docs/DEVELOPER.md:1253:| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
+docs/DEVELOPER.md:1254:| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_*` |
+docs/DEVELOPER.md:1255:| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
+docs/DEVELOPER.md:1256:| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | `#[HandlesIntent]` attribute |
+docs/DEVELOPER.md:1257:| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | `handle_order_created()` / `handle_order_updated()` |
+src/Plugin/Upgrader.php:107:		return defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '0.0.0';
+src/Plugin/Upgrader.php:182:			'0.2.0' => array( __CLASS__, 'upgrade_to_0_2_0' ),
+src/Plugin/Upgrader.php:192:	 * Upgrade to 0.2.0: Initialize memory options and ensure schema tables.
+src/Plugin/Upgrader.php:194:	 * This consolidates pre-release migrations into the 0.2.0 release step.
+src/Rest/HealthController.php:48:				'version'   => defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '',
+src/Plugin.php:77:			Plugin\Upgrader::update_installed_version( defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '0.0.0' );
+docs/CHANGELOG.md:9:- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
+
+thinking
+**Checking agentwp.php version**
+exec
+/bin/zsh -lc 'rg -n "Version" agentwp.php' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 68ms:
+6: * Version: 0.2.0
+
+thinking
+**Locating version constant**
+
+I'm searching the includes and src directories to find where the AGENTWP_VERSION constant is defined.
+exec
+/bin/zsh -lc 'rg -n "AGENTWP_VERSION" -S' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 47ms:
+src/Rest/HealthController.php:48:				'version'   => defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '',
+plan_tasks.csv:10:C02-02,"Align plugin/UI version numbers","Update `agentwp.php` (`Version:` header + `AGENTWP_VERSION`) to the chosen version. Optionally align `react/package.json` `version` if you want a single version across PHP+UI. Acceptance: version strings are consistent and documented."
+plan_tasks.csv:11:C02-03,"Reconcile Upgrader steps with versioning","Update `src/Plugin/Upgrader.php` so step versions correspond to real release versions and are coherent with `AGENTWP_VERSION` (steps should only exist for versions > installed and <= current). Add/adjust idempotent steps as needed; keep PHPUnit green."
+agentwp.php:19:define( 'AGENTWP_VERSION', '0.2.0' );
+stubs/agentwp-constants.php:10:const AGENTWP_VERSION = '0.0.0';
+docs/ARCHITECTURE-IMPROVEMENT-PLAN.md:85:  - `agentwp.php` header + `AGENTWP_VERSION`
+docs/DEVELOPER.md:1207:- `X.Y.Z` - The version when the deprecation was introduced (must match a released or current `AGENTWP_VERSION`)
+docs/DEVELOPER.md:1228:1. **Version must exist**: The deprecation version must be `≤ AGENTWP_VERSION`. Never reference future versions for when something *became* deprecated.
+docs/ARCHITECTURE.md:110:   - Defines constants (`AGENTWP_VERSION`, `AGENTWP_PLUGIN_DIR`, etc.)
+src/Plugin/Upgrader.php:107:		return defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '0.0.0';
+src/Plugin.php:77:			Plugin\Upgrader::update_installed_version( defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : '0.0.0' );
+src/Providers/CoreServiceProvider.php:119:					defined( 'AGENTWP_VERSION' ) ? AGENTWP_VERSION : ''
+tests/Unit/Plugin/UpgraderBehaviorTest.php:120:		// Use explicit versions to avoid reliance on AGENTWP_VERSION constant.
+tests/Unit/Plugin/UpgraderBehaviorTest.php:377:		if ( defined( 'AGENTWP_VERSION' ) ) {
+tests/Unit/Plugin/UpgraderBehaviorTest.php:378:			$this->assertSame( AGENTWP_VERSION, $version );
+tests/Unit/Plugin/UpgraderTest.php:104:		// If AGENTWP_VERSION is defined, it should use it.
+tests/Unit/Plugin/UpgraderTest.php:105:		if ( defined( 'AGENTWP_VERSION' ) ) {
+tests/Unit/Plugin/UpgraderTest.php:106:			$this->assertSame( AGENTWP_VERSION, Upgrader::get_current_version() );
+
+thinking
+**Checking for Unreleased references**
+
+I'm searching the docs for any references to "Unreleased" to ensure the changelog cleanup fully moves implemented items to dated sections.
+exec
+/bin/zsh -lc 'rg -n "Unreleased" -S docs' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 54ms:
+docs/CHANGELOG.md:7:## [Unreleased]
+docs/CHANGELOG.md:13:- This is the authoritative current version for shipped functionality. It includes all changes previously listed under “Unreleased,” and the upgrade steps through **0.1.2** are part of this release.
+docs/ARCHITECTURE-IMPROVEMENT-PLAN.md:39:- `agentwp.php` declares plugin version **`0.2.0`**, while `src/Plugin/Upgrader.php` contains steps for **`0.1.1`** and **`0.1.2`** and docs mention later work in “Unreleased” (keep these aligned for future releases).
+docs/ARCHITECTURE-IMPROVEMENT-PLAN.md:86:  - `docs/CHANGELOG.md` sections (move implemented changes out of “Unreleased” into a tagged release)
+
+thinking
+**Reviewing changelog and docs alignment**
+
+The current changelog shows an empty Unreleased section with the authoritative release at 0.2.0; I'll confirm whether to remove or keep Unreleased empty and check related docs for accurate version references. Next, I'll inspect the DEVELOPER doc near the deprecation notice for needed updates.
+exec
+/bin/zsh -lc "sed -n '1040,1105p' docs/DEVELOPER.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 67ms:
+- `WooCommerceRefundGatewayInterface`
+- `WooCommerceOrderGatewayInterface`
+- `WooCommerceStockGatewayInterface`
+- `WooCommerceUserGatewayInterface`
+
+### Draft lifecycle changes
+
+**Affected:** Code that interacts with draft storage directly.
+
+Use `DraftManagerInterface` instead of `DraftStorageInterface` for draft operations:
+
+```php
+// Before
+$draft_id = $this->storage->generate_id('refund');
+$this->storage->store('refund', $draft_id, $payload, 600);
+
+// After
+$result = $this->draftManager->create('refund', $payload, $preview);
+$draft_id = $result->get('draft_id');
+```
+
+thinking
+**Noticing version mismatch in deprecation notices**
+
+The deprecation uses versions 2.0.0/3.0.0, which conflicts with the current 0.x semantic versioning. I'll check how versions are actually applied in the code, especially around IntentClassifier, to pick consistent deprecation versions.
+exec
+/bin/zsh -lc 'rg -n "IntentClassifier" -S src includes' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 72ms:
+src/Intent/IntentClassifier.php:14:use AgentWP\Contracts\IntentClassifierInterface;
+src/Intent/IntentClassifier.php:21: *             IntentClassifierInterface from the DI container which returns ScorerRegistry.
+src/Intent/IntentClassifier.php:26: * $classifier = new IntentClassifier();
+src/Intent/IntentClassifier.php:29: * $classifier = $container->get(IntentClassifierInterface::class);
+src/Intent/IntentClassifier.php:35:class IntentClassifier implements IntentClassifierInterface {
+src/Intent/IntentClassifier.php:54:				'Resolve IntentClassifierInterface from the DI container for the canonical implementation. ' .
+src/Intent/Classifier/ScorerRegistry.php:11:use AgentWP\Contracts\IntentClassifierInterface;
+src/Intent/Classifier/ScorerRegistry.php:19: * It implements IntentClassifierInterface and supports extensibility via the
+src/Intent/Classifier/ScorerRegistry.php:27:final class ScorerRegistry implements IntentClassifierInterface {
+src/Providers/IntentServiceProvider.php:29:use AgentWP\Contracts\IntentClassifierInterface;
+src/Providers/IntentServiceProvider.php:83:		$this->registerIntentClassifier();
+src/Providers/IntentServiceProvider.php:172:	private function registerIntentClassifier(): void {
+src/Providers/IntentServiceProvider.php:178:			IntentClassifierInterface::class,
+src/Providers/IntentServiceProvider.php:378:					$this->container->get( IntentClassifierInterface::class ),
+src/Intent/Engine.php:13:use AgentWP\Contracts\IntentClassifierInterface;
+src/Intent/Engine.php:18:	 * @var IntentClassifierInterface
+src/Intent/Engine.php:60:	 * @param IntentClassifierInterface $classifier        Intent classifier.
+src/Intent/Engine.php:70:		IntentClassifierInterface $classifier,
+src/Contracts/IntentClassifierInterface.php:13:interface IntentClassifierInterface {
+
+thinking
+**Checking deprecation annotation**
+exec
+/bin/zsh -lc "sed -n '1,140p' src/Intent/IntentClassifier.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 32ms:
+<?php
+/**
+ * Rule-based intent classifier.
+ *
+ * @package AgentWP
+ *
+ * @deprecated 2.0.0 Use AgentWP\Intent\Classifier\ScorerRegistry instead.
+ *             This class will be removed in version 3.0.0.
+ *             See docs/adr/0003-intent-classification-strategy.md for migration details.
+ */
+
+namespace AgentWP\Intent;
+
+use AgentWP\Contracts\IntentClassifierInterface;
+
+/**
+ * Legacy rule-based intent classifier.
+ *
+ * @deprecated 2.0.0 Use ScorerRegistry as the canonical intent classification mechanism.
+ *             Direct instantiation of this class is deprecated. Instead, resolve
+
+thinking
+**Checking version mentions in docs**
+
+I'm verifying if the architecture and developer docs reference versions needing updates to keep deprecation notes aligned and ensure changelog accuracy.
+exec
+/bin/zsh -lc "sed -n '80,140p' docs/ARCHITECTURE.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 52ms:
+        CLASS[IntentClassifierInterface]
+        ENGINE[Engine]
+        HANDLERS[Handlers tagged intent.handler]
+    end
+
+    CORE --> CoreReg
+    REST --> RestReg
+    INTENT --> IntentReg
+
+    subgraph Boot["4. Service Providers (boot phase)"]
+        MENU_REG[AdminMenuManager.register hooks]
+        ASSETS_REG[AssetManager.register hooks]
+        REST_REG[RestRouteRegistrar.register hooks]
+        FMT_REG[ResponseFormatter.register hooks]
+        BOOT_PROV --> MENU_REG & ASSETS_REG & REST_REG & FMT_REG
+    end
+
+    subgraph Runtime["5. Runtime Request Flow"]
+        REQ[REST Request /agentwp/v1/*]
+        AUTH[Permission check + rate limit]
+
+thinking
+**Reviewing version references for consistency**
+
+I identified that the architecture doc lacks explicit version numbers, but docs referencing releases (like DEVELOPER.md) might have outdated versions to update to 0.2.0. I also noted the changelog's Unreleased section might need adjusting if no current changes exist, so I'll check versioning context in plan_tasks.csv next.
+exec
+/bin/zsh -lc "sed -n '1,120p' plan_tasks.csv" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 28ms:
+id,title,spec
+C01-01,"Fix docs link check","Ensure all markdown links under `docs/` resolve (create missing targets or update broken relative links). Run `composer run docs:check-links` and iterate until it passes."
+C01-02,"Make HooksInterface::applyFilters variadic","Update `src/Contracts/HooksInterface.php` so `applyFilters()` accepts variadic args (to match real usage in `src/Intent/Engine.php`) and fix the PHPDoc/signature mismatch. Target: PHPStan no longer reports HookInterface argument/param errors."
+C01-03,"Align WPFunctions + test fakes with HooksInterface","Update `src/Infrastructure/WPFunctions.php` `applyFilters()` signature to match `HooksInterface` (keep behavior equivalent). Update any test fakes implementing `HooksInterface` (e.g., `tests/Fakes/FakeWPFunctions.php`) to match. Run `composer run phpstan`."
+C01-04,"Fix RateLimiter PHPStan always-true condition","In `src/Infrastructure/RateLimiting/RateLimiter.php`, simplify `checkAndIncrement()`’s `finally` block so PHPStan no longer flags the lock-release condition as always true, while preserving fail-open semantics and always releasing the lock when acquired."
+C01-05,"Make PHPStan green","Run `composer run phpstan` and fix remaining errors (keep changes minimal and covered by existing tests). Acceptance: `composer run phpstan` reports 0 errors."
+C01-06,"Fix React ESLint for Node scripts","Update `react/eslint.config.js` to treat `react/scripts/**/*.cjs` as Node/CommonJS (node globals enabled; `require()` allowed) or exclude the scripts from lint. Acceptance: `npm --prefix react run lint` passes."
+C01-07,"CI parity validation","Run `./scripts/validate.sh` and fix failures until all checks pass (PHPCS errors, PHPUnit, PHPStan, OpenAPI validation, React typecheck/lint/format/test/build)."
+C02-01,"Choose authoritative current version","Decide the authoritative plugin version that matches the implemented upgrader steps and shipped functionality (likely >= `0.1.2`). Document the decision and release boundaries in `docs/CHANGELOG.md`."
+C02-02,"Align plugin/UI version numbers","Update `agentwp.php` (`Version:` header + `AGENTWP_VERSION`) to the chosen version. Optionally align `react/package.json` `version` if you want a single version across PHP+UI. Acceptance: version strings are consistent and documented."
+C02-03,"Reconcile Upgrader steps with versioning","Update `src/Plugin/Upgrader.php` so step versions correspond to real release versions and are coherent with `AGENTWP_VERSION` (steps should only exist for versions > installed and <= current). Add/adjust idempotent steps as needed; keep PHPUnit green."
+C02-04,"Finalize CHANGELOG release sections","Move implemented items out of `[Unreleased]` into dated, versioned sections that match the chosen versioning. Ensure docs that reference releases/versions remain accurate (`docs/DEVELOPER.md`, `docs/ARCHITECTURE.md`)."
+C02-05,"Fix deprecation messaging + PHPUnit noise","Update `src/Intent/IntentClassifier.php` deprecation text to match the project’s versioning/deprecation policy. Ensure `vendor/bin/phpunit` runs without noisy deprecation output (either by adjusting triggers, tests, or documented expectations)."
+C03-01,"Document tools vs functions terminology","Update docs (`docs/DEVELOPER.md`, `docs/EXTENSIONS.md`, `docs/ARCHITECTURE.md`) to clearly define: tool schemas (`src/AI/Functions/*`), tool executors (`src/Intent/Tools/*`), tool dispatch (`ToolDispatcher`), and handler exposure via `getToolNames()`."
+C03-02,"Resolve FunctionRegistry vs ToolRegistry strategy","Choose and implement a strategy: Option A keep `src/Intent/FunctionRegistry.php` as legacy suggestions; Option B replace it with a tool-driven suggestion system (e.g., `ToolSuggestionRegistry` or derive suggestions from `ToolRegistry` + handler tool lists). Update docs and tests; keep backward compatibility for extension hooks where possible."
+C03-03,"Fix Engine default mapping drift","Audit `src/Intent/Engine.php::register_default_functions()` (e.g., `select_orders`, `bulk_update`) against the actually registered schemas/executors and handler tool lists. Remove or fully implement missing mappings so `function_suggestions` is accurate. Add/adjust tests to prevent regression."
+C03-04,"Improve unknown-tool failure handling","Ensure `ToolDispatcher::dispatch()` failures (unknown tool, schema validation errors) produce consistent, user-safe results and are logged via `LoggerInterface`/`AuditLoggerInterface` without leaking secrets. Add unit/integration tests for unknown tool + invalid args."
+C04-01,"Bind HooksInterface and WPUserFunctionsInterface in DI","In `src/Providers/CoreServiceProvider.php`, bind `AgentWP\\Contracts\\HooksInterface` and `AgentWP\\Contracts\\WPUserFunctionsInterface` to the `WPFunctions` singleton. Simplify `IntentServiceProvider` to rely on container resolution (remove fallbacks). Validate with PHPStan + PHPUnit."
+C04-02,"Document tagging contract","Update `docs/EXTENSIONS.md` to document the tag contracts for `rest.controller` and `intent.handler` (constructor expectations, how container resolves them, how tags are discovered)."
+C04-03,"Add agentwp_register_tools extension hook","Add an action hook (e.g., `agentwp_register_tools`) that exposes `ToolRegistryInterface` and `ToolDispatcherInterface` so third parties can register schemas and executors without a full provider. Call it during boot/registration in `IntentServiceProvider`, document it in `docs/EXTENSIONS.md`, and add an integration test proving it works."
+
+
+thinking
+**Clarifying version alignment and doc updates**
+
+The documentation references a future version (2.0.0) for deprecation that conflicts with the current code version (0.2.0), so updating docs to reflect accurate versioning while preserving code is needed to keep docs consistent and accurate.
+thinking
+**Focusing on doc version consistency for now**
+
+I'll update version references in DEVELOPER and ARCHITECTURE docs to reflect 0.2.0, ensuring changelog sections align with this without altering code, leaving code deprecation text updates to the next task.
+exec
+/bin/zsh -lc "rg -n \"0\\.2\\.0|0\\.1\\.|1\\.0\\.0|2\\.0\\.0|3\\.0\\.0|Unreleased\" docs/ARCHITECTURE.md docs/DEVELOPER.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 73ms:
+docs/DEVELOPER.md:1067:> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 2.0.0 and will be removed in version 3.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
+docs/DEVELOPER.md:1072:// Before (deprecated - emits warning in 2.0.0, removed in 3.0.0)
+docs/DEVELOPER.md:1214: * @deprecated 0.1.0 Use SettingsManager constants directly.
+docs/DEVELOPER.md:1219: * @deprecated 0.1.0 Use the #[HandlesIntent] attribute instead.
+docs/DEVELOPER.md:1220: *             Planned removal: 1.0.0. Migration: Add #[HandlesIntent(Intent::YOUR_INTENT)]
+docs/DEVELOPER.md:1250:| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | `SettingsManager::OPTION_*` |
+docs/DEVELOPER.md:1251:| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaults()` |
+docs/DEVELOPER.md:1252:| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaultUsageStats()` |
+docs/DEVELOPER.md:1253:| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
+docs/DEVELOPER.md:1254:| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_*` |
+docs/DEVELOPER.md:1255:| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
+docs/DEVELOPER.md:1256:| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | `#[HandlesIntent]` attribute |
+docs/DEVELOPER.md:1257:| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | `handle_order_created()` / `handle_order_updated()` |
+
+
+thinking
+**Resolving version inconsistencies in docs**
+
+The deprecation version in docs should be updated to 0.2.0 to comply with the policy that deprecation versions must not exceed the current version, despite code still showing 2.0.0 as deprecated. The docs/ARCHITECTURE has no conflicting version mentions.
+thinking
+**Reviewing changelog for version consistency**
+
+The 0.2.0 release is documented with a date, but the Unreleased section still includes a note stating "No changes yet," which might be better removed to avoid confusion. Duplicate "Removed" headings appear in 0.2.0 but resolving them isn’t required now.
+exec
+/bin/zsh -lc "sed -n '1,260p' src/Plugin/Upgrader.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 68ms:
+<?php
+/**
+ * Plugin upgrader for version-based migrations.
+ *
+ * @package AgentWP\Plugin
+ */
+
+namespace AgentWP\Plugin;
+
+/**
+ * Manages plugin upgrades and version-based migrations.
+ *
+ * Runs upgrade steps when the installed version differs from the current version.
+ * All upgrade steps are idempotent and safe to re-run.
+ *
+ * Usage:
+ * - Call Upgrader::init() early in boot (plugins_loaded hook)
+ * - Add new upgrade steps in get_upgrade_steps() when needed
+ * - Each step runs only once when upgrading from a lower version
+ */
+
+
+thinking
+**Assessing changelog Unreleased state**
+
+I'm reviewing the Unreleased section to confirm if it still contains implemented features needing migration to the 0.2.0 release heading per the spec, to finalize the changelog structure accordingly.
+thinking
+**Reviewing version references in docs**
+
+I'm verifying version mentions in DEVELOPER and ARCHITECTURE docs for accuracy, spotting a likely outdated "version 2.0.0" in DEVELOPER that needs correction to reflect 0.2.0.
+exec
+/bin/zsh -lc "sed -n '1170,1275p' docs/DEVELOPER.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 69ms:
+
+```bash
+cd react
+npm run check:types
+```
+
+This regenerates the types and fails if `react/src/types/api.ts` changes. CI and `./scripts/validate.sh --node` run this check automatically.
+
+**Workflow:**
+
+1. Update `docs/openapi.json` when adding/modifying endpoints
+2. Run `npm run generate:types` in the `react/` directory
+3. Import generated types in your React code:
+   ```typescript
+   import type { components, paths } from '@/types/api';
+
+   type SettingsResponse = components['schemas']['SettingsResponse'];
+   type IntentRequest = components['schemas']['IntentRequest'];
+   ```
+
+
+
+thinking
+**Updating docs for active deprecation**
+
+The docs inaccurately state no active deprecations despite IntentClassifier being deprecated since 0.2.0, so I'll update DEVELOPER.md to reflect this. ARCHITECTURE.md doesn’t mention unreleased features, so it likely needs no changes.
+thinking
+**Checking for version references in architecture doc**
+exec
+/bin/zsh -lc "rg -n \"release|version|v\\d\" docs/ARCHITECTURE.md" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 63ms:
+98:        REQ[REST Request /agentwp/v1/*]
+131:5. **Runtime Request** (e.g., `POST /wp-json/agentwp/v1/intent`):
+373:AgentWP is a WordPress plugin that provides a React-powered admin UI (Command Deck) and a PHP backend that integrates with WooCommerce and the OpenAI API. The plugin exposes REST endpoints under `/wp-json/agentwp/v1` and uses standard WooCommerce tables plus `wp_options` for settings and encrypted BYOK storage.
+388:    REST[REST API /wp-json/agentwp/v1/*]
+499:Base path: `/wp-json/agentwp/v1`
+635:    "version": "string"
+
+
+thinking
+**Reviewing docs updates and changelog finalization**
+
+I've determined no change is needed to the API path or architecture docs, but the changelog's Unreleased section should be finalized by removing any notes or moving implemented items, keeping it clean since there are currently no item changes.
+thinking
+**Finalizing changelog and developer docs**
+
+I'm consolidating duplicate changelog "Removed" sections and cleaning Unreleased to only say "No changes yet." without referencing current release to avoid redundancy. I'm also updating the developer docs to correct deprecation versions, aligning removal versions with 0.2.0 per changelog and reflecting active deprecations accurately.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/docs/CHANGELOG.md
+@@ -8,3 +8,3 @@
+ ### Notes
+-- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
++- No changes yet.
+ 
+apply_patch(auto_approved=true) exited 0 in 25ms:
+Success. Updated the following files:
+M /Users/ahmedyounis/Documents/Projects/agentwp/docs/CHANGELOG.md
+file update:
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index a3a6141b836ce4c5dcc147255ce1ad6226d3f72d..4818c904dfbd5da7ff2c12dac5c4ac3073217325
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -6,7 +6,7 @@
+ 
+ ## [Unreleased]
+ ### Notes
+-- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
++- No changes yet.
+ 
+ ## [0.2.0] - 2026-01-18
+ ### Notes
+
+file update:
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index a3a6141b836ce4c5dcc147255ce1ad6226d3f72d..4818c904dfbd5da7ff2c12dac5c4ac3073217325
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -6,7 +6,7 @@
+ 
+ ## [Unreleased]
+ ### Notes
+-- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
++- No changes yet.
+ 
+ ## [0.2.0] - 2026-01-18
+ ### Notes
+
+
+
+thinking
+**Planning DEVELOPER deprecation updates**
+
+I'm updating deprecation notes and the "Current deprecations" section in DEVELOPER to reflect version changes from 2.0.0/3.0.0 to 0.2.0/1.0.0, adjusting comments and warnings accordingly, and replacing the deprecated items section with a styled table listing the items, versions, and replacements.
+thinking
+**Specifying deprecation tables and warnings**
+
+I'm drafting a current deprecations table with item, deprecated and removal versions, and replacements, plus noting runtime warnings for direct instantiation. I’ll also update the removed items table to shift removal versions from 1.0.0 to 0.2.0 and keep the intro text about migrating from removed items.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/docs/DEVELOPER.md
+@@ -1066,3 +1066,3 @@
+ 
+-> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 2.0.0 and will be removed in version 3.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
++> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 0.2.0 and will be removed in version 1.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
+ 
+@@ -1071,3 +1071,3 @@
+ ```php
+-// Before (deprecated - emits warning in 2.0.0, removed in 3.0.0)
++// Before (deprecated - emits warning in 0.2.0, removed in 1.0.0)
+ $classifier = new IntentClassifier();
+@@ -1241,3 +1241,5 @@
+ 
+-No active deprecations. All previously deprecated items have been removed as of the latest release.
++| Item | Deprecated In | Planned Removal | Replacement |
++|------|---------------|-----------------|-------------|
++| `IntentClassifier` | 0.2.0 | 1.0.0 | Resolve `IntentClassifierInterface` (ScorerRegistry) |
+ 
+@@ -1249,10 +1251,10 @@
+ |------|--------------|------------|-------------|
+-| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | `SettingsManager::OPTION_*` |
+-| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaults()` |
+-| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaultUsageStats()` |
+-| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
+-| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_*` |
+-| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
+-| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | `#[HandlesIntent]` attribute |
+-| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | `handle_order_created()` / `handle_order_updated()` |
++| `Plugin::OPTION_*` constants | 0.1.0 | 0.2.0 | `SettingsManager::OPTION_*` |
++| `Plugin::get_default_settings()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaults()` |
++| `Plugin::get_default_usage_stats()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaultUsageStats()` |
++| `OpenAIClient::API_BASE` | 0.1.0 | 0.2.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
++| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_*` |
++| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
++| `BaseHandler::getIntent()` | 0.1.0 | 0.2.0 | `#[HandlesIntent]` attribute |
++| `Index::handle_order_save()` | 0.1.0 | 0.2.0 | `handle_order_created()` / `handle_order_updated()` |
+ 
+apply_patch(auto_approved=true) exited 0 in 23ms:
+Success. Updated the following files:
+M /Users/ahmedyounis/Documents/Projects/agentwp/docs/DEVELOPER.md
+file update:
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index a3a6141b836ce4c5dcc147255ce1ad6226d3f72d..4818c904dfbd5da7ff2c12dac5c4ac3073217325
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -6,7 +6,7 @@
+ 
+ ## [Unreleased]
+ ### Notes
+-- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
++- No changes yet.
+ 
+ ## [0.2.0] - 2026-01-18
+ ### Notes
+diff --git a/docs/DEVELOPER.md b/docs/DEVELOPER.md
+index a238b26a9ef9422e9233dc4843d2825c75d64d7b..88a623a58ee7317397eb35684afd016fbada6057
+--- a/docs/DEVELOPER.md
++++ b/docs/DEVELOPER.md
+@@ -1064,12 +1064,12 @@
+ 
+ **Affected:** Custom intent classifiers or direct `IntentClassifier` usage.
+ 
+-> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 2.0.0 and will be removed in version 3.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
++> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 0.2.0 and will be removed in version 1.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
+ 
+ `ScorerRegistry` is now the canonical classifier. If you were using `IntentClassifier` directly:
+ 
+ ```php
+-// Before (deprecated - emits warning in 2.0.0, removed in 3.0.0)
++// Before (deprecated - emits warning in 0.2.0, removed in 1.0.0)
+ $classifier = new IntentClassifier();
+ $intent = $classifier->classify($input);
+ 
+@@ -1239,7 +1239,9 @@
+ 
+ ### Current deprecations
+ 
+-No active deprecations. All previously deprecated items have been removed as of the latest release.
++| Item | Deprecated In | Planned Removal | Replacement |
++|------|---------------|-----------------|-------------|
++| `IntentClassifier` | 0.2.0 | 1.0.0 | Resolve `IntentClassifierInterface` (ScorerRegistry) |
+ 
+ ### Removed (previously deprecated)
+ 
+@@ -1247,14 +1249,14 @@
+ 
+ | Item | Deprecated In | Removed In | Replacement |
+ |------|--------------|------------|-------------|
+-| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | `SettingsManager::OPTION_*` |
+-| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaults()` |
+-| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaultUsageStats()` |
+-| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
+-| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_*` |
+-| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
+-| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | `#[HandlesIntent]` attribute |
+-| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | `handle_order_created()` / `handle_order_updated()` |
++| `Plugin::OPTION_*` constants | 0.1.0 | 0.2.0 | `SettingsManager::OPTION_*` |
++| `Plugin::get_default_settings()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaults()` |
++| `Plugin::get_default_usage_stats()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaultUsageStats()` |
++| `OpenAIClient::API_BASE` | 0.1.0 | 0.2.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
++| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_*` |
++| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
++| `BaseHandler::getIntent()` | 0.1.0 | 0.2.0 | `#[HandlesIntent]` attribute |
++| `Index::handle_order_save()` | 0.1.0 | 0.2.0 | `handle_order_created()` / `handle_order_updated()` |
+ 
+ ## Related documentation
+ 
+
+file update:
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index a3a6141b836ce4c5dcc147255ce1ad6226d3f72d..4818c904dfbd5da7ff2c12dac5c4ac3073217325
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -6,7 +6,7 @@
+ 
+ ## [Unreleased]
+ ### Notes
+-- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
++- No changes yet.
+ 
+ ## [0.2.0] - 2026-01-18
+ ### Notes
+diff --git a/docs/DEVELOPER.md b/docs/DEVELOPER.md
+index a238b26a9ef9422e9233dc4843d2825c75d64d7b..88a623a58ee7317397eb35684afd016fbada6057
+--- a/docs/DEVELOPER.md
++++ b/docs/DEVELOPER.md
+@@ -1064,12 +1064,12 @@
+ 
+ **Affected:** Custom intent classifiers or direct `IntentClassifier` usage.
+ 
+-> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 2.0.0 and will be removed in version 3.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
++> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 0.2.0 and will be removed in version 1.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
+ 
+ `ScorerRegistry` is now the canonical classifier. If you were using `IntentClassifier` directly:
+ 
+ ```php
+-// Before (deprecated - emits warning in 2.0.0, removed in 3.0.0)
++// Before (deprecated - emits warning in 0.2.0, removed in 1.0.0)
+ $classifier = new IntentClassifier();
+ $intent = $classifier->classify($input);
+ 
+@@ -1239,7 +1239,9 @@
+ 
+ ### Current deprecations
+ 
+-No active deprecations. All previously deprecated items have been removed as of the latest release.
++| Item | Deprecated In | Planned Removal | Replacement |
++|------|---------------|-----------------|-------------|
++| `IntentClassifier` | 0.2.0 | 1.0.0 | Resolve `IntentClassifierInterface` (ScorerRegistry) |
+ 
+ ### Removed (previously deprecated)
+ 
+@@ -1247,14 +1249,14 @@
+ 
+ | Item | Deprecated In | Removed In | Replacement |
+ |------|--------------|------------|-------------|
+-| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | `SettingsManager::OPTION_*` |
+-| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaults()` |
+-| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaultUsageStats()` |
+-| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
+-| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_*` |
+-| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
+-| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | `#[HandlesIntent]` attribute |
+-| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | `handle_order_created()` / `handle_order_updated()` |
++| `Plugin::OPTION_*` constants | 0.1.0 | 0.2.0 | `SettingsManager::OPTION_*` |
++| `Plugin::get_default_settings()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaults()` |
++| `Plugin::get_default_usage_stats()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaultUsageStats()` |
++| `OpenAIClient::API_BASE` | 0.1.0 | 0.2.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
++| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_*` |
++| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
++| `BaseHandler::getIntent()` | 0.1.0 | 0.2.0 | `#[HandlesIntent]` attribute |
++| `Index::handle_order_save()` | 0.1.0 | 0.2.0 | `handle_order_created()` / `handle_order_updated()` |
+ 
+ ## Related documentation
+ 
+
+
+thinking
+**Planning version reference audit**
+
+I'm preparing to search docs and code examples for lingering references to versions 2.0.0 and 3.0.0 to ensure all deprecations and updates are consistent.
+exec
+/bin/zsh -lc "rg -n \"2\\.0\\.0|3\\.0\\.0\" docs/DEVELOPER.md" in /Users/ahmedyounis/Documents/Projects/agentwp exited 1 in 68ms:
+
+file update:
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index a3a6141b836ce4c5dcc147255ce1ad6226d3f72d..4818c904dfbd5da7ff2c12dac5c4ac3073217325
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -6,7 +6,7 @@
+ 
+ ## [Unreleased]
+ ### Notes
+-- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
++- No changes yet.
+ 
+ ## [0.2.0] - 2026-01-18
+ ### Notes
+diff --git a/docs/DEVELOPER.md b/docs/DEVELOPER.md
+index a238b26a9ef9422e9233dc4843d2825c75d64d7b..88a623a58ee7317397eb35684afd016fbada6057
+--- a/docs/DEVELOPER.md
++++ b/docs/DEVELOPER.md
+@@ -1064,12 +1064,12 @@
+ 
+ **Affected:** Custom intent classifiers or direct `IntentClassifier` usage.
+ 
+-> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 2.0.0 and will be removed in version 3.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
++> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 0.2.0 and will be removed in version 1.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
+ 
+ `ScorerRegistry` is now the canonical classifier. If you were using `IntentClassifier` directly:
+ 
+ ```php
+-// Before (deprecated - emits warning in 2.0.0, removed in 3.0.0)
++// Before (deprecated - emits warning in 0.2.0, removed in 1.0.0)
+ $classifier = new IntentClassifier();
+ $intent = $classifier->classify($input);
+ 
+@@ -1239,7 +1239,9 @@
+ 
+ ### Current deprecations
+ 
+-No active deprecations. All previously deprecated items have been removed as of the latest release.
++| Item | Deprecated In | Planned Removal | Replacement |
++|------|---------------|-----------------|-------------|
++| `IntentClassifier` | 0.2.0 | 1.0.0 | Resolve `IntentClassifierInterface` (ScorerRegistry) |
+ 
+ ### Removed (previously deprecated)
+ 
+@@ -1247,14 +1249,14 @@
+ 
+ | Item | Deprecated In | Removed In | Replacement |
+ |------|--------------|------------|-------------|
+-| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | `SettingsManager::OPTION_*` |
+-| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaults()` |
+-| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaultUsageStats()` |
+-| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
+-| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_*` |
+-| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
+-| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | `#[HandlesIntent]` attribute |
+-| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | `handle_order_created()` / `handle_order_updated()` |
++| `Plugin::OPTION_*` constants | 0.1.0 | 0.2.0 | `SettingsManager::OPTION_*` |
++| `Plugin::get_default_settings()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaults()` |
++| `Plugin::get_default_usage_stats()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaultUsageStats()` |
++| `OpenAIClient::API_BASE` | 0.1.0 | 0.2.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
++| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_*` |
++| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
++| `BaseHandler::getIntent()` | 0.1.0 | 0.2.0 | `#[HandlesIntent]` attribute |
++| `Index::handle_order_save()` | 0.1.0 | 0.2.0 | `handle_order_created()` / `handle_order_updated()` |
+ 
+ ## Related documentation
+ 
+
+
+thinking
+**Preparing final summary**
+
+I'm confirming no changes are needed to ARCHITECTURE docs or changelog, no tests or verification commands were specified, and will include a brief status with no exact commands provided per instructions.
+exec
+/bin/zsh -lc 'git status -sb' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 71ms:
+## main...origin/main
+ M .t2/state.json
+ M docs/CHANGELOG.md
+ M docs/DEVELOPER.md
+?? .logs/C02-03.gitcommit.txt
+?? .plans/C02-04.md
+?? .t2/handoff/C02-04.md
+file update:
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index a3a6141b836ce4c5dcc147255ce1ad6226d3f72d..4818c904dfbd5da7ff2c12dac5c4ac3073217325
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -6,7 +6,7 @@
+ 
+ ## [Unreleased]
+ ### Notes
+-- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
++- No changes yet.
+ 
+ ## [0.2.0] - 2026-01-18
+ ### Notes
+diff --git a/docs/DEVELOPER.md b/docs/DEVELOPER.md
+index a238b26a9ef9422e9233dc4843d2825c75d64d7b..88a623a58ee7317397eb35684afd016fbada6057
+--- a/docs/DEVELOPER.md
++++ b/docs/DEVELOPER.md
+@@ -1064,12 +1064,12 @@
+ 
+ **Affected:** Custom intent classifiers or direct `IntentClassifier` usage.
+ 
+-> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 2.0.0 and will be removed in version 3.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
++> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 0.2.0 and will be removed in version 1.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
+ 
+ `ScorerRegistry` is now the canonical classifier. If you were using `IntentClassifier` directly:
+ 
+ ```php
+-// Before (deprecated - emits warning in 2.0.0, removed in 3.0.0)
++// Before (deprecated - emits warning in 0.2.0, removed in 1.0.0)
+ $classifier = new IntentClassifier();
+ $intent = $classifier->classify($input);
+ 
+@@ -1239,7 +1239,9 @@
+ 
+ ### Current deprecations
+ 
+-No active deprecations. All previously deprecated items have been removed as of the latest release.
++| Item | Deprecated In | Planned Removal | Replacement |
++|------|---------------|-----------------|-------------|
++| `IntentClassifier` | 0.2.0 | 1.0.0 | Resolve `IntentClassifierInterface` (ScorerRegistry) |
+ 
+ ### Removed (previously deprecated)
+ 
+@@ -1247,14 +1249,14 @@
+ 
+ | Item | Deprecated In | Removed In | Replacement |
+ |------|--------------|------------|-------------|
+-| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | `SettingsManager::OPTION_*` |
+-| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaults()` |
+-| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaultUsageStats()` |
+-| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
+-| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_*` |
+-| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
+-| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | `#[HandlesIntent]` attribute |
+-| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | `handle_order_created()` / `handle_order_updated()` |
++| `Plugin::OPTION_*` constants | 0.1.0 | 0.2.0 | `SettingsManager::OPTION_*` |
++| `Plugin::get_default_settings()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaults()` |
++| `Plugin::get_default_usage_stats()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaultUsageStats()` |
++| `OpenAIClient::API_BASE` | 0.1.0 | 0.2.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
++| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_*` |
++| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
++| `BaseHandler::getIntent()` | 0.1.0 | 0.2.0 | `#[HandlesIntent]` attribute |
++| `Index::handle_order_save()` | 0.1.0 | 0.2.0 | `handle_order_created()` / `handle_order_updated()` |
+ 
+ ## Related documentation
+ 
+
+
+
+thinking
+**Pausing due to unexpected changes**
+
+Noticed .t2/state.json and other system-related files changed without being modified by me; per instructions, must stop and ask how to proceed.
+thinking
+**Weighing instructions on unexpected changes**
+
+Considering conflicting instructions about stopping on unexpected changes versus ignoring system-file changes, I'll mention unrelated modifications in final response and flag them as a question for the user while providing the requested summary and status.
+codex
+Status: DONE
+
+Summary of changes:
+- Trimmed the Unreleased notes in `docs/CHANGELOG.md` so it only reflects “No changes yet.”
+- Updated deprecation/version references in `docs/DEVELOPER.md` to align with 0.2.0, added the active IntentClassifier deprecation, and corrected the “Removed In” versions.
+
+How to verify (exact commands):
+- No verification commands were provided.
+
+Risks / follow-ups:
+- Code deprecation strings in `src/Intent/IntentClassifier.php` still reference 2.0.0/3.0.0; consider aligning them with the updated docs/versioning (likely part of C02-05).
+- I noticed unrelated modified files in the worktree (`.t2/state.json`, `.logs/C02-03.gitcommit.txt`); let me know how you want to handle those.
+file update:
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index a3a6141b836ce4c5dcc147255ce1ad6226d3f72d..4818c904dfbd5da7ff2c12dac5c4ac3073217325
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -6,7 +6,7 @@
+ 
+ ## [Unreleased]
+ ### Notes
+-- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
++- No changes yet.
+ 
+ ## [0.2.0] - 2026-01-18
+ ### Notes
+diff --git a/docs/DEVELOPER.md b/docs/DEVELOPER.md
+index a238b26a9ef9422e9233dc4843d2825c75d64d7b..88a623a58ee7317397eb35684afd016fbada6057
+--- a/docs/DEVELOPER.md
++++ b/docs/DEVELOPER.md
+@@ -1064,12 +1064,12 @@
+ 
+ **Affected:** Custom intent classifiers or direct `IntentClassifier` usage.
+ 
+-> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 2.0.0 and will be removed in version 3.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
++> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 0.2.0 and will be removed in version 1.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
+ 
+ `ScorerRegistry` is now the canonical classifier. If you were using `IntentClassifier` directly:
+ 
+ ```php
+-// Before (deprecated - emits warning in 2.0.0, removed in 3.0.0)
++// Before (deprecated - emits warning in 0.2.0, removed in 1.0.0)
+ $classifier = new IntentClassifier();
+ $intent = $classifier->classify($input);
+ 
+@@ -1239,7 +1239,9 @@
+ 
+ ### Current deprecations
+ 
+-No active deprecations. All previously deprecated items have been removed as of the latest release.
++| Item | Deprecated In | Planned Removal | Replacement |
++|------|---------------|-----------------|-------------|
++| `IntentClassifier` | 0.2.0 | 1.0.0 | Resolve `IntentClassifierInterface` (ScorerRegistry) |
+ 
+ ### Removed (previously deprecated)
+ 
+@@ -1247,14 +1249,14 @@
+ 
+ | Item | Deprecated In | Removed In | Replacement |
+ |------|--------------|------------|-------------|
+-| `Plugin::OPTION_*` constants | 0.1.0 | 1.0.0 | `SettingsManager::OPTION_*` |
+-| `Plugin::get_default_settings()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaults()` |
+-| `Plugin::get_default_usage_stats()` | 0.1.0 | 1.0.0 | `SettingsManager::getDefaultUsageStats()` |
+-| `OpenAIClient::API_BASE` | 0.1.0 | 1.0.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
+-| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_*` |
+-| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 1.0.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
+-| `BaseHandler::getIntent()` | 0.1.0 | 1.0.0 | `#[HandlesIntent]` attribute |
+-| `Index::handle_order_save()` | 0.1.0 | 1.0.0 | `handle_order_created()` / `handle_order_updated()` |
++| `Plugin::OPTION_*` constants | 0.1.0 | 0.2.0 | `SettingsManager::OPTION_*` |
++| `Plugin::get_default_settings()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaults()` |
++| `Plugin::get_default_usage_stats()` | 0.1.0 | 0.2.0 | `SettingsManager::getDefaultUsageStats()` |
++| `OpenAIClient::API_BASE` | 0.1.0 | 0.2.0 | `AgentWPConfig::OPENAI_API_BASE_URL` |
++| `OpenAIClient::MAX_STREAM_*` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_*` |
++| `OpenAIClient::MAX_TOOL_ARGUMENTS_LENGTH` | 0.1.0 | 0.2.0 | `AgentWPConfig::STREAM_MAX_TOOL_ARG_LENGTH` |
++| `BaseHandler::getIntent()` | 0.1.0 | 0.2.0 | `#[HandlesIntent]` attribute |
++| `Index::handle_order_save()` | 0.1.0 | 0.2.0 | `handle_order_created()` / `handle_order_updated()` |
+ 
+ ## Related documentation
+ 
+
+tokens used
+38,266

@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Notes
-- No changes yet. The current authoritative release for the repository is **0.2.0** (see below).
+- No changes yet.
 
 ## [0.2.0] - 2026-01-18
 ### Notes
