@@ -9,7 +9,7 @@ namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
 use AgentWP\Config\AgentWPConfig;
-use AgentWP\Search\Index;
+use AgentWP\Contracts\SearchServiceInterface;
 use WP_REST_Server;
 
 class SearchController extends RestController {
@@ -56,8 +56,14 @@ class SearchController extends RestController {
 			}
 		}
 
-		$types   = array_map( 'trim', $types );
-		$results = Index::search( $query, $types, Index::DEFAULT_LIMIT );
+		$types = array_map( 'trim', $types );
+
+		$searchService = $this->resolveRequired( SearchServiceInterface::class, 'Search service' );
+		if ( $searchService instanceof \WP_REST_Response ) {
+			return $searchService;
+		}
+
+		$results = $searchService->search( $query, $types, SearchServiceInterface::DEFAULT_LIMIT );
 
 		return $this->response_success(
 			array(

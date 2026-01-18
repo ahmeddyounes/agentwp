@@ -22,7 +22,9 @@ use AgentWP\Contracts\OrderSearchServiceInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\PolicyInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
+use AgentWP\Contracts\SearchServiceInterface;
 use AgentWP\Contracts\TransientCacheInterface;
+use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\Contracts\WooCommerceConfigGatewayInterface;
 use AgentWP\Contracts\WooCommerceOrderGatewayInterface;
 use AgentWP\Contracts\WooCommercePriceFormatterInterface;
@@ -47,6 +49,8 @@ use AgentWP\Services\OrderSearch\OrderSearchParser;
 use AgentWP\Services\OrderSearch\PipelineOrderSearchService;
 use AgentWP\Services\OrderStatusService;
 use AgentWP\Services\ProductStockService;
+use AgentWP\Services\SearchService;
+use AgentWP\Services\UsageTrackerService;
 
 /**
  * Registers domain services.
@@ -68,6 +72,8 @@ final class ServicesServiceProvider extends ServiceProvider {
 		$this->registerCustomerService();
 		$this->registerOrderSearchService();
 		$this->registerEmailDraftService();
+		$this->registerSearchService();
+		$this->registerUsageTrackerService();
 	}
 
 	/**
@@ -282,6 +288,30 @@ final class ServicesServiceProvider extends ServiceProvider {
 				$c->get( PolicyInterface::class ),
 				$c->has( OrderRepositoryInterface::class ) ? $c->get( OrderRepositoryInterface::class ) : null
 			)
+		);
+	}
+
+	/**
+	 * Register search service.
+	 *
+	 * @return void
+	 */
+	private function registerSearchService(): void {
+		$this->container->singleton(
+			SearchServiceInterface::class,
+			fn() => new SearchService()
+		);
+	}
+
+	/**
+	 * Register usage tracker service.
+	 *
+	 * @return void
+	 */
+	private function registerUsageTrackerService(): void {
+		$this->container->singleton(
+			UsageTrackerInterface::class,
+			fn() => new UsageTrackerService()
 		);
 	}
 }

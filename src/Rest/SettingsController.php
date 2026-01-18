@@ -8,9 +8,9 @@
 namespace AgentWP\Rest;
 
 use AgentWP\API\RestController;
-use AgentWP\Billing\UsageTracker;
 use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\OpenAIKeyValidatorInterface;
+use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\DTO\ApiKeyRequestDTO;
 use AgentWP\DTO\SettingsUpdateDTO;
 use AgentWP\DTO\UsageQueryDTO;
@@ -221,9 +221,10 @@ class SettingsController extends RestController {
 			return $this->response_error( AgentWPConfig::ERROR_CODE_INVALID_PERIOD, __( 'Invalid usage period.', 'agentwp' ), 400 );
 		}
 
-		$period = $dto->getPeriod();
-		$usage  = class_exists( 'AgentWP\\Billing\\UsageTracker' )
-			? UsageTracker::get_usage_summary( $period )
+		$period       = $dto->getPeriod();
+		$usageTracker = $this->getUsageTracker();
+		$usage        = $usageTracker
+			? $usageTracker->getUsageSummary( $period )
 			: SettingsManager::getDefaultUsageStats();
 
 		return $this->response_success(
@@ -282,5 +283,15 @@ class SettingsController extends RestController {
 	private function getOpenAIKeyValidator(): ?OpenAIKeyValidatorInterface {
 		$validator = $this->resolve( OpenAIKeyValidatorInterface::class );
 		return $validator instanceof OpenAIKeyValidatorInterface ? $validator : null;
+	}
+
+	/**
+	 * Get the usage tracker service from the container.
+	 *
+	 * @return UsageTrackerInterface|null
+	 */
+	private function getUsageTracker(): ?UsageTrackerInterface {
+		$tracker = $this->resolve( UsageTrackerInterface::class );
+		return $tracker instanceof UsageTrackerInterface ? $tracker : null;
 	}
 }
