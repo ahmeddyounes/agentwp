@@ -137,7 +137,7 @@ const loadCommandDeck = (openOnLoad = false): Promise<null> | null => {
       import('react'),
       import('react-dom/client'),
       import('./App'),
-      import('../components/ErrorBoundary'),
+      import('./components/ErrorBoundary'),
       import('@tanstack/react-query'),
       import('./index.css?inline'),
       import('./theme'),

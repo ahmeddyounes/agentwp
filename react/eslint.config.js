@@ -117,7 +117,7 @@ export default tseslint.config(
   },
   // App/browser environment
   {
-    files: ['src/**/*.{js,jsx,ts,tsx}', 'components/**/*.{js,jsx,ts,tsx}'],
+    files: ['src/**/*.{js,jsx,ts,tsx}'],
     languageOptions: {
       globals: browserGlobals,
     },

@@ -1,6 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import DataTableCard from '../../../components/cards/DataTableCard';
+import DataTableCard from '../../../src/components/cards/DataTableCard';
 
 describe('DataTableCard', () => {
   const columns = [

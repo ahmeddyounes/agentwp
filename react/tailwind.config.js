@@ -2,7 +2,7 @@
 const withAlpha = (variable) => `rgb(var(${variable}) / <alpha-value>)`;
 
 export default {
-  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}', './components/**/*.{js,jsx,ts,tsx}'],
+  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
       fontFamily: {

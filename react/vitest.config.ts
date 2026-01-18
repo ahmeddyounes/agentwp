@@ -8,7 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
-      '@components': resolve(__dirname, 'components'),
+      '@components': resolve(__dirname, 'src/components'),
       '@hooks': resolve(__dirname, 'src/hooks'),
       '@stores': resolve(__dirname, 'src/stores'),
       '@utils': resolve(__dirname, 'src/utils'),
@@ -26,9 +26,9 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       reportsDirectory: './coverage',
-      include: ['components/**/*.{js,jsx,ts,tsx}', 'src/**/*.{js,jsx,ts,tsx}'],
+      include: ['src/**/*.{js,jsx,ts,tsx}'],
       exclude: [
-        'components/cards/index.ts',
+        'src/components/cards/index.ts',
         'src/main.tsx',
         '**/*.d.ts',
         '**/*.test.{js,jsx,ts,tsx}',

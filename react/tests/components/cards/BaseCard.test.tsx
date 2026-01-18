@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import BaseCard from '../../../components/cards/BaseCard';
+import BaseCard from '../../../src/components/cards/BaseCard';
 
 describe('BaseCard', () => {
   it('renders header, body, and actions with accessible labeling', () => {

@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import ChartCard from '../../../components/cards/ChartCard';
+import ChartCard from '../../../src/components/cards/ChartCard';
 
 vi.mock('chart.js', () => ({
   Chart: { register: vi.fn() },

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import ErrorBoundary from '../../components/ErrorBoundary';
+import ErrorBoundary from '../../src/components/ErrorBoundary';
 
 const Thrower = (): JSX.Element => {
   throw new Error('Boom');

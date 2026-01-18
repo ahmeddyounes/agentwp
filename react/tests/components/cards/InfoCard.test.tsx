@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import InfoCard from '../../../components/cards/InfoCard';
+import InfoCard from '../../../src/components/cards/InfoCard';
 
 describe('InfoCard', () => {
   it('renders title, subtitle, and children', () => {

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import HistoryPanel, { type CommandHistoryEntry } from '../../components/HistoryPanel';
+import HistoryPanel, { type CommandHistoryEntry } from '../../src/components/HistoryPanel';
 
 describe('HistoryPanel', () => {
   const entry: CommandHistoryEntry = {

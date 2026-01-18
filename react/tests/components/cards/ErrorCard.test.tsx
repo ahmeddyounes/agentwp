@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import ErrorCard from '../../../components/cards/ErrorCard';
+import ErrorCard from '../../../src/components/cards/ErrorCard';
 
 describe('ErrorCard', () => {
   it('renders retry and report actions', async () => {

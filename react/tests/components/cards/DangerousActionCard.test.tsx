@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import DangerousActionCard from '../../../components/cards/DangerousActionCard';
+import DangerousActionCard from '../../../src/components/cards/DangerousActionCard';
 
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
