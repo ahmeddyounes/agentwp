@@ -3,6 +3,7 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" packagePrefix="AgentWP\" />
+      <sourceFolder url="file://$MODULE_DIR$/phpstan" isTestSource="true" packagePrefix="AgentWP\PHPStan\" />
       <sourceFolder url="file://$MODULE_DIR$/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/tests" isTestSource="true" packagePrefix="AgentWP\Tests\" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/10up/wp_mock" />

@@ -8,9 +8,10 @@
 namespace AgentWP\Services\OrderSearch;
 
 use AgentWP\Contracts\OrderSearchServiceInterface;
+use AgentWP\DTO\ServiceResult;
 
 /**
- * Adapts the pipeline-based order search to the legacy interface.
+ * Adapts the pipeline-based order search to the service interface.
  *
  * This adapter implements OrderSearchServiceInterface by delegating to
  * the decomposed pipeline components (ArgumentNormalizer, OrderQueryService).
@@ -48,7 +49,7 @@ final class PipelineOrderSearchService implements OrderSearchServiceInterface {
 	/**
 	 * {@inheritDoc}
 	 */
-	public function handle( array $args ) {
+	public function handle( array $args ): ServiceResult {
 		$query = $this->normalizer->normalize( $args );
 
 		return $this->queryService->search( $query );

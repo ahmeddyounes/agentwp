@@ -72,9 +72,9 @@ class OrderSearchHandler extends AbstractAgenticHandler {
 	 *
 	 * @param string $name      Tool name.
 	 * @param array  $arguments Tool arguments.
-	 * @return mixed Tool execution result.
+	 * @return array Tool execution result.
 	 */
-	public function execute_tool( string $name, array $arguments ) {
+	public function execute_tool( string $name, array $arguments ): array {
 		if ( 'search_orders' === $name ) {
 			// Map arguments to service format with explicit type casting.
 			$search_args = array(
@@ -89,9 +89,31 @@ class OrderSearchHandler extends AbstractAgenticHandler {
 				$search_args['date_range'] = $arguments['date_range'];
 			}
 
-			return $this->service->handle( $search_args );
+			$result = $this->service->handle( $search_args );
+
+			// Return structured result for AI consumption.
+			// On failure, include error info. On success, include search results.
+			if ( $result->isFailure() ) {
+				return array(
+					'success' => false,
+					'error'   => $result->message,
+					'code'    => $result->code,
+				);
+			}
+
+			return array(
+				'success' => true,
+				'orders'  => $result->get( 'orders', array() ),
+				'count'   => $result->get( 'count', 0 ),
+				'cached'  => $result->get( 'cached', false ),
+				'query'   => $result->get( 'query', array() ),
+			);
 		}
 
-		return array( 'error' => "Unknown tool: {$name}" );
+		return array(
+			'success' => false,
+			'error'   => "Unknown tool: {$name}",
+			'code'    => 'unknown_tool',
+		);
 	}
 }

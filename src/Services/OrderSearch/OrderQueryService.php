@@ -13,6 +13,7 @@ use AgentWP\Contracts\OrderRepositoryInterface;
 use AgentWP\Contracts\TransientCacheInterface;
 use AgentWP\DTO\OrderDTO;
 use AgentWP\DTO\OrderQuery;
+use AgentWP\DTO\ServiceResult;
 
 /**
  * Executes order queries with caching.
@@ -101,29 +102,35 @@ final class OrderQueryService {
 	 * Search orders.
 	 *
 	 * @param OrderQuery $query The query parameters.
-	 * @return array{orders: array, count: int, cached: bool, query: array}
+	 * @return ServiceResult Search results with orders array, count, cached flag, and query summary.
 	 */
-	public function search( OrderQuery $query ): array {
+	public function search( OrderQuery $query ): ServiceResult {
 		$cacheKey = $this->buildCacheKey( $query );
 		$cached   = $this->resultCache->get( $cacheKey );
 
 		if ( null !== $cached && is_array( $cached ) ) {
-			return array(
-				'orders' => $cached,
-				'count'  => count( $cached ),
-				'cached' => true,
-				'query'  => $this->formatQuerySummary( $query ),
+			return ServiceResult::success(
+				count( $cached ) . ' order(s) found.',
+				array(
+					'orders' => $cached,
+					'count'  => count( $cached ),
+					'cached' => true,
+					'query'  => $this->formatQuerySummary( $query ),
+				)
 			);
 		}
 
 		$orders = $this->executeQuery( $query );
 		$this->resultCache->set( $cacheKey, $orders, self::DEFAULT_CACHE_TTL );
 
-		return array(
-			'orders' => $orders,
-			'count'  => count( $orders ),
-			'cached' => false,
-			'query'  => $this->formatQuerySummary( $query ),
+		return ServiceResult::success(
+			count( $orders ) . ' order(s) found.',
+			array(
+				'orders' => $orders,
+				'count'  => count( $orders ),
+				'cached' => false,
+				'query'  => $this->formatQuerySummary( $query ),
+			)
 		);
 	}
 

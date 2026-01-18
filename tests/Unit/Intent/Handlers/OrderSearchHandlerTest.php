@@ -7,6 +7,7 @@ namespace AgentWP\Tests\Unit\Intent\Handlers;
 
 use AgentWP\AI\Response;
 use AgentWP\Contracts\OrderSearchServiceInterface;
+use AgentWP\DTO\ServiceResult;
 use AgentWP\Intent\Handlers\OrderSearchHandler;
 use AgentWP\Intent\Intent;
 use AgentWP\Tests\Fakes\FakeAIClientFactory;
@@ -42,9 +43,14 @@ class OrderSearchHandlerTest extends TestCase {
 				)
 			)
 			->andReturn(
-				array(
-					'count'  => 1,
-					'orders' => array(),
+				ServiceResult::success(
+					'1 order(s) found.',
+					array(
+						'orders' => array(),
+						'count'  => 1,
+						'cached' => false,
+						'query'  => array(),
+					)
 				)
 			);
 

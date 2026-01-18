@@ -28,6 +28,7 @@ use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\Contracts\WooCommerceConfigGatewayInterface;
 use AgentWP\Contracts\WooCommerceOrderGatewayInterface;
 use AgentWP\Contracts\WooCommercePriceFormatterInterface;
+use AgentWP\DTO\ServiceResult;
 use AgentWP\Contracts\WooCommerceProductCategoryGatewayInterface;
 use AgentWP\Contracts\WooCommerceRefundGatewayInterface;
 use AgentWP\Contracts\WooCommerceStockGatewayInterface;
@@ -177,10 +178,11 @@ final class ServicesServiceProvider extends ServiceProvider {
 				if ( null === $queryService ) {
 					// Return a stub that returns error when WooCommerce is not available.
 					return new class implements OrderSearchServiceInterface {
-						public function handle( array $args ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- Interface requirement
-							return array(
-								'error' => 'WooCommerce is required.',
-								'code'  => 400,
+						public function handle( array $args ): ServiceResult { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- Interface requirement
+							return ServiceResult::failure(
+								ServiceResult::CODE_INVALID_STATE,
+								'WooCommerce is required.',
+								400
 							);
 						}
 					};
