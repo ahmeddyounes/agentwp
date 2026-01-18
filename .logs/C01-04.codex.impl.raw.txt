@@ -1,0 +1,277 @@
+Status: DONE
+
+Summary of changes:
+- Simplified the `finally` block in `src/Infrastructure/RateLimiting/RateLimiter.php` to always release the lock without an always-true condition, preserving fail-open behavior.
+
+How to verify (exact commands):
+- Not provided (no format/lint/test commands specified)
+
+Risks / follow-ups:
+- Low risk; logic change is limited to lock release. No automated checks were run.
+
+OpenAI Codex v0.87.0 (research preview)
+--------
+workdir: /Users/ahmedyounis/Documents/Projects/agentwp
+model: gpt-5.2-codex
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: auto
+session id: 019bd1c0-709c-78a1-8f46-39dc8a62a7f3
+--------
+user
+You are implementing task C01-04 in this git repository.
+
+1) Read the spec: .plans/C01-04.md
+2) Read handoff/context: .t2/handoff/C01-04.md
+
+Implement the spec fully.
+
+Verification commands (run if non-empty):
+- format: 
+- lint: 
+- test: 
+
+In your final response, include:
+- Status: DONE or NEEDS-REVIEW
+- Summary of changes
+- How to verify (exact commands)
+- Risks / follow-ups
+
+mcp startup: no servers
+
+thinking
+**Preparing to inspect files for spec**
+exec
+/bin/zsh -lc ls in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 50ms:
+agentwp.php
+assets
+composer.json
+composer.lock
+docker
+docker-compose.demo.yml
+docker-compose.yml
+docs
+includes
+languages
+node_modules
+package-lock.json
+package.json
+phpcs.xml
+phpstan
+phpstan.neon
+phpunit.xml.dist
+plan_tasks.csv
+playwright.config.cjs
+react
+
+thinking
+**Checking for spec file presence**
+exec
+/bin/zsh -lc 'ls .plans' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 66ms:
+C01-01.md
+C01-02.md
+C01-03.md
+C01-04.md
+M00-01.md
+M00-02.md
+M00-03.md
+M01-01.md
+M01-02.md
+M01-03.md
+M01-04.md
+M01-05.md
+M01-06.md
+M02-01.md
+M02-02.md
+M02-03.md
+M02-04.md
+M02-05.md
+M02-06.md
+M03-01.md
+exec
+/bin/zsh -lc 'cat .plans/C01-04.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 70ms:
+# C01-04 — Fix RateLimiter PHPStan always-true condition
+
+In `src/Infrastructure/RateLimiting/RateLimiter.php`, simplify `checkAndIncrement()`’s `finally` block so PHPStan no longer flags the lock-release condition as always true, while preserving fail-open semantics and always releasing the lock when acquired.
+
+thinking
+**Reviewing handoff note**
+exec
+/bin/zsh -lc 'cat .t2/handoff/C01-04.md' in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 70ms:
+# Handoff: C01-04
+
+Created: 2026-01-18T15:36:48.503952Z
+
+Spec: .plans/C01-04.md
+
+thinking
+**Preparing to edit RateLimiter**
+exec
+/bin/zsh -lc "sed -n '1,200p' src/Infrastructure/RateLimiting/RateLimiter.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 65ms:
+<?php
+/**
+ * Rate limiter implementation.
+ *
+ * @package AgentWP\Infrastructure\RateLimiting
+ */
+
+namespace AgentWP\Infrastructure\RateLimiting;
+
+use AgentWP\Config\AgentWPConfig;
+use AgentWP\Contracts\ClockInterface;
+use AgentWP\Contracts\AtomicRateLimiterInterface;
+use AgentWP\Contracts\RateLimiterInterface;
+use AgentWP\Contracts\TransientCacheInterface;
+
+/**
+ * Transient-based rate limiter for API requests.
+ */
+final class RateLimiter implements AtomicRateLimiterInterface {
+
+exec
+/bin/zsh -lc "sed -n '200,400p' src/Infrastructure/RateLimiting/RateLimiter.php" in /Users/ahmedyounis/Documents/Projects/agentwp succeeded in 66ms:
+		try {
+			$now    = $this->clock->timestamp();
+			$bucket = $this->cache->get( $key );
+
+			// Initialize or reset expired bucket.
+			if ( ! is_array( $bucket ) || $now - (int) ( $bucket['start'] ?? 0 ) >= $this->window ) {
+				$bucket = array(
+					'start' => $now,
+					'count' => 0,
+				);
+			}
+
+			// Check if already at limit.
+			if ( (int) ( $bucket['count'] ?? 0 ) >= $this->limit ) {
+				return false;
+			}
+
+			// Increment and store.
+			$bucket['count'] = (int) ( $bucket['count'] ?? 0 ) + 1;
+			$this->cache->set( $key, $bucket, $this->window );
+
+
+thinking
+**Simplifying lock release check**
+
+Since returning early if lock isn't acquired means `$lockAcquired` is always true in `finally`, I'll remove the conditional there to satisfy PHPStan while preserving always releasing the lock when acquired.
+thinking
+**Confirming safe removal of lock check**
+
+The early return guarantees `finally` runs only if lock was acquired, so removing the conditional and unconditionally deleting in `finally` is safe and simplifies the code as planned.
+file update
+M /Users/ahmedyounis/Documents/Projects/agentwp/src/Infrastructure/RateLimiting/RateLimiter.php
+@@ -225,9 +225,7 @@
+ 		} finally {
+-			// Always release the lock if we acquired it.
+-			if ( $lockAcquired ) {
+-				try {
+-					$this->cache->delete( $lockKey );
+-				} catch ( \Throwable $e ) {
+-					// Ignore lock release failures - lock will expire via timeout.
+-				}
++			// Always release the lock since we only reach this block after acquisition.
++			try {
++				$this->cache->delete( $lockKey );
++			} catch ( \Throwable $e ) {
++				// Ignore lock release failures - lock will expire via timeout.
+ 			}
+apply_patch(auto_approved=true) exited 0 in 28ms:
+Success. Updated the following files:
+M src/Infrastructure/RateLimiting/RateLimiter.php
+file update:
+diff --git a/src/Infrastructure/RateLimiting/RateLimiter.php b/src/Infrastructure/RateLimiting/RateLimiter.php
+index 543dc95d07bcdffb10677ab801202de56b694359..0ea9a93d657f7df397c4bc1e00f097b0f5930821
+--- a/src/Infrastructure/RateLimiting/RateLimiter.php
++++ b/src/Infrastructure/RateLimiting/RateLimiter.php
+@@ -223,13 +223,11 @@
+ 			// Storage unavailable during read/write - fail open.
+ 			return true;
+ 		} finally {
+-			// Always release the lock if we acquired it.
+-			if ( $lockAcquired ) {
+-				try {
+-					$this->cache->delete( $lockKey );
+-				} catch ( \Throwable $e ) {
+-					// Ignore lock release failures - lock will expire via timeout.
+-				}
++			// Always release the lock since we only reach this block after acquisition.
++			try {
++				$this->cache->delete( $lockKey );
++			} catch ( \Throwable $e ) {
++				// Ignore lock release failures - lock will expire via timeout.
+ 			}
+ 		}
+ 	}
+
+file update:
+diff --git a/src/Infrastructure/RateLimiting/RateLimiter.php b/src/Infrastructure/RateLimiting/RateLimiter.php
+index 543dc95d07bcdffb10677ab801202de56b694359..0ea9a93d657f7df397c4bc1e00f097b0f5930821
+--- a/src/Infrastructure/RateLimiting/RateLimiter.php
++++ b/src/Infrastructure/RateLimiting/RateLimiter.php
+@@ -223,13 +223,11 @@
+ 			// Storage unavailable during read/write - fail open.
+ 			return true;
+ 		} finally {
+-			// Always release the lock if we acquired it.
+-			if ( $lockAcquired ) {
+-				try {
+-					$this->cache->delete( $lockKey );
+-				} catch ( \Throwable $e ) {
+-					// Ignore lock release failures - lock will expire via timeout.
+-				}
++			// Always release the lock since we only reach this block after acquisition.
++			try {
++				$this->cache->delete( $lockKey );
++			} catch ( \Throwable $e ) {
++				// Ignore lock release failures - lock will expire via timeout.
+ 			}
+ 		}
+ 	}
+
+
+thinking
+**Providing final summary with risks**
+
+The change is minor with no tests or exact verification commands specified. Verification instructions note no commands provided. The main risk is not running tests before deployment.
+codex
+Status: DONE
+
+Summary of changes:
+- Simplified the `finally` block in `src/Infrastructure/RateLimiting/RateLimiter.php` to always release the lock without an always-true condition, preserving fail-open behavior.
+
+How to verify (exact commands):
+- Not provided (no format/lint/test commands specified)
+
+Risks / follow-ups:
+- Low risk; logic change is limited to lock release. No automated checks were run.
+file update:
+diff --git a/src/Infrastructure/RateLimiting/RateLimiter.php b/src/Infrastructure/RateLimiting/RateLimiter.php
+index 543dc95d07bcdffb10677ab801202de56b694359..0ea9a93d657f7df397c4bc1e00f097b0f5930821
+--- a/src/Infrastructure/RateLimiting/RateLimiter.php
++++ b/src/Infrastructure/RateLimiting/RateLimiter.php
+@@ -223,13 +223,11 @@
+ 			// Storage unavailable during read/write - fail open.
+ 			return true;
+ 		} finally {
+-			// Always release the lock if we acquired it.
+-			if ( $lockAcquired ) {
+-				try {
+-					$this->cache->delete( $lockKey );
+-				} catch ( \Throwable $e ) {
+-					// Ignore lock release failures - lock will expire via timeout.
+-				}
++			// Always release the lock since we only reach this block after acquisition.
++			try {
++				$this->cache->delete( $lockKey );
++			} catch ( \Throwable $e ) {
++				// Ignore lock release failures - lock will expire via timeout.
+ 			}
+ 		}
+ 	}
+
+tokens used
+9,496

@@ -223,13 +223,11 @@ final class RateLimiter implements AtomicRateLimiterInterface {
 			// Storage unavailable during read/write - fail open.
 			return true;
 		} finally {
-			// Always release the lock if we acquired it.
-			if ( $lockAcquired ) {
-				try {
-					$this->cache->delete( $lockKey );
-				} catch ( \Throwable $e ) {
-					// Ignore lock release failures - lock will expire via timeout.
-				}
+			// Always release the lock since we only reach this block after acquisition.
+			try {
+				$this->cache->delete( $lockKey );
+			} catch ( \Throwable $e ) {
+				// Ignore lock release failures - lock will expire via timeout.
 			}
 		}
 	}
