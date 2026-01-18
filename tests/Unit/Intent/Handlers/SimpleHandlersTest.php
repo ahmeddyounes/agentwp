@@ -16,8 +16,14 @@ use AgentWP\Intent\Handlers\FallbackHandler;
 use AgentWP\Intent\Handlers\OrderRefundHandler;
 use AgentWP\Intent\Handlers\OrderStatusHandler;
 use AgentWP\Intent\Intent;
+use AgentWP\Intent\Tools\ConfirmRefundTool;
+use AgentWP\Intent\Tools\ConfirmStatusUpdateTool;
+use AgentWP\Intent\Tools\PrepareBulkStatusUpdateTool;
+use AgentWP\Intent\Tools\PrepareRefundTool;
+use AgentWP\Intent\Tools\PrepareStatusUpdateTool;
 use AgentWP\Tests\Fakes\FakeAIClientFactory;
 use AgentWP\Tests\Fakes\FakeOpenAIClient;
+use AgentWP\Tests\Fakes\FakeToolDispatcher;
 use AgentWP\Tests\Fakes\FakeToolRegistry;
 use AgentWP\Tests\TestCase;
 use Mockery;
@@ -25,7 +31,30 @@ use Mockery;
 class SimpleHandlersTest extends TestCase {
 	public function test_handlers_return_expected_messages(): void {
 		$toolRegistry = new FakeToolRegistry();
-		$handlers     = array(
+
+		// Create mock services.
+		$refundService = Mockery::mock( OrderRefundServiceInterface::class );
+		$statusService = Mockery::mock( OrderStatusServiceInterface::class );
+
+		// Create tool dispatchers with pre-registered tools for order handlers.
+		$refundDispatcher = new FakeToolDispatcher();
+		$refundDispatcher->registerTools(
+			array(
+				new PrepareRefundTool( $refundService ),
+				new ConfirmRefundTool( $refundService ),
+			)
+		);
+
+		$statusDispatcher = new FakeToolDispatcher();
+		$statusDispatcher->registerTools(
+			array(
+				new PrepareStatusUpdateTool( $statusService ),
+				new PrepareBulkStatusUpdateTool( $statusService ),
+				new ConfirmStatusUpdateTool( $statusService ),
+			)
+		);
+
+		$handlers = array(
 			array(
 				new AnalyticsQueryHandler(
 					Mockery::mock( AnalyticsServiceInterface::class ),
@@ -50,23 +79,23 @@ class SimpleHandlersTest extends TestCase {
 			),
 			array(
 				new OrderRefundHandler(
-					Mockery::mock( OrderRefundServiceInterface::class ),
 					new FakeAIClientFactory(
 						new FakeOpenAIClient( array( Response::success( array( 'content' => 'ok', 'tool_calls' => array() ) ) ) ),
 						true
 					),
-					$toolRegistry
+					$toolRegistry,
+					$refundDispatcher
 				),
 				Intent::ORDER_REFUND,
 			),
 			array(
 				new OrderStatusHandler(
-					Mockery::mock( OrderStatusServiceInterface::class ),
 					new FakeAIClientFactory(
 						new FakeOpenAIClient( array( Response::success( array( 'content' => 'ok', 'tool_calls' => array() ) ) ) ),
 						true
 					),
-					$toolRegistry
+					$toolRegistry,
+					$statusDispatcher
 				),
 				Intent::ORDER_STATUS,
 			),

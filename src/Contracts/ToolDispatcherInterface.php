@@ -15,7 +15,7 @@ namespace AgentWP\Contracts;
  *
  * This interface centralizes the tool execution logic that was previously
  * duplicated across handler `execute_tool()` implementations. It provides:
- * - Tool registration with callable executors
+ * - Tool registration with callable executors or ExecutableTool instances
  * - Argument validation against JSON schemas
  * - Execution with JSON-safe result handling
  */
@@ -37,6 +37,22 @@ interface ToolDispatcherInterface {
 	 * @return void
 	 */
 	public function registerMany( array $executors ): void;
+
+	/**
+	 * Register an executable tool.
+	 *
+	 * @param ExecutableToolInterface $tool Executable tool instance.
+	 * @return void
+	 */
+	public function registerTool( ExecutableToolInterface $tool ): void;
+
+	/**
+	 * Register multiple executable tools.
+	 *
+	 * @param array<ExecutableToolInterface> $tools Array of executable tool instances.
+	 * @return void
+	 */
+	public function registerTools( array $tools ): void;
 
 	/**
 	 * Check if a tool executor is registered.

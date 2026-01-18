@@ -32,7 +32,15 @@ use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Contracts\OrderSearchServiceInterface;
 use AgentWP\Contracts\OrderStatusServiceInterface;
 use AgentWP\Contracts\ProductStockServiceInterface;
+use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
+use AgentWP\Intent\ToolDispatcher;
+use AgentWP\Intent\Tools\ConfirmRefundTool;
+use AgentWP\Intent\Tools\ConfirmStatusUpdateTool;
+use AgentWP\Intent\Tools\PrepareBulkStatusUpdateTool;
+use AgentWP\Intent\Tools\PrepareRefundTool;
+use AgentWP\Intent\Tools\PrepareStatusUpdateTool;
+use AgentWP\Intent\Tools\SearchOrdersTool;
 use AgentWP\Plugin\SettingsManager;
 use AgentWP\Intent\Handlers\AnalyticsQueryHandler;
 use AgentWP\Intent\Handlers\CustomerLookupHandler;
@@ -69,6 +77,7 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->registerIntentClassifier();
 		$this->registerFunctionRegistry();
 		$this->registerToolRegistry();
+		$this->registerToolDispatcher();
 		$this->registerHandlerRegistry();
 		$this->registerFallbackHandler();
 		$this->registerEngine();
@@ -246,6 +255,43 @@ final class IntentServiceProvider extends ServiceProvider {
 	}
 
 	/**
+	 * Register tool dispatcher with all executable tools.
+	 *
+	 * Pre-registers order tools centrally so handlers can use them
+	 * without defining inline executors.
+	 *
+	 * @return void
+	 */
+	private function registerToolDispatcher(): void {
+		if ( ! class_exists( ToolDispatcher::class ) ) {
+			return;
+		}
+
+		$this->container->singleton(
+			ToolDispatcherInterface::class,
+			function ( $c ) {
+				$dispatcher = new ToolDispatcher(
+					$c->get( ToolRegistryInterface::class )
+				);
+
+				// Register order-related executable tools.
+				$dispatcher->registerTools(
+					array(
+						new SearchOrdersTool( $c->get( OrderSearchServiceInterface::class ) ),
+						new PrepareRefundTool( $c->get( OrderRefundServiceInterface::class ) ),
+						new ConfirmRefundTool( $c->get( OrderRefundServiceInterface::class ) ),
+						new PrepareStatusUpdateTool( $c->get( OrderStatusServiceInterface::class ) ),
+						new PrepareBulkStatusUpdateTool( $c->get( OrderStatusServiceInterface::class ) ),
+						new ConfirmStatusUpdateTool( $c->get( OrderStatusServiceInterface::class ) ),
+					)
+				);
+
+				return $dispatcher;
+			}
+		);
+	}
+
+	/**
 	 * Register handler registry.
 	 *
 	 * @return void
@@ -343,9 +389,9 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			OrderSearchHandler::class,
 			fn( $c ) => new OrderSearchHandler(
-				$c->get( OrderSearchServiceInterface::class ),
 				$c->get( AIClientFactoryInterface::class ),
-				$c->get( ToolRegistryInterface::class )
+				$c->get( ToolRegistryInterface::class ),
+				$c->get( ToolDispatcherInterface::class )
 			)
 		);
 		$this->container->tag( OrderSearchHandler::class, 'intent.handler' );
@@ -364,9 +410,9 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			OrderRefundHandler::class,
 			fn( $c ) => new OrderRefundHandler(
-				$c->get( OrderRefundServiceInterface::class ),
 				$c->get( AIClientFactoryInterface::class ),
-				$c->get( ToolRegistryInterface::class )
+				$c->get( ToolRegistryInterface::class ),
+				$c->get( ToolDispatcherInterface::class )
 			)
 		);
 		$this->container->tag( OrderRefundHandler::class, 'intent.handler' );
@@ -385,9 +431,9 @@ final class IntentServiceProvider extends ServiceProvider {
 		$this->container->singleton(
 			OrderStatusHandler::class,
 			fn( $c ) => new OrderStatusHandler(
-				$c->get( OrderStatusServiceInterface::class ),
 				$c->get( AIClientFactoryInterface::class ),
-				$c->get( ToolRegistryInterface::class )
+				$c->get( ToolRegistryInterface::class ),
+				$c->get( ToolDispatcherInterface::class )
 			)
 		);
 		$this->container->tag( OrderStatusHandler::class, 'intent.handler' );

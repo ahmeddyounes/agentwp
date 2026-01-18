@@ -1,9 +1,7 @@
-[main 8f5f893] C04-03: implement
- 8 files changed, 297 insertions(+), 113 deletions(-)
- create mode 100644 .logs/C04-02.gitcommit.txt
- create mode 100644 .logs/C04-03.claude.impl.last.md
- create mode 100644 .logs/C04-03.claude.impl.raw.txt
- create mode 100644 .plans/C04-03.md
- create mode 100644 .t2/handoff/C04-03.md
+[main 142e5ec] C04-03: implement
+ 17 files changed, 928 insertions(+), 312 deletions(-)
+ create mode 100644 src/Contracts/ToolDispatcherInterface.php
+ create mode 100644 src/Intent/ToolDispatcher.php
+ create mode 100644 tests/Unit/Intent/ToolDispatcherTest.php
 
 → No staged files match any configured task.

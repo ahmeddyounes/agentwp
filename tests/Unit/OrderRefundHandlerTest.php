@@ -6,8 +6,11 @@ use AgentWP\Tests\TestCase;
 use AgentWP\AI\Response;
 use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\DTO\ServiceResult;
+use AgentWP\Intent\Tools\ConfirmRefundTool;
+use AgentWP\Intent\Tools\PrepareRefundTool;
 use AgentWP\Tests\Fakes\FakeAIClientFactory;
 use AgentWP\Tests\Fakes\FakeOpenAIClient;
+use AgentWP\Tests\Fakes\FakeToolDispatcher;
 use AgentWP\Tests\Fakes\FakeToolRegistry;
 use Mockery;
 
@@ -45,10 +48,19 @@ class OrderRefundHandlerTest extends TestCase {
 			)
 		);
 
+		// Create tool dispatcher with pre-registered refund tools.
+		$toolDispatcher = new FakeToolDispatcher();
+		$toolDispatcher->registerTools(
+			array(
+				new PrepareRefundTool( $service ),
+				new ConfirmRefundTool( $service ),
+			)
+		);
+
 		$handler = new OrderRefundHandler(
-			$service,
 			new FakeAIClientFactory( $client, true ),
-			new FakeToolRegistry()
+			new FakeToolRegistry(),
+			$toolDispatcher
 		);
 
 		$response = $handler->handle( array( 'input' => 'Refund order 123' ) );

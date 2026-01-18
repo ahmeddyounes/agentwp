@@ -10,6 +10,7 @@
 
 namespace AgentWP\Intent;
 
+use AgentWP\Contracts\ExecutableToolInterface;
 use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Validation\ToolArgumentValidator;
@@ -18,7 +19,7 @@ use AgentWP\Validation\ToolArgumentValidator;
  * Dispatches tool execution calls to registered executors.
  *
  * Provides centralized tool execution with:
- * - Tool registration with callable executors
+ * - Tool registration with callable executors or ExecutableTool instances
  * - Argument validation against JSON schemas from ToolRegistry
  * - Execution with JSON-safe result handling
  */
@@ -79,6 +80,31 @@ class ToolDispatcher implements ToolDispatcherInterface {
 	public function registerMany( array $executors ): void {
 		foreach ( $executors as $name => $executor ) {
 			$this->register( $name, $executor );
+		}
+	}
+
+	/**
+	 * Register an executable tool.
+	 *
+	 * @param ExecutableToolInterface $tool Executable tool instance.
+	 * @return void
+	 */
+	public function registerTool( ExecutableToolInterface $tool ): void {
+		$this->register(
+			$tool->getName(),
+			fn( array $args ): array => $tool->execute( $args )
+		);
+	}
+
+	/**
+	 * Register multiple executable tools.
+	 *
+	 * @param array<ExecutableToolInterface> $tools Array of executable tool instances.
+	 * @return void
+	 */
+	public function registerTools( array $tools ): void {
+		foreach ( $tools as $tool ) {
+			$this->registerTool( $tool );
 		}
 	}
 

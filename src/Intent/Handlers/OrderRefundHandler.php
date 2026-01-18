@@ -8,7 +8,6 @@
 namespace AgentWP\Intent\Handlers;
 
 use AgentWP\Contracts\AIClientFactoryInterface;
-use AgentWP\Contracts\OrderRefundServiceInterface;
 use AgentWP\Contracts\ToolDispatcherInterface;
 use AgentWP\Contracts\ToolRegistryInterface;
 use AgentWP\Intent\Attributes\HandlesIntent;
@@ -16,56 +15,37 @@ use AgentWP\Intent\Intent;
 
 /**
  * Handles order refund intents using the agentic loop.
+ *
+ * Uses the centrally-registered PrepareRefundTool and ConfirmRefundTool for execution.
  */
 #[HandlesIntent( Intent::ORDER_REFUND )]
 class OrderRefundHandler extends AbstractAgenticHandler {
 
 	/**
-	 * @var OrderRefundServiceInterface
-	 */
-	private OrderRefundServiceInterface $service;
-
-	/**
 	 * Initialize order refund intent handler.
 	 *
-	 * @param OrderRefundServiceInterface  $service        Refund service.
-	 * @param AIClientFactoryInterface     $clientFactory  AI client factory.
-	 * @param ToolRegistryInterface        $toolRegistry   Tool registry.
-	 * @param ToolDispatcherInterface|null $toolDispatcher Tool dispatcher (optional).
+	 * @param AIClientFactoryInterface $clientFactory  AI client factory.
+	 * @param ToolRegistryInterface    $toolRegistry   Tool registry.
+	 * @param ToolDispatcherInterface  $toolDispatcher Tool dispatcher with pre-registered tools.
 	 */
 	public function __construct(
-		OrderRefundServiceInterface $service,
 		AIClientFactoryInterface $clientFactory,
 		ToolRegistryInterface $toolRegistry,
-		?ToolDispatcherInterface $toolDispatcher = null
+		ToolDispatcherInterface $toolDispatcher
 	) {
-		$this->service = $service;
 		parent::__construct( Intent::ORDER_REFUND, $clientFactory, $toolRegistry, $toolDispatcher );
 	}
 
 	/**
 	 * Register tool executors with the dispatcher.
 	 *
+	 * No-op: Tools are pre-registered via the container.
+	 *
 	 * @param ToolDispatcherInterface $dispatcher The tool dispatcher.
 	 * @return void
 	 */
 	protected function registerToolExecutors( ToolDispatcherInterface $dispatcher ): void {
-		$dispatcher->registerMany(
-			array(
-				'prepare_refund' => function ( array $args ): array {
-					$order_id      = isset( $args['order_id'] ) ? (int) $args['order_id'] : 0;
-					$amount        = isset( $args['amount'] ) ? $args['amount'] : null;
-					$reason        = isset( $args['reason'] ) ? $args['reason'] : '';
-					$restock_items = isset( $args['restock_items'] ) ? (bool) $args['restock_items'] : true;
-
-					return $this->service->prepare_refund( $order_id, $amount, $reason, $restock_items )->toLegacyArray();
-				},
-				'confirm_refund' => function ( array $args ): array {
-					$draft_id = isset( $args['draft_id'] ) ? (string) $args['draft_id'] : '';
-					return $this->service->confirm_refund( $draft_id )->toLegacyArray();
-				},
-			)
-		);
+		// Tools are pre-registered via IntentServiceProvider::registerToolDispatcher().
 	}
 
 	/**
