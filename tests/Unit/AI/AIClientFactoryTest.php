@@ -10,6 +10,7 @@ namespace AgentWP\Tests\Unit\AI;
 use AgentWP\AI\AIClientFactory;
 use AgentWP\AI\OpenAIClient;
 use AgentWP\Contracts\HttpClientInterface;
+use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\Demo\DemoClient;
 use AgentWP\Demo\DemoCredentials;
 use AgentWP\Plugin\SettingsManager;
@@ -30,6 +31,10 @@ class AIClientFactoryTest extends TestCase {
 		return Mockery::mock( HttpClientInterface::class );
 	}
 
+	private function createUsageTrackerMock(): UsageTrackerInterface {
+		return Mockery::mock( UsageTrackerInterface::class );
+	}
+
 	private function createFactory(
 		bool $demo_mode,
 		string $api_key = '',
@@ -39,12 +44,14 @@ class AIClientFactoryTest extends TestCase {
 		$settings         = $this->createSettingsMock( $demo_mode, $api_key, $demo_api_key );
 		$demo_credentials = new DemoCredentials( $settings );
 		$http_client      = $this->createHttpClientMock();
+		$usage_tracker    = $this->createUsageTrackerMock();
 
 		return new AIClientFactory(
 			$http_client,
 			$settings,
 			$default_model,
-			$demo_credentials
+			$demo_credentials,
+			$usage_tracker
 		);
 	}
 

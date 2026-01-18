@@ -14,6 +14,7 @@ use AgentWP\Config\AgentWPConfig;
 use AgentWP\Contracts\AIClientFactoryInterface;
 use AgentWP\Contracts\HttpClientInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
+use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\Demo\DemoClient;
 use AgentWP\Demo\DemoCredentials;
 use AgentWP\Plugin\SettingsManager;
@@ -59,23 +60,33 @@ class AIClientFactory implements AIClientFactoryInterface {
 	private string $default_model;
 
 	/**
+	 * Usage tracker.
+	 *
+	 * @var UsageTrackerInterface
+	 */
+	private UsageTrackerInterface $usage_tracker;
+
+	/**
 	 * Create a new AIClientFactory.
 	 *
-	 * @param HttpClientInterface $http_client HTTP client.
-	 * @param SettingsManager     $settings Settings manager.
-	 * @param string              $default_model Default model.
-	 * @param DemoCredentials     $demo_credentials Demo credentials manager.
+	 * @param HttpClientInterface     $http_client HTTP client.
+	 * @param SettingsManager         $settings Settings manager.
+	 * @param string                  $default_model Default model.
+	 * @param DemoCredentials         $demo_credentials Demo credentials manager.
+	 * @param UsageTrackerInterface   $usage_tracker Usage tracker.
 	 */
 	public function __construct(
 		HttpClientInterface $http_client,
 		SettingsManager $settings,
 		string $default_model,
-		DemoCredentials $demo_credentials
+		DemoCredentials $demo_credentials,
+		UsageTrackerInterface $usage_tracker
 	) {
 		$this->http_client      = $http_client;
 		$this->settings         = $settings;
 		$this->default_model    = $default_model;
 		$this->demo_credentials = $demo_credentials;
+		$this->usage_tracker    = $usage_tracker;
 	}
 
 	/**
@@ -112,7 +123,15 @@ class AIClientFactory implements AIClientFactoryInterface {
 		// CRITICAL: This method enforces the rule that real keys are never used in demo mode.
 		$api_key = $this->demo_credentials->getEffectiveApiKey();
 
-		return new OpenAIClient( $this->http_client, $api_key, $model, $client_options );
+		return new OpenAIClient(
+			$this->http_client,
+			$api_key,
+			$model,
+			$client_options,
+			null,
+			null,
+			$this->usage_tracker
+		);
 	}
 
 	/**

@@ -8,8 +8,8 @@
 namespace AgentWP\AI;
 
 use AgentWP\AI\Functions\FunctionSchema;
-use AgentWP\Billing\UsageTracker;
 use AgentWP\Config\AgentWPConfig;
+use AgentWP\Contracts\UsageTrackerInterface;
 use AgentWP\Contracts\HttpClientInterface;
 use AgentWP\Contracts\OpenAIClientInterface;
 use AgentWP\Contracts\RetryPolicyInterface;
@@ -67,14 +67,16 @@ class OpenAIClient implements OpenAIClientInterface {
 	private RetryExecutor $retry_executor;
 	private string $base_url;
 	private string $intent_type;
+	private ?UsageTrackerInterface $usage_tracker;
 
 	/**
-	 * @param HttpClientInterface       $http_client HTTP client for making requests.
-	 * @param string                    $api_key OpenAI API key.
-	 * @param string                    $model Model name.
-	 * @param array                     $options Optional overrides.
-	 * @param RetryPolicyInterface|null $retry_policy Optional custom retry policy.
-	 * @param SleeperInterface|null     $sleeper Optional custom sleeper for testing.
+	 * @param HttpClientInterface        $http_client HTTP client for making requests.
+	 * @param string                     $api_key OpenAI API key.
+	 * @param string                     $model Model name.
+	 * @param array                      $options Optional overrides.
+	 * @param RetryPolicyInterface|null  $retry_policy Optional custom retry policy.
+	 * @param SleeperInterface|null      $sleeper Optional custom sleeper for testing.
+	 * @param UsageTrackerInterface|null $usage_tracker Optional usage tracker for DI.
 	 */
 	public function __construct(
 		HttpClientInterface $http_client,
@@ -82,7 +84,8 @@ class OpenAIClient implements OpenAIClientInterface {
 		$model = Model::GPT_4O_MINI,
 		array $options = array(),
 		?RetryPolicyInterface $retry_policy = null,
-		?SleeperInterface $sleeper = null
+		?SleeperInterface $sleeper = null,
+		?UsageTrackerInterface $usage_tracker = null
 	) {
 		$this->http_client   = $http_client;
 		$this->api_key       = is_string( $api_key ) ? $api_key : '';
@@ -109,6 +112,7 @@ class OpenAIClient implements OpenAIClientInterface {
 			? rtrim( $options['base_url'], '/' )
 			: rtrim( $config_base_url, '/' );
 		$this->intent_type   = isset( $options['intent_type'] ) ? sanitize_text_field( $options['intent_type'] ) : '';
+		$this->usage_tracker = $usage_tracker;
 
 		// Build retry executor with injected or default dependencies.
 		$max_retries = isset( $options['max_retries'] ) ? (int) $options['max_retries'] : null;
@@ -238,8 +242,8 @@ class OpenAIClient implements OpenAIClientInterface {
 			'stream'        => $this->stream,
 		);
 
-		if ( class_exists( 'AgentWP\\Billing\\UsageTracker' ) ) {
-			UsageTracker::log_usage(
+		if ( null !== $this->usage_tracker ) {
+			$this->usage_tracker->logUsage(
 				$meta['model'],
 				$meta['input_tokens'],
 				$meta['output_tokens'],
