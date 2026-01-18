@@ -18,6 +18,7 @@ class UsageTracker {
 	const VERSION_OPTION = 'agentwp_usage_version';
 	const RETENTION_DAYS = 90;
 	const TOKEN_SCALE    = 1000000;
+	const PURGE_HOOK     = 'agentwp_usage_purge';
 
 	/**
 	 * Register hooks.
@@ -26,6 +27,7 @@ class UsageTracker {
 	 */
 	public static function init() {
 		add_action( 'init', array( __CLASS__, 'ensure_table_action' ) );
+		add_action( self::PURGE_HOOK, array( __CLASS__, 'purge_old_rows' ) );
 	}
 
 	/**
@@ -45,6 +47,50 @@ class UsageTracker {
 	public static function activate() {
 		self::ensure_table();
 		update_option( self::VERSION_OPTION, self::VERSION, false );
+		self::schedule_purge();
+	}
+
+	/**
+	 * Deactivation handler.
+	 *
+	 * @return void
+	 */
+	public static function deactivate() {
+		self::unschedule_purge();
+	}
+
+	/**
+	 * Schedule daily usage purge.
+	 *
+	 * @return void
+	 */
+	public static function schedule_purge() {
+		if ( ! function_exists( 'wp_next_scheduled' ) ) {
+			return;
+		}
+
+		if ( wp_next_scheduled( self::PURGE_HOOK ) ) {
+			return;
+		}
+
+		wp_schedule_event( time() + 3600, 'daily', self::PURGE_HOOK );
+	}
+
+	/**
+	 * Unschedule usage purge.
+	 *
+	 * @return void
+	 */
+	public static function unschedule_purge() {
+		if ( ! function_exists( 'wp_next_scheduled' ) ) {
+			return;
+		}
+
+		$timestamp = wp_next_scheduled( self::PURGE_HOOK );
+		while ( $timestamp ) {
+			wp_unschedule_event( $timestamp, self::PURGE_HOOK );
+			$timestamp = wp_next_scheduled( self::PURGE_HOOK );
+		}
 	}
 
 	/**
@@ -76,8 +122,6 @@ class UsageTracker {
 		if ( '' === $timestamp ) {
 			$timestamp = gmdate( 'Y-m-d H:i:s' );
 		}
-
-		self::purge_old_rows();
 
 		$table  = self::get_table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Custom table write.
@@ -137,8 +181,6 @@ class UsageTracker {
 			if ( ! self::ensure_table() ) {
 				return $summary;
 			}
-
-			self::purge_old_rows();
 
 			$table = self::get_table_name();
 		// Limit results to prevent memory exhaustion from large datasets.
@@ -429,7 +471,7 @@ class UsageTracker {
 	 *
 	 * @return void
 	 */
-	private static function purge_old_rows() {
+	public static function purge_old_rows() {
 		global $wpdb;
 		if ( ! $wpdb ) {
 			return;

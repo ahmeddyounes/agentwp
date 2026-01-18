@@ -91,6 +91,10 @@ class Plugin {
 	public static function deactivate() {
 		self::delete_transients();
 
+		if ( class_exists( 'AgentWP\\Billing\\UsageTracker' ) ) {
+			Billing\UsageTracker::deactivate();
+		}
+
 		if ( class_exists( 'AgentWP\\Demo\\Manager' ) ) {
 			Demo\Manager::deactivate();
 		}

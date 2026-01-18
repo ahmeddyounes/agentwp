@@ -49,11 +49,12 @@ class SchemaManager {
 	public static function create_tables(): bool {
 		$success = true;
 
-		// Create usage tracking table.
+		// Create usage tracking table and schedule purge cron.
 		if ( class_exists( 'AgentWP\\Billing\\UsageTracker' ) ) {
 			if ( ! UsageTracker::ensure_table() ) {
 				$success = false;
 			}
+			UsageTracker::schedule_purge();
 		}
 
 		// Create search index table.
