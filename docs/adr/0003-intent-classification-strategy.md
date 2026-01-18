@@ -180,14 +180,14 @@ interface IntentClassifierInterface {
 
 #### `IntentClassifier` (Legacy)
 
+**Status:** Deprecated in version 2.0.0
 **Support period:** Maintained through version 2.x
-**Deprecation:** Version 2.0 (next major release)
-**Removal:** Version 3.0
+**Removal:** Version 3.0.0
 
-The legacy classifier remains available for explicit instantiation but is no longer the default:
+The legacy classifier remains available for explicit instantiation but is no longer the default. As of version 2.0.0, direct instantiation emits a deprecation warning via WordPress's `_doing_it_wrong()` function (or `E_USER_DEPRECATED` outside WordPress):
 
 ```php
-// Deprecated: Direct instantiation
+// Deprecated: Direct instantiation (emits warning since 2.0.0)
 $classifier = new IntentClassifier(); // Works but logs deprecation notice
 
 // Recommended: Resolve from container
@@ -196,8 +196,8 @@ $classifier = $container->get(IntentClassifierInterface::class);
 
 #### Migration Path
 
-1. **v1.x (Current):** Both implementations available; `ScorerRegistry` becomes container default
-2. **v2.0:** `IntentClassifier` emits `E_USER_DEPRECATED` when instantiated
+1. **v1.x:** Both implementations available; `ScorerRegistry` becomes container default
+2. **v2.0 (Current):** `IntentClassifier` emits deprecation warning when instantiated
 3. **v3.0:** `IntentClassifier` removed
 
 ## Testing Strategy
@@ -334,6 +334,9 @@ public function test_classify_never_throws_on_arbitrary_input(): void {
 - [x] Add `agentwp_intent_scorers` filter to service provider
 - [x] Add `agentwp_intent_classified` action to `ScorerRegistry::classify()`
 - [x] Add `@deprecated` annotation to `IntentClassifier` class
+- [x] Add `_doing_it_wrong()` deprecation warning on `IntentClassifier` construction
+- [x] Verify production code does not directly instantiate `IntentClassifier`
+- [x] Update docs/DEVELOPER.md migration guide with deprecation notice
 - [ ] Implement `WeightedScorerDecorator` for weight support (deferred, optional enhancement)
 - [x] Create unit tests for each scorer in `tests/Unit/Intent/Classifier/Scorers/`
 - [x] Create integration tests for filter-based extension

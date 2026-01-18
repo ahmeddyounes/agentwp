@@ -1026,19 +1026,21 @@ Draft payloads now include `preview` data and use the standardized `DraftPayload
 
 **Affected:** Custom intent classifiers or direct `IntentClassifier` usage.
 
+> **⚠️ Deprecation Notice:** `IntentClassifier` is deprecated as of version 2.0.0 and will be removed in version 3.0.0. Direct instantiation now emits a deprecation warning via `_doing_it_wrong()`.
+
 `ScorerRegistry` is now the canonical classifier. If you were using `IntentClassifier` directly:
 
 ```php
-// Before
+// Before (deprecated - emits warning in 2.0.0, removed in 3.0.0)
 $classifier = new IntentClassifier();
 $intent = $classifier->classify($input);
 
-// After
+// After (recommended)
 $classifier = $container->get(IntentClassifierInterface::class);
 $intent = $classifier->classify($input);
 ```
 
-Add custom scorers via the `agentwp_intent_scorers` filter.
+Add custom scorers via the `agentwp_intent_scorers` filter. See [ADR 0003](adr/0003-intent-classification-strategy.md) for full migration details.
 
 ### Configuration constants
 

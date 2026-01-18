@@ -266,7 +266,7 @@ Tasks:
 |-----|-------|----------------|----------------------|-------------|
 | 0001 | REST controller DI | Controllers resolve via container | Implemented | Expand controller boundary tests to include all controllers |
 | 0002 | Intent handler registration | `#[HandlesIntent]` + tags | Implemented | Plan deprecation/removal timeline for legacy filters (v2/v3) |
-| 0003 | Intent classification | `ScorerRegistry` is canonical | Implemented | Deprecate/remove legacy `src/Intent/IntentClassifier.php` in next major |
+| 0003 | Intent classification | `ScorerRegistry` is canonical | Implemented; `IntentClassifier` deprecated in 2.0.0 | Remove `IntentClassifier` in 3.0.0 |
 | 0004 | OpenAI client | Use infra abstractions; remove unused modules | Implemented (client uses HttpClient + RetryExecutor) | Keep tests covering streaming + retries |
 | 0005 | REST rate limiting | Injected limiter | Implemented, but atomicity not contract-based | Add `AtomicRateLimiterInterface` and prefer atomic check |
 | 0006 | Search index | Static design retained | Implemented | Keep adapter boundary; focus tests/docs |

@@ -3,15 +3,77 @@
  * Rule-based intent classifier.
  *
  * @package AgentWP
+ *
+ * @deprecated 2.0.0 Use AgentWP\Intent\Classifier\ScorerRegistry instead.
+ *             This class will be removed in version 3.0.0.
+ *             See docs/adr/0003-intent-classification-strategy.md for migration details.
  */
 
 namespace AgentWP\Intent;
 
 use AgentWP\Contracts\IntentClassifierInterface;
 
+/**
+ * Legacy rule-based intent classifier.
+ *
+ * @deprecated 2.0.0 Use ScorerRegistry as the canonical intent classification mechanism.
+ *             Direct instantiation of this class is deprecated. Instead, resolve
+ *             IntentClassifierInterface from the DI container which returns ScorerRegistry.
+ *
+ * Migration example:
+ * ```php
+ * // Deprecated: Direct instantiation
+ * $classifier = new IntentClassifier();
+ *
+ * // Recommended: Resolve from container
+ * $classifier = $container->get(IntentClassifierInterface::class);
+ * ```
+ *
+ * @see \AgentWP\Intent\Classifier\ScorerRegistry The recommended implementation.
+ * @see docs/adr/0003-intent-classification-strategy.md Full migration guide.
+ */
 class IntentClassifier implements IntentClassifierInterface {
 	/**
+	 * Whether the deprecation notice has been triggered.
+	 *
+	 * @var bool
+	 */
+	private static bool $deprecation_triggered = false;
+
+	/**
+	 * Constructor.
+	 *
+	 * Emits a deprecation notice when instantiated directly.
+	 */
+	public function __construct() {
+		if ( ! self::$deprecation_triggered ) {
+			self::$deprecation_triggered = true;
+
+			$message = sprintf(
+				'%s is deprecated since version 2.0.0. Use %s instead. ' .
+				'Resolve IntentClassifierInterface from the DI container for the canonical implementation. ' .
+				'This class will be removed in version 3.0.0. See docs/adr/0003-intent-classification-strategy.md.',
+				__CLASS__,
+				\AgentWP\Intent\Classifier\ScorerRegistry::class
+			);
+
+			if ( function_exists( '_doing_it_wrong' ) ) {
+				_doing_it_wrong(
+					__CLASS__,
+					esc_html( $message ),
+					'2.0.0'
+				);
+			} elseif ( function_exists( 'trigger_error' ) ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_trigger_error
+				trigger_error( esc_html( $message ), E_USER_DEPRECATED );
+			}
+		}
+	}
+
+	/**
 	 * {@inheritDoc}
+	 *
+	 * @deprecated 2.0.0 Use ScorerRegistry::classify() instead.
 	 */
 	public function classify( string $input, array $context = array() ): string {
 		if ( isset( $context['intent'] ) ) {
