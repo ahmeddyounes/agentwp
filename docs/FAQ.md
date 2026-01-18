@@ -31,7 +31,7 @@ Yes. Set a budget limit in Settings to cap spend.
 Open Settings and choose between `gpt-4o` and `gpt-4o-mini`.
 
 ## 11) Can I use AgentWP on multisite?
-Yes. Network-activate the plugin and enable it on sites with WooCommerce installed.
+Yes. Network-activate the plugin and enable it on sites with WooCommerce installed. Activation and upgrades run per site, so visit each site once (or run a network upgrade) to initialize tables and defaults. See `docs/MULTISITE.md` for lifecycle details.
 
 ## 12) The AgentWP menu is missing. Why?
 Only users with the `manage_woocommerce` capability can access the menu. Check your role permissions.
